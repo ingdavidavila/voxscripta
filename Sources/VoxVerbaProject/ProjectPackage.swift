@@ -1,0 +1,81 @@
+import Foundation
+import VoxVerbaCore
+
+/// The on-disk layout of a `.voxverba` project.
+///
+/// A package directory rather than a database file, so it is user-inspectable,
+/// Time Machine friendly, and recoverable by hand if the app ever fails.
+public struct ProjectPackage: Sendable {
+    public let root: URL
+
+    public init(root: URL) { self.root = root }
+
+    public static let fileExtension = "voxverba"
+
+    public var manifestURL: URL { root.appending(path: "manifest.json") }
+    public var jobStoreURL: URL { root.appending(path: "job.sqlite") }
+
+    /// The imported original. Never opened for writing, anywhere in the codebase.
+    public var originalDirectory: URL { root.appending(path: "Original") }
+
+    /// Derived audio and analysis. Safe to delete; regenerable from the original.
+    public var derivedDirectory: URL { root.appending(path: "Derived") }
+    public var canonicalAudioURL: URL {
+        derivedDirectory.appending(path: "canonical.\(CanonicalFormat.fileExtension)")
+    }
+    public var framesURL: URL { derivedDirectory.appending(path: "frames.bin") }
+    public var peaksURL: URL { derivedDirectory.appending(path: "peaks.bin") }
+    public var silenceMapURL: URL { derivedDirectory.appending(path: "silence_map.json") }
+
+    /// Per-chunk results, written atomically. Safe to delete after merge.
+    public var chunksDirectory: URL {
+        root.appending(path: "Transcription").appending(path: "chunks")
+    }
+    public func chunkResultURL(sequence: Int) -> URL {
+        chunksDirectory.appending(path: String(format: "%04d.json", sequence))
+    }
+
+    /// Final outputs. Never touched by automated cleanup.
+    public var outputDirectory: URL { root.appending(path: "Output") }
+    public var transcriptURL: URL { outputDirectory.appending(path: "transcript.json") }
+
+    /// Directories cleanup may remove once a job completes (§5).
+    ///
+    /// `Original`, `manifest.json` and `Output` are absent from this list on
+    /// purpose, and no other code path deletes them.
+    public var reclaimableDirectories: [URL] {
+        [derivedDirectory, root.appending(path: "Transcription")]
+    }
+}
+
+/// What a project records about itself, and the hashes resume validates against.
+public struct ProjectManifest: Sendable, Codable {
+    public let schemaVersion: Int
+    public let projectID: ProjectID
+    public let source: AudioSource
+    public var silenceParameters: SilenceParameters
+    public var chunkParameters: ChunkParameters
+    public var engineID: EngineID
+    public var createdAt: Date
+    public var modifiedAt: Date
+
+    public init(
+        schemaVersion: Int = VoxVerba.projectSchemaVersion,
+        projectID: ProjectID = ProjectID(),
+        source: AudioSource,
+        silenceParameters: SilenceParameters = .default,
+        chunkParameters: ChunkParameters = .default,
+        engineID: EngineID = .appleSpeech,
+        createdAt: Date = Date(),
+        modifiedAt: Date = Date()
+    ) {
+        self.schemaVersion = schemaVersion
+        self.projectID = projectID
+        self.source = source
+        self.silenceParameters = silenceParameters
+        self.chunkParameters = chunkParameters
+        self.engineID = engineID
+        self.createdAt = createdAt
+        self.modifiedAt = modifiedAt
+    }
+}

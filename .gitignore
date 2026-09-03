@@ -1,0 +1,25 @@
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# Xcode
+*.xcuserstate
+xcuserdata/
+DerivedData/
+build/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+
+# macOS
+.DS_Store
+
+# Generated test corpus — rebuilt by `corpus-gen`, never committed.
+# The generator is deterministic, so the corpus is reproducible from source.
+Tests/Fixtures/generated/
+
+# Benchmark output. Trend files under Docs/benchmarks/ ARE committed;
+# raw per-run reports are not.
+*.bench.json
+
+# Local model assets. Never committed — large, and license-encumbered.
+Models/

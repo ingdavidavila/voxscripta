@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build & test
+    # VoxVerba targets macOS 26 and depends on SpeechAnalyzer and the Foundation
+    # Models framework, so the runner image has to be macOS 26 or newer.
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.app
+
+      - name: Show toolchain
+        run: swift --version
+
+      # Warnings are errors in CI, which is what makes the Swift 6 strict
+      # concurrency guarantee mean something. A data race that the compiler can
+      # see must never reach main.
+      - name: Build (warnings as errors)
+        run: swift build -Xswiftc -warnings-as-errors
+
+      - name: Test
+        run: swift test
+
+      # The privacy claim in §26 is structural, so it gets checked mechanically
+      # rather than trusted. No source file may import a networking API.
+      - name: Assert no networking imports
+        run: |
+          if grep -rnE '^\s*import\s+(Network|CFNetwork)\b' Sources/; then
+            echo "::error::A networking framework was imported. VoxVerba ships without the network entitlement."
+            exit 1
+          fi
+          if grep -rnE '\b(URLSession|NWConnection|CFSocket)\b' Sources/; then
+            echo "::error::A networking API was referenced. VoxVerba ships without the network entitlement."
+            exit 1
+          fi
+          echo "No networking APIs referenced."

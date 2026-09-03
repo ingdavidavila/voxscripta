@@ -1,0 +1,15 @@
+# Binary audio fixtures are stored with Git LFS.
+# Run `git lfs install` once before adding any of these.
+*.wav  filter=lfs diff=lfs merge=lfs -text
+*.mp3  filter=lfs diff=lfs merge=lfs -text
+*.m4a  filter=lfs diff=lfs merge=lfs -text
+*.aac  filter=lfs diff=lfs merge=lfs -text
+*.flac filter=lfs diff=lfs merge=lfs -text
+*.caf  filter=lfs diff=lfs merge=lfs -text
+
+# Golden binary artifacts from the DSP tests.
+*.f32  filter=lfs diff=lfs merge=lfs -text
+*.bin  filter=lfs diff=lfs merge=lfs -text
+
+# Keep Swift diffs readable.
+*.swift text diff=swift
