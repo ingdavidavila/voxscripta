@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import VoxVerbaCore
+import VoxVerbaTestSupport
 @testable import VoxVerbaDSP
 
 /// The DSP stages are implemented as of Phase 1, so what matters here is that

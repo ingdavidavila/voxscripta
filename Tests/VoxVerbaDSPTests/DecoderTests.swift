@@ -5,17 +5,6 @@ import VoxVerbaCore
 import VoxVerbaTestSupport
 @testable import VoxVerbaDSP
 
-/// A scratch directory that cleans up after itself.
-struct TempDirectory: ~Copyable {
-    let url: URL
-    init() throws {
-        url = URL(filePath: NSTemporaryDirectory())
-            .appending(path: "voxverba-tests-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-    }
-    deinit { try? FileManager.default.removeItem(at: url) }
-}
-
 @Suite("Canonical decoder")
 struct DecoderTests {
 

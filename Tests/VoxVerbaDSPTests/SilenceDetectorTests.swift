@@ -13,11 +13,7 @@ struct DetectionRun {
     init(_ testCase: CorpusCase, parameters: SilenceParameters = .default) async throws {
         self.testCase = testCase
         let tmp = try TempDirectory()
-        let raw = tmp.url.appending(path: "canonical.f32")
-        let samples = testCase.render()
-        try samples.withUnsafeBufferPointer {
-            try Data(buffer: $0).write(to: raw)
-        }
+        let raw = try tmp.writeCanonical(testCase.render())
         features = try await FrameAnalyzer().analyze(canonicalFile: raw, geometry: .default) { _ in }
         map = try SilenceDetector().detect(
             features: features,

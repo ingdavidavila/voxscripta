@@ -48,7 +48,8 @@ let package = Package(
         // corpus-gen. Because generation is reproducible, the synthetic fixtures
         // are built at test time rather than committed as binaries.
         .target(name: "VoxVerbaTestSupport",
-                dependencies: ["VoxVerbaCore"], swiftSettings: strict),
+                dependencies: ["VoxVerbaCore", "VoxVerbaTranscription", "VoxVerbaBench"],
+                swiftSettings: strict),
 
         // ── Tools ───────────────────────────────────────────────────────────
         .executableTarget(
@@ -71,7 +72,9 @@ let package = Package(
                     dependencies: ["VoxVerbaDSP", "VoxVerbaTestSupport", "VoxVerbaBench"],
                     swiftSettings: strict),
         .testTarget(name: "VoxVerbaTranscriptionTests",
-                    dependencies: ["VoxVerbaTranscription"], swiftSettings: strict),
+                    dependencies: ["VoxVerbaTranscription", "VoxVerbaDSP",
+                                   "VoxVerbaTestSupport", "VoxVerbaBench"],
+                    swiftSettings: strict),
         .testTarget(name: "VoxVerbaLanguageTests", dependencies: ["VoxVerbaLanguage"], swiftSettings: strict),
         .testTarget(name: "VoxVerbaProjectTests", dependencies: ["VoxVerbaProject"], swiftSettings: strict),
         .testTarget(name: "VoxVerbaExportTests", dependencies: ["VoxVerbaExport"], swiftSettings: strict),

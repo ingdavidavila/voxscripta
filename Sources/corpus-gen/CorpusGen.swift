@@ -26,7 +26,8 @@ struct CorpusGen {
             corpus-gen — synthetic ground-truth audio for the VoxVerba test suite
 
             USAGE
-              corpus-gen <output-directory> [--cases <name,name,...>]
+              corpus-gen <output-directory>              signal corpus for the detector
+              corpus-gen <output-directory> --speech <minutes>   spoken corpus for WER
 
             Emits, for each case, an audio file plus a JSON sidecar holding the exact
             transcript and the exact silence boundaries used to build it.
@@ -34,8 +35,14 @@ struct CorpusGen {
             exit(EXIT_FAILURE)
         }
 
+        let opts = Array(args.dropFirst())
         do {
-            try await generate(into: URL(filePath: outPath))
+            if let index = opts.firstIndex(of: "--speech") {
+                let minutes = index + 1 < opts.count ? Double(opts[index + 1]) ?? 1 : 1
+                try await generateSpeech(into: URL(filePath: outPath), minutes: minutes)
+            } else {
+                try await generate(into: URL(filePath: outPath))
+            }
         } catch let error as VoxVerbaError {
             FileHandle.standardError.write(Data("error: \(error.localizedDescription)\n".utf8))
             exit(EXIT_FAILURE)
@@ -83,6 +90,47 @@ struct CorpusGen {
 
         print("Generation is deterministic: the same inputs produce byte-identical audio,")
         print("so these files are reproducible rather than committed.")
+    }
+
+    /// Renders real speech with a known transcript, for word error rate.
+    ///
+    /// Passages repeat with varied trailing pauses until the requested length is
+    /// reached, so the file also exercises the chunk planner's boundary search
+    /// rather than being one continuous block.
+    static func generateSpeech(into directory: URL, minutes: Double) async throws {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+
+        let targetSamples = Int(minutes * 60 * Double(CanonicalFormat.sampleRate))
+        var samples: [Float] = []
+        var spoken: [SpeechPassage] = []
+        var round = 0
+
+        print("Synthesizing ~\(minutes) minute(s) of speech…")
+        while samples.count < targetSamples {
+            for (index, base) in SpeechCorpus.standard.enumerated() {
+                // Vary the pause so boundaries are not perfectly periodic.
+                let pause = [0.6, 1.4, 2.2, 0.9, 3.1][(round + index) % 5]
+                let passage = SpeechPassage(name: base.name, text: base.text, trailingSilence: pause)
+                samples += try await SpeechCorpus.render([passage])
+                spoken.append(passage)
+                if samples.count >= targetSamples { break }
+            }
+            round += 1
+        }
+
+        let audio = directory.appending(path: "speech.wav")
+        try AudioFileWriter.write(samples: samples, to: audio, format: .wav,
+                                  sampleRate: CanonicalFormat.sampleRate)
+
+        let reference = SpeechCorpus.referenceText(for: spoken)
+        let referenceURL = directory.appending(path: "speech.reference.txt")
+        try reference.write(to: referenceURL, atomically: true, encoding: .utf8)
+
+        let seconds = Double(samples.count) / Double(CanonicalFormat.sampleRate)
+        print(String(format: "  %@  %.1fs  %d passages  %d reference words",
+                     audio.lastPathComponent, seconds, spoken.count,
+                     TextTokenizer.tokens(reference).count))
+        print("  \(referenceURL.lastPathComponent) holds the exact spoken text.")
     }
 
     /// The sidecar written next to each rendered case.

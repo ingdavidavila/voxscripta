@@ -310,10 +310,37 @@ Rules enforced in code:
 - **Pressure response.** A `DispatchSource` memory-pressure handler drops
   concurrency on warn and pauses scheduling on critical.
 
-**On concurrency.** Neural Engine inference is a serialized hardware resource;
-running four chunks concurrently typically produces contention rather than
-throughput while multiplying peak memory. Default is **1**; the setting exposes
-1–4; Phase 2's benchmark harness finds the real answer rather than guessing.
+**On concurrency — prediction corrected by measurement.**
+
+This document originally argued that concurrency 1 was right, on the reasoning
+that Neural Engine inference is a serialized hardware resource which extra
+in-flight work would only contend for. **That was wrong**, and the benchmark
+harness built in Phase 2 is what showed it.
+
+Measured on an M5, 8 minutes of speech, 45-second chunks:
+
+| Concurrency | Transcribe | Peak footprint | vs. best |
+|---:|---:|---:|---:|
+| 1 | 4.74 s | 11 MB | 138% slower |
+| 2 | 2.72 s | 12 MB | 37% slower |
+| **4** | **2.14 s** | **14 MB** | **7% slower** |
+| 8 | 1.99 s | 20 MB | best |
+| 12 | 2.07 s | 25 MB | regresses |
+
+The reason is the same property that made the Apple engine attractive for memory
+in the first place: it runs in a **system process**, which pipelines requests
+across clients. Model memory never enters this app, so concurrency costs almost
+nothing in footprint — 11 MB to 20 MB across the whole sweep.
+
+The default is **4**: it captures all but 7% of the available speedup at
+two-thirds the memory of 8, and 12 is already regressing.
+
+**A determinism caveat that matters for resume.** Engine output is byte-identical
+across runs *at a fixed concurrency*, but not identical *across* concurrency
+values — the shared service segments slightly differently under load. In an
+8-minute file the difference was a single tokenization ("river bank" versus
+"riverbank"). Concurrency is therefore recorded in `Provenance`, and Phase 3's
+resume must reuse the value a job started with.
 
 ---
 
@@ -340,9 +367,23 @@ then resume; the final transcript must be byte-identical to an uninterrupted run
 **Memory.** `task_vm_info.phys_footprint` sampled in-test with hard assertions
 against per-stage budgets.
 
-> This document contains no measured VoxVerba performance figures, because none
-> exist yet. The benchmark harness is built in Phase 2 so every future number
-> comes from a reproducible run.
+### Measured results (Phase 2, Apple M5, macOS 26.5)
+
+Every figure below comes from `voxverba-cli bench` and is reproducible with the
+commands in the README. Nothing here is estimated.
+
+| Metric | Value | Conditions |
+|---|---|---|
+| Throughput | **113× real time** | 8 min speech, concurrency 4, whole pipeline |
+| Word error rate | **4.4 – 5.6%** | synthesized speech, 273–1080 reference words |
+| Peak footprint | **14 MB** | 8 min file, concurrency 4 |
+| Chunked vs single-chunk agreement | **0.00% WER** | identical text either way |
+
+Two caveats stated plainly. The WER figure is against *synthesized* speech, which
+is clean and free of overlap, accents and background noise — it is a regression
+guard, not a claim about real recordings, and it is not comparable to a published
+LibriSpeech number. And the throughput figure comes from an 8-minute file; a
+six-hour recording has not yet been measured end to end.
 
 ---
 
@@ -365,9 +406,9 @@ against per-stage budgets.
 
 | Phase | Scope | Gate |
 |---|---|---|
-| **P0** | Skeleton — packages, boundaries, strict concurrency, CI, CLI stub | `swift test` green; zero warnings ✅ |
-| **P1** | Deterministic audio core + synthetic corpus | Boundary error within tolerance across all formats; planner property tests pass |
-| **P2** | Transcription + benchmark harness | One merged transcript from a multi-hour file; WER recorded; concurrency measured |
+| **P0** ✅ | Skeleton — packages, boundaries, strict concurrency, CI, CLI stub | `swift test` green; zero warnings |
+| **P1** ✅ | Deterministic audio core + synthetic corpus | Boundary error within tolerance across all formats; planner property tests pass |
+| **P2** ✅ | Transcription + benchmark harness | One merged transcript; WER recorded; concurrency measured |
 | **P3** | Persistence and recovery | `SIGKILL` at every state → resume → byte-identical transcript |
 | **P4** | CLEAN (deterministic) | Stable output; no meaning-affecting edits on review |
 | **P5** | Validation gauntlet | Every mutation-suite corruption class caught |

@@ -14,7 +14,7 @@ import VoxVerbaCore
 public struct WhisperKitEngine: TranscriptionEngine {
     public let identifier = EngineID.whisperKit
 
-    public var capabilities: EngineCapabilities {
+    public func capabilities() async -> EngineCapabilities {
         EngineCapabilities(
             supportsWordTimestamps: true,
             supportsDiarization: false,

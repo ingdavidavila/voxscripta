@@ -35,10 +35,26 @@ public struct TranscriptionOptions: Hashable, Sendable {
     public var translate: Bool
     /// How many chunks may be in flight at once.
     ///
-    /// Defaults to 1. Neural Engine inference is a serialized hardware resource,
-    /// so concurrency above 1 often produces contention rather than throughput
-    /// while multiplying peak memory. Phase 2's benchmark harness sets the real
-    /// default from measurement rather than assumption (§21).
+    /// Defaults to 4, set from measurement on an M5 rather than from reasoning.
+    /// The expectation going in was that 1 would win — Neural Engine inference
+    /// looked like a serialized resource that concurrency would only contend for.
+    /// The benchmark said otherwise: transcription of an 8-minute file took
+    /// 4.74 s at concurrency 1, 2.72 s at 2, and 2.14 s at 4, flattening to
+    /// 1.99 s at 8 and regressing at 12.
+    ///
+    /// The reason is the same property that makes the Apple engine attractive for
+    /// memory: it runs in a system process, which pipelines requests across
+    /// clients and keeps model memory out of this app entirely. Peak footprint
+    /// rose only from 11 MB to 14 MB across the same sweep.
+    ///
+    /// 4 is chosen over 8 because it captures all but 7% of the benefit at
+    /// two-thirds of the memory.
+    ///
+    /// - Note: Output is deterministic at a fixed concurrency, but *not*
+    ///   identical across different values — the shared service segments slightly
+    ///   differently under concurrent load. Resume therefore has to reuse the
+    ///   concurrency a job started with, which is why it is recorded in
+    ///   ``Provenance``.
     public var concurrency: Int
     public var maxAttemptsPerChunk: Int
 
@@ -46,7 +62,7 @@ public struct TranscriptionOptions: Hashable, Sendable {
         locale: String = "en-US",
         requestWordTimestamps: Bool = true,
         translate: Bool = false,
-        concurrency: Int = 1,
+        concurrency: Int = 4,
         maxAttemptsPerChunk: Int = 3
     ) {
         self.locale = locale
@@ -94,7 +110,13 @@ public struct ChunkTranscript: Sendable, Codable {
 ///   network entitlement so the sandbox enforces it (§26).
 public protocol TranscriptionEngine: Sendable {
     var identifier: EngineID { get }
-    var capabilities: EngineCapabilities { get }
+
+    /// What the engine can do.
+    ///
+    /// Async because discovery is a real query against the OS — the set of
+    /// locales an engine supports is not a compile-time fact, and pretending
+    /// otherwise would mean either blocking or lying about it.
+    func capabilities() async -> EngineCapabilities
 
     /// Loads models and downloads OS-managed assets if needed.
     func prepare(locale: String) async throws

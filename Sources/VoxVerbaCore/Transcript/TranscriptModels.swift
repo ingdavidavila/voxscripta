@@ -105,6 +105,11 @@ public struct Provenance: Hashable, Sendable, Codable {
     public let promptVersion: String?
     public let silenceParameterHash: String?
     public let chunkParameterHash: String?
+    /// Chunks in flight when this transcript was produced.
+    ///
+    /// Recorded because engine output is deterministic at a fixed concurrency but
+    /// not across values, so resuming at a different setting can shift a word.
+    public let concurrency: Int?
     public let generatedAt: Date
     public let appVersion: String
 
@@ -114,6 +119,7 @@ public struct Provenance: Hashable, Sendable, Codable {
         promptVersion: String? = nil,
         silenceParameterHash: String? = nil,
         chunkParameterHash: String? = nil,
+        concurrency: Int? = nil,
         generatedAt: Date = Date(),
         appVersion: String = VoxVerba.version
     ) {
@@ -122,6 +128,7 @@ public struct Provenance: Hashable, Sendable, Codable {
         self.promptVersion = promptVersion
         self.silenceParameterHash = silenceParameterHash
         self.chunkParameterHash = chunkParameterHash
+        self.concurrency = concurrency
         self.generatedAt = generatedAt
         self.appVersion = appVersion
     }

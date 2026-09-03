@@ -11,54 +11,76 @@ polished versions — without changing what the speaker actually said.
 
 ---
 
-## Status: Phase 1 — deterministic audio core
+## Status: Phase 2 — transcription and measurement
 
-The audio pipeline is implemented and measured against a synthetic corpus whose
-ground truth is exact by construction. No speech or language model is involved
-yet; that is Phase 2.
+The pipeline runs end to end: audio in, one merged transcript out, entirely
+on-device. The language passes (clean, polished) are Phase 4 onward.
 
 Implemented:
 
-- **`CanonicalDecoder`** — streaming decode of WAV, AIFF, CAF and M4A at any
-  sample rate, mono or stereo, into 16 kHz mono float PCM. Buffers are sized from
-  a constant, so peak memory does not scale with recording length.
-- **`FrameAnalyzer`** — RMS dBFS, zero-crossing rate and spectral flatness per
-  25 ms window at a 10 ms hop, via vDSP over a memory-mapped file.
-- **`NoiseFloorTracker`** — minimum-statistics estimator with asymmetric
-  smoothing and a flatness-gated cap (see below).
-- **`SilenceDetector`** — the full five-stage cascade.
-- **`ChunkPlanner`** — cost-minimising boundary search with hard-cut fallback.
-- **`corpus-gen`** — deterministic ground-truth corpus, nine cases.
-- **`voxverba-cli analyze`** — the whole chain, human-readable or JSON.
+- **`AppleSpeechEngine`** — `SpeechAnalyzer` / `SpeechTranscriber` on macOS 26,
+  fed directly from the memory-mapped canonical file with word-level timings.
+- **`ChunkScheduler`** — bounded concurrency, exponential-backoff retries, and a
+  commit callback that is the seam for Phase 3's durable writes. A permanently
+  failed chunk leaves a gap marker; the job continues.
+- **`TranscriptMerger`** — orders by sequence and de-duplicates hard-cut overlaps
+  by matching word text *and* timestamps, flagging any splice it cannot resolve.
+- **`SpokenNumbers` / `WordErrorRate`** — number-aware comparison, so a correct
+  transcript that writes "500" for "five hundred" scores zero errors.
+- **`corpus-gen --speech`** — synthesized speech with an exact reference text.
+- **`voxverba-cli transcribe | bench | wer`**
 
-119 tests across 26 suites.
+153 tests across 31 suites.
 
-### One design note worth recording
+### Measured on this machine (Apple M5, macOS 26.5)
 
-Minimum-statistics noise tracking has a failure mode that is easy to miss: it
-assumes silence exists somewhere in the window. A lecture with no pauses makes
-the estimator track *speech*, which pushes the thresholds above the speech and
-detects nothing at all.
+| Metric | Value |
+|---|---|
+| Throughput | **113× real time** (8 min file, concurrency 4) |
+| Word error rate | **4.4 – 5.6%** on synthesized speech |
+| Peak footprint | **14 MB** |
+| Chunked vs single-chunk | **0.00% WER** — chunking is invisible |
 
-The fix caps the local estimate a fixed distance below the file's loud level —
-but that cap must not apply to a recording of pure room tone, or it drags the
-floor down and reports hiss as speech. Level alone cannot tell those two cases
-apart, since both are homogeneous. **Spectral flatness can**: voiced speech is a
-harmonic stack and measures near zero, room tone is broadband and measures high.
-So the cap is gated on the flatness of the loudest frames.
+Reproduce it:
 
-Both cases are locked in by tests (`continuous_speech` and `room_tone_only`).
+```
+swift run corpus-gen /tmp/vv-bench --speech 8
+swift run voxverba-cli bench /tmp/vv-bench/speech.wav --chunk-max 45 --concurrency 1,2,4,8
+swift run voxverba-cli transcribe /tmp/vv-bench/speech.wav --out /tmp/hyp.txt
+swift run voxverba-cli wer /tmp/vv-bench/speech.reference.txt /tmp/hyp.txt
+```
+
+The WER figure is against synthesized speech — clean, no overlap, no background
+noise. It is a regression guard, not a claim about real recordings.
+
+### A prediction the benchmark overturned
+
+The architecture argued for a default concurrency of **1**, reasoning that Neural
+Engine inference is a serialized resource that extra in-flight work would only
+contend for. Measurement disagreed: transcription took 4.74 s at concurrency 1,
+2.72 s at 2, and 2.14 s at 4, flattening at 8 and regressing at 12.
+
+The cause is the property that made the Apple engine attractive for memory — it
+runs in a **system process**, which pipelines requests across clients. Peak
+footprint rose only 11 MB → 20 MB across the entire sweep. The default is now 4.
+
+One caveat worth knowing: output is byte-identical across runs at a fixed
+concurrency, but *not* across different values. Concurrency is recorded in
+`Provenance` so resume can reuse it.
+
+### Earlier phases
+
+Phase 1 built the deterministic audio core — streaming decode, vDSP frame
+analysis, the five-stage silence detector, and cost-minimising chunk planning,
+all validated against a synthetic corpus with exact ground truth. See
+[`Docs/ARCHITECTURE.md`](Docs/ARCHITECTURE.md) for the noise-floor design note.
 
 ## Trying it
 
 ```
 swift run corpus-gen /tmp/vv-corpus
-swift run voxverba-cli analyze /tmp/vv-corpus/long_pause.wav
 swift run voxverba-cli analyze /tmp/vv-corpus/continuous_speech.wav --chunk-max 60
 ```
-
-The second command shows the planner falling back to hard cuts with overlap when
-the audio offers no usable pause.
 
 ## Requirements
 

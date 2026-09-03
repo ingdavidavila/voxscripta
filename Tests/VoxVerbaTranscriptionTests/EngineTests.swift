@@ -7,11 +7,11 @@ import VoxVerbaCore
 struct EngineTests {
 
     @Test("Both shipped engines advertise word timestamps")
-    func wordTimestamps() {
+    func wordTimestamps() async {
         // The merger's overlap de-duplication and the polish validator both depend
         // on word-level timing, so an engine without it cannot be a default.
-        #expect(AppleSpeechEngine().capabilities.supportsWordTimestamps)
-        #expect(WhisperKitEngine().capabilities.supportsWordTimestamps)
+        #expect(await AppleSpeechEngine().capabilities().supportsWordTimestamps)
+        #expect(await WhisperKitEngine().capabilities().supportsWordTimestamps)
     }
 
     @Test("Engine identities are distinct")
@@ -22,17 +22,18 @@ struct EngineTests {
     }
 
     @Test("Diarization is deferred in both V1 engines")
-    func diarizationDeferred() {
+    func diarizationDeferred() async {
         // §30: architected for, not shipped. The V2 path is Parakeet via FluidAudio.
-        #expect(!AppleSpeechEngine().capabilities.supportsDiarization)
-        #expect(!WhisperKitEngine().capabilities.supportsDiarization)
+        #expect(!(await AppleSpeechEngine().capabilities().supportsDiarization))
+        #expect(!(await WhisperKitEngine().capabilities().supportsDiarization))
     }
 
-    @Test("Default concurrency is 1")
+    @Test("Default concurrency is 4, set from measurement")
     func concurrencyDefault() {
-        // Neural Engine inference is a serialized hardware resource; more in flight
-        // usually buys contention, not throughput. Phase 2 sets this from measurement.
-        #expect(TranscriptionOptions.default.concurrency == 1)
+        // Measured on an M5: 4.74 s at 1, 2.72 s at 2, 2.14 s at 4, 1.99 s at 8,
+        // regressing at 12. 4 captures all but 7% of the benefit at two-thirds
+        // the memory of 8. The prediction that 1 would win was wrong.
+        #expect(TranscriptionOptions.default.concurrency == 4)
     }
 
     @Test("Concurrency and attempts are floored at 1")
@@ -42,28 +43,35 @@ struct EngineTests {
         #expect(o.maxAttemptsPerChunk == 1)
     }
 
-    @Test("Engines announce their unimplemented state")
-    func placeholders() async {
-        for engine in [AppleSpeechEngine() as any TranscriptionEngine, WhisperKitEngine()] {
-            await #expect(throws: VoxVerbaError.self) {
-                try await engine.prepare(locale: "en-US")
-            }
-            await #expect(throws: VoxVerbaError.self) {
-                try await engine.transcribe(SampleRange(start: 0, count: 16_000),
-                                            in: URL(filePath: "/dev/null"),
-                                            options: .default)
-            }
+    @Test("The alternate engine is still a Phase 2.1 stub")
+    func whisperKitPending() async {
+        // The Apple engine is implemented; WhisperKit lands with the model
+        // download path. Until then it must fail loudly rather than return empty.
+        let engine = WhisperKitEngine()
+        await #expect(throws: VoxVerbaError.self) {
+            try await engine.prepare(locale: "en-US")
+        }
+        await #expect(throws: VoxVerbaError.self) {
+            try await engine.transcribe(SampleRange(start: 0, count: 16_000),
+                                        in: URL(filePath: "/dev/null"), options: .default)
         }
     }
 
-    @Test("Merger announces its unimplemented state")
-    func merger() {
-        let plan = ChunkPlan(chunks: [], parameters: .default, parameterHash: "x")
-        let map = SilenceMap(speechRegions: [], gaps: [], noiseFloorProfile: [],
-                             parameters: .default, parameterHash: "x", sourceDuration: .seconds(1))
-        #expect(throws: VoxVerbaError.self) {
-            try TranscriptMerger().merge(chunks: [], plan: plan, silenceMap: map,
-                                         provenance: Provenance())
+    @Test("The Apple engine rejects an unsupported locale before doing work")
+    func unsupportedLocale() async {
+        let engine = AppleSpeechEngine()
+        await #expect(throws: VoxVerbaError.localeUnsupported(.appleSpeech, locale: "xx-XX")) {
+            try await engine.prepare(locale: "xx-XX")
         }
     }
+
+    @Test("The Apple engine refuses to transcribe before preparation")
+    func unpreparedEngine() async {
+        let engine = AppleSpeechEngine()
+        await #expect(throws: VoxVerbaError.self) {
+            try await engine.transcribe(SampleRange(start: 0, count: 16_000),
+                                        in: URL(filePath: "/dev/null"), options: .default)
+        }
+    }
+
 }
