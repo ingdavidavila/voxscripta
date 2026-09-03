@@ -1,4 +1,5 @@
 import Foundation
+import Accelerate
 import VoxVerbaCore
 
 /// How the analyzer slices the signal.
@@ -90,15 +91,183 @@ public protocol FrameAnalyzing: Sendable {
     ) async throws -> FrameFeatures
 }
 
-/// Phase 1 implementation site.
+/// Computes per-frame features with vDSP over a memory-mapped buffer.
+///
+/// The file is mapped rather than read, so the kernel pages it in on demand and
+/// can evict it under pressure — a six-hour recording contributes essentially
+/// nothing to the process's dirty footprint.
 public struct FrameAnalyzer: FrameAnalyzing {
-    public init() {}
+    /// FFT length used for the spectral estimate. 512 bins at 16 kHz gives ~31 Hz
+    /// resolution, ample for distinguishing broadband noise from harmonic speech.
+    public let fftSize: Int
+
+    public init(fftSize: Int = 512) {
+        precondition(fftSize.nonzeroBitCount == 1, "fftSize must be a power of two")
+        self.fftSize = fftSize
+    }
 
     public func analyze(
         canonicalFile: URL,
         geometry: FrameGeometry,
         progress: @Sendable (Double) -> Void
     ) async throws -> FrameFeatures {
-        throw VoxVerbaError.notImplemented("FrameAnalyzer.analyze — Phase 1")
+        let data: Data
+        do {
+            data = try Data(contentsOf: canonicalFile, options: [.mappedIfSafe])
+        } catch {
+            throw VoxVerbaError.ioFailure(path: canonicalFile.path, reason: error.localizedDescription)
+        }
+
+        let sampleCount = Int64(data.count / MemoryLayout<Float>.size)
+        let frameCount = geometry.frameCount(forSamples: sampleCount)
+        guard frameCount > 0 else {
+            throw VoxVerbaError.analysisFailed(
+                stage: "frame analysis",
+                reason: "the recording is shorter than one \(geometry.windowSamples)-sample window"
+            )
+        }
+
+        var rms = [Float](repeating: 0, count: frameCount)
+        var zcr = [Float](repeating: 0, count: frameCount)
+        var flatness = [Float](repeating: 0, count: frameCount)
+
+        let window = hannWindow(count: geometry.windowSamples)
+        let fft = try RealFFT(size: fftSize)
+
+        try data.withUnsafeBytes { raw -> Void in
+            let samples = raw.bindMemory(to: Float.self)
+            var windowed = [Float](repeating: 0, count: geometry.windowSamples)
+            var padded = [Float](repeating: 0, count: fftSize)
+            var power = [Float](repeating: 0, count: fftSize / 2)
+
+            for frame in 0..<frameCount {
+                if frame % 4096 == 0 {
+                    try Task.checkCancellation()
+                    progress(Double(frame) / Double(frameCount))
+                }
+                let start = frame * geometry.hopSamples
+                let slice = UnsafeBufferPointer(rebasing: samples[start..<(start + geometry.windowSamples)])
+
+                rms[frame] = Self.dBFS(Self.rootMeanSquare(slice))
+                zcr[frame] = Self.zeroCrossingRate(slice)
+
+                vDSP_vmul(slice.baseAddress!, 1, window, 1, &windowed, 1, vDSP_Length(windowed.count))
+                let copyCount = Swift.min(windowed.count, fftSize)
+                padded.withUnsafeMutableBufferPointer { dst in
+                    dst.update(repeating: 0)
+                    windowed.withUnsafeBufferPointer { src in
+                        dst.baseAddress!.update(from: src.baseAddress!, count: copyCount)
+                    }
+                }
+                fft.powerSpectrum(of: padded, into: &power)
+                flatness[frame] = Self.spectralFlatness(power)
+            }
+        }
+
+        progress(1)
+        return FrameFeatures(rmsDB: rms, zeroCrossingRate: zcr,
+                             spectralFlatness: flatness, geometry: geometry)
+    }
+
+    // MARK: - Feature computation
+
+    /// Level floor. Frames quieter than this are reported at the floor rather than
+    /// at negative infinity, which keeps downstream arithmetic finite.
+    public static let minimumDB: Float = -120
+
+    static func rootMeanSquare(_ buffer: UnsafeBufferPointer<Float>) -> Float {
+        var result: Float = 0
+        vDSP_rmsqv(buffer.baseAddress!, 1, &result, vDSP_Length(buffer.count))
+        return result
+    }
+
+    static func dBFS(_ amplitude: Float) -> Float {
+        amplitude <= 0 ? minimumDB : Swift.max(20 * log10(amplitude), minimumDB)
+    }
+
+    /// Fraction of adjacent sample pairs that change sign.
+    ///
+    /// High ZCR with low energy is the signature of an unvoiced fricative — the
+    /// discriminator that keeps stage 3 from cutting sibilance.
+    static func zeroCrossingRate(_ buffer: UnsafeBufferPointer<Float>) -> Float {
+        guard buffer.count > 1 else { return 0 }
+        var crossings = 0
+        var previous = buffer[0]
+        for i in 1..<buffer.count {
+            let current = buffer[i]
+            if (current >= 0) != (previous >= 0) { crossings += 1 }
+            previous = current
+        }
+        return Float(crossings) / Float(buffer.count - 1)
+    }
+
+    /// Wiener entropy: geometric mean over arithmetic mean of the power spectrum.
+    ///
+    /// Near 1 for broadband noise and fricatives, near 0 for a harmonic stack.
+    /// This is what separates "quiet but spectrally speech-like" from "quiet".
+    static func spectralFlatness(_ power: [Float]) -> Float {
+        guard !power.isEmpty else { return 0 }
+        let epsilon: Float = 1e-12
+        var logSum: Float = 0
+        var linearSum: Float = 0
+        for value in power {
+            let v = value + epsilon
+            logSum += log(v)
+            linearSum += v
+        }
+        let geometricMean = exp(logSum / Float(power.count))
+        let arithmeticMean = linearSum / Float(power.count)
+        guard arithmeticMean > 0 else { return 0 }
+        return Swift.min(geometricMean / arithmeticMean, 1)
+    }
+
+    private func hannWindow(count: Int) -> [Float] {
+        var w = [Float](repeating: 0, count: count)
+        vDSP_hann_window(&w, vDSP_Length(count), Int32(vDSP_HANN_DENORM))
+        return w
+    }
+}
+
+/// A real-to-complex FFT with a reusable setup.
+///
+/// A class because it owns an Accelerate setup that must be destroyed exactly once.
+final class RealFFT {
+    private let setup: FFTSetup
+    private let size: Int
+    private let log2n: vDSP_Length
+
+    init(size: Int) throws {
+        precondition(size.nonzeroBitCount == 1, "FFT size must be a power of two")
+        self.size = size
+        self.log2n = vDSP_Length(log2(Double(size)))
+        guard let setup = vDSP_create_fftsetup(log2n, FFTRadix(kFFTRadix2)) else {
+            throw VoxVerbaError.analysisFailed(stage: "frame analysis",
+                                               reason: "could not create the FFT setup")
+        }
+        self.setup = setup
+    }
+
+    deinit { vDSP_destroy_fftsetup(setup) }
+
+    /// Computes the magnitude-squared spectrum of `input` into `output`.
+    func powerSpectrum(of input: [Float], into output: inout [Float]) {
+        precondition(input.count == size)
+        precondition(output.count == size / 2)
+
+        var real = [Float](repeating: 0, count: size / 2)
+        var imaginary = [Float](repeating: 0, count: size / 2)
+
+        real.withUnsafeMutableBufferPointer { realPtr in
+            imaginary.withUnsafeMutableBufferPointer { imagPtr in
+                var split = DSPSplitComplex(realp: realPtr.baseAddress!, imagp: imagPtr.baseAddress!)
+                input.withUnsafeBufferPointer { src in
+                    src.baseAddress!.withMemoryRebound(to: DSPComplex.self, capacity: size / 2) { complex in
+                        vDSP_ctoz(complex, 2, &split, 1, vDSP_Length(size / 2))
+                    }
+                }
+                vDSP_fft_zrip(setup, &split, 1, log2n, FFTDirection(FFT_FORWARD))
+                vDSP_zvmags(&split, 1, &output, 1, vDSP_Length(size / 2))
+            }
+        }
     }
 }

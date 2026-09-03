@@ -3,54 +3,65 @@ import Foundation
 import VoxVerbaCore
 @testable import VoxVerbaDSP
 
-/// Phase 0 ships API surfaces, not implementations.
-///
-/// These tests assert that every unimplemented entry point fails loudly and names
-/// the phase that fills it in — so nothing in the scaffold can be mistaken for
-/// working code, and so the tests turn red the moment an implementation lands
-/// without its own coverage.
-@Suite("DSP placeholders announce themselves")
-struct DSPPlaceholderTests {
+/// The DSP stages are implemented as of Phase 1, so what matters here is that
+/// malformed input produces a specific, actionable error rather than a crash or a
+/// silently empty result.
+@Suite("DSP error handling")
+struct DSPErrorTests {
 
-    @Test("Decoder")
-    func decoder() async {
-        let d = CanonicalDecoder()
-        await #expect(throws: VoxVerbaError.self) {
-            try await d.probe(url: URL(filePath: "/dev/null"))
+    @Test("A missing file is reported as unavailable")
+    func missingFile() async {
+        await #expect(throws: VoxVerbaError.sourceUnavailable(path: "/nope/a.wav")) {
+            try await CanonicalDecoder().probe(url: URL(filePath: "/nope/a.wav"))
         }
-        await #expect(throws: VoxVerbaError.self) {
-            try await d.decode(url: URL(filePath: "/dev/null"),
-                               to: URL(filePath: "/dev/null")) { _ in }
+        await #expect(throws: VoxVerbaError.sourceUnavailable(path: "/nope/a.wav")) {
+            _ = try await CanonicalDecoder().decode(url: URL(filePath: "/nope/a.wav"),
+                                                    to: URL(filePath: "/tmp/out.f32")) { _ in }
         }
     }
 
-    @Test("Analyzer and noise floor tracker")
-    func analysis() async {
+    @Test("A file that is not audio is reported as an unsupported format")
+    func notAudio() async throws {
+        let tmp = try TempDirectory()
+        let bogus = tmp.url.appending(path: "notaudio.wav")
+        try Data("this is not a wave file".utf8).write(to: bogus)
         await #expect(throws: VoxVerbaError.self) {
-            try await FrameAnalyzer().analyze(canonicalFile: URL(filePath: "/dev/null"),
-                                              geometry: .default) { _ in }
+            try await CanonicalDecoder().probe(url: bogus)
         }
-        let empty = FrameFeatures(rmsDB: [], zeroCrossingRate: [], spectralFlatness: [], geometry: .default)
+    }
+
+    @Test("Audio shorter than one analysis window is rejected with a reason")
+    func tooShortToAnalyze() async throws {
+        let tmp = try TempDirectory()
+        let raw = tmp.url.appending(path: "tiny.f32")
+        try [Float](repeating: 0, count: 100).withUnsafeBufferPointer {
+            try Data(buffer: $0).write(to: raw)
+        }
+        await #expect(throws: VoxVerbaError.self) {
+            _ = try await FrameAnalyzer().analyze(canonicalFile: raw, geometry: .default) { _ in }
+        }
+    }
+
+    @Test("An empty feature set is rejected by the noise floor tracker")
+    func emptyFeatures() {
+        let empty = FrameFeatures(rmsDB: [], zeroCrossingRate: [], spectralFlatness: [],
+                                  geometry: .default)
         #expect(throws: VoxVerbaError.self) {
             try NoiseFloorTracker.default.track(empty)
         }
-    }
-
-    @Test("Silence detector")
-    func silence() {
-        let empty = FrameFeatures(rmsDB: [], zeroCrossingRate: [], spectralFlatness: [], geometry: .default)
         #expect(throws: VoxVerbaError.self) {
             try SilenceDetector().detect(features: empty, parameters: .default,
                                          sourceDuration: .seconds(1), parameterHash: "x")
         }
     }
 
-    @Test("Chunk planner")
-    func planner() {
-        let map = SilenceMap(speechRegions: [], gaps: [], noiseFloorProfile: [],
-                             parameters: .default, parameterHash: "x", sourceDuration: .seconds(1))
+    @Test("Inverted chunk bounds are rejected rather than looping")
+    func invertedChunkBounds() throws {
+        let map = randomSilenceMap(seed: 3, regionCount: 5)
+        let bad = ChunkParameters(minDuration: .seconds(300), maxDuration: .seconds(60),
+                                  targetDuration: .seconds(120))
         #expect(throws: VoxVerbaError.self) {
-            try ChunkPlanner().plan(silenceMap: map, parameters: .default, parameterHash: "x")
+            try ChunkPlanner().plan(silenceMap: map, parameters: bad, parameterHash: "x")
         }
     }
 }

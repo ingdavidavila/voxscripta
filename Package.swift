@@ -21,6 +21,7 @@ let package = Package(
         .library(name: "VoxVerbaProject", targets: ["VoxVerbaProject"]),
         .library(name: "VoxVerbaExport", targets: ["VoxVerbaExport"]),
         .library(name: "VoxVerbaBench", targets: ["VoxVerbaBench"]),
+        .library(name: "VoxVerbaTestSupport", targets: ["VoxVerbaTestSupport"]),
         .executable(name: "voxverba-cli", targets: ["voxverba-cli"]),
         .executable(name: "corpus-gen", targets: ["corpus-gen"]),
     ],
@@ -42,6 +43,13 @@ let package = Package(
         .target(name: "VoxVerbaExport", dependencies: ["VoxVerbaCore"], swiftSettings: strict),
         .target(name: "VoxVerbaBench", dependencies: ["VoxVerbaCore"], swiftSettings: strict),
 
+        // ── Test support ────────────────────────────────────────────────────
+        // Deterministic corpus synthesis, shared by the test targets and by
+        // corpus-gen. Because generation is reproducible, the synthetic fixtures
+        // are built at test time rather than committed as binaries.
+        .target(name: "VoxVerbaTestSupport",
+                dependencies: ["VoxVerbaCore"], swiftSettings: strict),
+
         // ── Tools ───────────────────────────────────────────────────────────
         .executableTarget(
             name: "voxverba-cli",
@@ -53,13 +61,15 @@ let package = Package(
         ),
         .executableTarget(
             name: "corpus-gen",
-            dependencies: ["VoxVerbaCore", "VoxVerbaDSP"],
+            dependencies: ["VoxVerbaCore", "VoxVerbaDSP", "VoxVerbaTestSupport"],
             swiftSettings: strict
         ),
 
         // ── Tests ───────────────────────────────────────────────────────────
         .testTarget(name: "VoxVerbaCoreTests", dependencies: ["VoxVerbaCore"], swiftSettings: strict),
-        .testTarget(name: "VoxVerbaDSPTests", dependencies: ["VoxVerbaDSP"], swiftSettings: strict),
+        .testTarget(name: "VoxVerbaDSPTests",
+                    dependencies: ["VoxVerbaDSP", "VoxVerbaTestSupport", "VoxVerbaBench"],
+                    swiftSettings: strict),
         .testTarget(name: "VoxVerbaTranscriptionTests",
                     dependencies: ["VoxVerbaTranscription"], swiftSettings: strict),
         .testTarget(name: "VoxVerbaLanguageTests", dependencies: ["VoxVerbaLanguage"], swiftSettings: strict),

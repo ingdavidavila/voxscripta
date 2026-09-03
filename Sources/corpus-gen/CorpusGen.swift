@@ -1,6 +1,7 @@
 import Foundation
 import VoxVerbaCore
 import VoxVerbaDSP
+import VoxVerbaTestSupport
 
 /// Generates the synthetic test corpus.
 ///
@@ -45,7 +46,55 @@ struct CorpusGen {
     }
 
     static func generate(into directory: URL) async throws {
-        _ = FrameGeometry.default
-        throw VoxVerbaError.notImplemented("corpus-gen — Phase 1")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+
+        print("Writing \(StandardCorpus.all.count) cases to \(directory.path)\n")
+
+        for testCase in StandardCorpus.all {
+            let audio = try AudioFileWriter.write(testCase, to: directory, format: .wav)
+
+            // The sidecar is the point: ground truth recorded next to the audio,
+            // exact by construction rather than transcribed by a person.
+            let truth = GroundTruth(
+                name: testCase.name,
+                purpose: testCase.purpose,
+                durationSeconds: testCase.duration.seconds,
+                sampleRate: CanonicalFormat.sampleRate,
+                expectedSpeechRegions: testCase.expectedSpeechRegions.map {
+                    .init(start: $0.start.seconds, end: $0.end.seconds)
+                },
+                noiseFloorDB: testCase.noiseFloorDB,
+                noiseFloorEndDB: testCase.noiseFloorEndDB,
+                seed: testCase.seed
+            )
+            let sidecar = directory.appending(path: "\(testCase.name).json")
+            try encoder.encode(truth).write(to: sidecar)
+
+            let regions = testCase.expectedSpeechRegions.count
+            print(String(format: "  %-22@ %6.1fs  %d speech region%@",
+                         testCase.name as NSString, testCase.duration.seconds,
+                         regions, regions == 1 ? "" : "s"))
+            print("      \(testCase.purpose)")
+            print("      \(audio.lastPathComponent) + \(sidecar.lastPathComponent)\n")
+        }
+
+        print("Generation is deterministic: the same inputs produce byte-identical audio,")
+        print("so these files are reproducible rather than committed.")
+    }
+
+    /// The sidecar written next to each rendered case.
+    struct GroundTruth: Encodable {
+        struct Region: Encodable { let start: Double; let end: Double }
+        let name: String
+        let purpose: String
+        let durationSeconds: Double
+        let sampleRate: Int
+        let expectedSpeechRegions: [Region]
+        let noiseFloorDB: Double
+        let noiseFloorEndDB: Double?
+        let seed: UInt64
     }
 }

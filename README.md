@@ -11,23 +11,54 @@ polished versions — without changing what the speaker actually said.
 
 ---
 
-## Status: Phase 0 — scaffold
+## Status: Phase 1 — deterministic audio core
 
-This repository currently contains the module structure, the shared data model,
-and the API surface for every stage of the pipeline. Most implementations are
-deliberately absent and throw `VoxVerbaError.notImplemented`, naming the phase
-that fills them in — nothing here is a placeholder pretending to work.
+The audio pipeline is implemented and measured against a synthetic corpus whose
+ground truth is exact by construction. No speech or language model is involved
+yet; that is Phase 2.
 
-What is real and tested today:
+Implemented:
 
-- `MediaTime` / `TimeRange` / `SampleRange` — exact integer-nanosecond timing
-- `SilenceMap` — bidirectional original ↔ processed timeline mapping
-- `JobState` / `ChunkState` — the pipeline state machines and their legal transitions
-- `Transcript` / `TranscriptSegment` / `Word` — the structured transcript model
-- The project package layout, including the guarantee that cleanup cannot reach
-  the original audio
+- **`CanonicalDecoder`** — streaming decode of WAV, AIFF, CAF and M4A at any
+  sample rate, mono or stereo, into 16 kHz mono float PCM. Buffers are sized from
+  a constant, so peak memory does not scale with recording length.
+- **`FrameAnalyzer`** — RMS dBFS, zero-crossing rate and spectral flatness per
+  25 ms window at a 10 ms hop, via vDSP over a memory-mapped file.
+- **`NoiseFloorTracker`** — minimum-statistics estimator with asymmetric
+  smoothing and a flatness-gated cap (see below).
+- **`SilenceDetector`** — the full five-stage cascade.
+- **`ChunkPlanner`** — cost-minimising boundary search with hard-cut fallback.
+- **`corpus-gen`** — deterministic ground-truth corpus, nine cases.
+- **`voxverba-cli analyze`** — the whole chain, human-readable or JSON.
 
-84 tests across 22 suites.
+119 tests across 26 suites.
+
+### One design note worth recording
+
+Minimum-statistics noise tracking has a failure mode that is easy to miss: it
+assumes silence exists somewhere in the window. A lecture with no pauses makes
+the estimator track *speech*, which pushes the thresholds above the speech and
+detects nothing at all.
+
+The fix caps the local estimate a fixed distance below the file's loud level —
+but that cap must not apply to a recording of pure room tone, or it drags the
+floor down and reports hiss as speech. Level alone cannot tell those two cases
+apart, since both are homogeneous. **Spectral flatness can**: voiced speech is a
+harmonic stack and measures near zero, room tone is broadband and measures high.
+So the cap is gated on the flatness of the loudest frames.
+
+Both cases are locked in by tests (`continuous_speech` and `room_tone_only`).
+
+## Trying it
+
+```
+swift run corpus-gen /tmp/vv-corpus
+swift run voxverba-cli analyze /tmp/vv-corpus/long_pause.wav
+swift run voxverba-cli analyze /tmp/vv-corpus/continuous_speech.wav --chunk-max 60
+```
+
+The second command shows the planner falling back to hard cuts with overlap when
+the audio offers no usable pause.
 
 ## Requirements
 
