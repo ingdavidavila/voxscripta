@@ -11,63 +11,68 @@ polished versions — without changing what the speaker actually said.
 
 ---
 
-## Status: Phase 3 — persistence and recovery
+## Status: Phase 4 — CLEAN, with no model
 
-A job now survives being killed. Every stage commits its output atomically and
-records a hash of its inputs, so an interrupted run resumes at the boundary it
-reached rather than starting over.
+Verbatim and Clean are both complete, and no language model is involved in
+either. The LLM is confined to POLISHED, which is Phase 6.
 
 Implemented:
 
-- **`AtomicFile`** — write to a temporary file, `F_FULLFSYNC`, rename, then fsync
-  the directory. A reader never sees a half-written artifact.
-- **`JobStore`** — SQLite in WAL mode with `synchronous = FULL`. Raw `SQLite3`
-  rather than an ORM, so the project stays dependency-free and builds offline.
-- **`ProjectStore`** — package creation and opening, with the import policy
-  settled as a **setting**: reference the user's file by default, or copy it in.
-- **`ResumePlanner`** — content-addressed invalidation. Changing a silence
-  threshold invalidates the silence map and everything after it, and leaves the
-  expensive canonical decode alone.
-- **`JobRunner`** — the state machine, persisting after each stage.
-- **`voxverba-cli run --project <dir>`** — creates or resumes.
+- **`CleanProcessor`** — filler removal, stutter collapse, punctuation repair,
+  capitalization, and sentence termination, all deterministic.
+- **`DisfluencyLexicon`** — a deliberately narrow closed set, with explicit
+  protection for affirmations and legitimately doubled words.
+- **`CleanEdit`** — an audit log of every change, written to
+  `Output/clean_edits.json`.
 
-178 tests across 34 suites.
+206 tests across 38 suites.
 
-### The gate
+### Why CLEAN is safe, and how that is checked
 
-Killed with `SIGKILL` at every stage, then resumed, the transcript is
-byte-identical to an uninterrupted run:
+Two mechanisms, because "it carries no hallucination risk" is worthless as an
+assertion:
+
+**A structural invariant.** Every token in the CLEAN output must appear in the
+verbatim transcript *in the same order* — output words are a subsequence of input
+words. A pass satisfying this cannot have invented, substituted or reordered
+anything. It is property-tested over adversarial cases and over real engine
+output.
+
+**An audit log.** The number of logged deletions must exactly equal the drop in
+word count, so nothing can be removed silently.
+
+The lexicon covers non-lexical vocalizations only. "basically", "probably", "you
+know" and "I mean" are real words that shade meaning, and §12's own example keeps
+them. "uh-huh" and "mm-hmm" are protected — deleting one can invert an answer.
+"had had" and "that that" are never collapsed.
+
+### What reviewing real output caught
+
+The gate requires inspecting actual recordings, and that was not ceremonial. Run
+against genuinely spoken disfluencies, the first implementation produced:
 
 ```
-swift run voxverba-cli run speech.wav --project /tmp/p --crash-at chunking
-swift run voxverba-cli run --project /tmp/p --out transcript.txt
+we should, um, start   ->   we should, start      (stranded delimiter)
+I, I wanted            ->   I, wanted             (kept the stumble)
 ```
 
-Crash points cover decode, analyze, silence, chunking, mid-transcription and
-merge. Also verified: a completed project is not recomputed, a silence-parameter
-change reuses the decode, a changed source forces a full rebuild, and a cancelled
-job resumes without redoing finished chunks.
+Both read as comma splices. Neither appeared in unit tests built from clean
+hand-written transcripts — they only showed up against real engine output, where
+punctuation arrives attached to tokens. Now:
 
-### What is reproducible, precisely
+```
+Ah, so I think we should, um, start on Monday if that works.
+So I think we should start on Monday if that works.
+```
 
-| Scope | Reproducible? |
-|---|---|
-| Decode, analysis, silence, chunk planning | **Yes** — always byte-identical |
-| Transcription at concurrency 1 | **Yes** |
-| Transcription at concurrency > 1 | **No** |
-| Paragraph structure | **Yes** — from the silence map, not the engine |
+Try it:
 
-The third row is not about the concurrency *setting*: two clean runs at
-concurrency 4 with identical settings differ, because request interleaving inside
-the shared speech service is not reproducible. On an eight-minute file the
-difference was one tokenization, "river bank" versus "riverbank".
+```
+swift run corpus-gen /tmp/vv-dis --speech 1 --disfluent
+swift run voxverba-cli run /tmp/vv-dis/speech.wav --project /tmp/p --variant clean
+```
 
-That found a real bug. Paragraph breaks were computed from gaps between
-consecutive engine segments, so document structure inherited that
-nondeterminism — a resumed job could produce the same words in different
-paragraphs. Breaks now come from the `SilenceMap`, which is deterministic DSP
-output. Concurrency is also part of the transcription stage's input hash, so
-resuming at a different setting re-transcribes rather than mixing results.
+`Output/clean_edits.json` lists every change the pass made.
 
 ### Earlier phases
 

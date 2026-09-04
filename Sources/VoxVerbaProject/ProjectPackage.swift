@@ -39,6 +39,13 @@ public struct ProjectPackage: Sendable {
     /// Final outputs. Never touched by automated cleanup.
     public var outputDirectory: URL { root.appending(path: "Output") }
     public var transcriptURL: URL { outputDirectory.appending(path: "transcript.json") }
+    public var cleanTranscriptURL: URL { outputDirectory.appending(path: "clean.json") }
+    /// Where a rendered variant is written as plain text.
+    public func textURL(for variant: TranscriptVariant) -> URL {
+        outputDirectory.appending(path: "\(variant.rawValue).txt")
+    }
+    /// The audit trail for the CLEAN pass.
+    public var cleanEditsURL: URL { outputDirectory.appending(path: "clean_edits.json") }
 
     /// Directories cleanup may remove once a job completes (§5).
     ///

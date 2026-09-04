@@ -27,7 +27,7 @@ struct CorpusGen {
 
             USAGE
               corpus-gen <output-directory>              signal corpus for the detector
-              corpus-gen <output-directory> --speech <minutes>   spoken corpus for WER
+              corpus-gen <output-directory> --speech <minutes> [--disfluent]
 
             Emits, for each case, an audio file plus a JSON sidecar holding the exact
             transcript and the exact silence boundaries used to build it.
@@ -39,7 +39,8 @@ struct CorpusGen {
         do {
             if let index = opts.firstIndex(of: "--speech") {
                 let minutes = index + 1 < opts.count ? Double(opts[index + 1]) ?? 1 : 1
-                try await generateSpeech(into: URL(filePath: outPath), minutes: minutes)
+                try await generateSpeech(into: URL(filePath: outPath), minutes: minutes,
+                                         disfluent: opts.contains("--disfluent"))
             } else {
                 try await generate(into: URL(filePath: outPath))
             }
@@ -97,7 +98,7 @@ struct CorpusGen {
     /// Passages repeat with varied trailing pauses until the requested length is
     /// reached, so the file also exercises the chunk planner's boundary search
     /// rather than being one continuous block.
-    static func generateSpeech(into directory: URL, minutes: Double) async throws {
+    static func generateSpeech(into directory: URL, minutes: Double, disfluent: Bool = false) async throws {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 
         let targetSamples = Int(minutes * 60 * Double(CanonicalFormat.sampleRate))
@@ -107,7 +108,8 @@ struct CorpusGen {
 
         print("Synthesizing ~\(minutes) minute(s) of speech…")
         while samples.count < targetSamples {
-            for (index, base) in SpeechCorpus.standard.enumerated() {
+            let passages = disfluent ? SpeechCorpus.disfluent : SpeechCorpus.standard
+            for (index, base) in passages.enumerated() {
                 // Vary the pause so boundaries are not perfectly periodic.
                 let pause = [0.6, 1.4, 2.2, 0.9, 3.1][(round + index) % 5]
                 let passage = SpeechPassage(name: base.name, text: base.text, trailingSilence: pause)

@@ -5,6 +5,7 @@ import VoxVerbaTranscription
 import VoxVerbaLanguage
 import VoxVerbaProject
 import VoxVerbaPipeline
+import VoxVerbaLanguage
 import VoxVerbaExport
 import VoxVerbaBench
 
@@ -400,10 +401,13 @@ struct CLI {
                 afterChunks: opts.value("crash-after-chunks").flatMap(Int.init))
         }
 
-        let transcript = try await JobRunner().run(project: project, options: options) { report in
+        _ = try await JobRunner().run(project: project, options: options) { report in
             if !quiet { progressBar(report.detail, report.fraction) }
         }
         if !quiet { endProgress() }
+
+        let variant = TranscriptVariant(rawValue: opts.value("variant") ?? "clean") ?? .clean
+        let transcript = try JobRunner.transcript(variant, from: project.package)
 
         if let out = opts.value("out") {
             try transcript.plainText().write(to: URL(filePath: out), atomically: true, encoding: .utf8)
@@ -607,6 +611,7 @@ struct CLI {
           --concurrency <n>      Chunks in flight; bench accepts a list, e.g. 1,2,4
           --out <path>           Write the transcript to a file
           --project <dir>        Project package for run; resumes if it exists
+          --variant <name>       verbatim | clean   (default clean)
           --copy                 Copy the audio into the project instead of referencing it
           --engine <id>          apple (default) | whisperkit
           --locale <bcp47>       Transcription locale, default en-US

@@ -80,15 +80,6 @@ struct PolishConfigTests {
 @Suite("Language placeholders announce themselves")
 struct LanguagePlaceholderTests {
 
-    @Test("Clean processor")
-    func clean() {
-        let t = Transcript(variant: .verbatim, segments: [], provenance: Provenance())
-        #expect(throws: VoxVerbaError.self) {
-            try CleanProcessor().process(verbatim: t, parameters: .default,
-                                         silenceParameters: .default)
-        }
-    }
-
     @Test("Validator")
     func validator() {
         #expect(throws: VoxVerbaError.self) {

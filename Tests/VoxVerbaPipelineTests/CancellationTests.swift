@@ -67,15 +67,14 @@ struct CancellationTests {
         var options = JobOptions()
         options.transcription.concurrency = 1
 
-        let started = Signal()
+        let watcher = ChunkWatcher()
         let task = Task {
             try await runner.run(project: project, options: options) { report in
-                if report.state == .transcribing { Task { await started.fire() } }
+                Task { await watcher.observe(report) }
             }
         }
-        // Let a few chunks land, then cancel mid-flight.
-        try await started.wait(timeout: .seconds(20))
-        try await Task.sleep(for: .milliseconds(200))
+        // Cancel once real work has completed but plenty remains.
+        try await watcher.waitFor(2, timeout: .seconds(60))
         task.cancel()
         _ = try? await task.value
 
@@ -101,14 +100,13 @@ struct CancellationTests {
         var options = JobOptions()
         options.transcription.concurrency = 1
 
-        let started = Signal()
+        let watcher = ChunkWatcher()
         let task = Task {
             try await runner.run(project: project, options: options) { report in
-                if report.state == .transcribing { Task { await started.fire() } }
+                Task { await watcher.observe(report) }
             }
         }
-        try await started.wait(timeout: .seconds(20))
-        try await Task.sleep(for: .milliseconds(200))
+        try await watcher.waitFor(2, timeout: .seconds(60))
         task.cancel()
         _ = try? await task.value
 
@@ -180,22 +178,29 @@ extension CancellationTests {
     }
 }
 
-/// A one-shot async signal.
-actor Signal {
-    private var fired = false
-    private var waiters: [CheckedContinuation<Void, Never>] = []
+/// Tracks how many chunks the runner has reported complete.
+///
+/// Cancelling after a fixed sleep is flaky: it assumes a chunk rate. Waiting for
+/// an observed count makes the test assert what it means — "cancel once some work
+/// is done, with some still outstanding".
+actor ChunkWatcher {
+    private var completed = 0
 
-    func fire() {
-        guard !fired else { return }
-        fired = true
-        for waiter in waiters { waiter.resume() }
-        waiters.removeAll()
+    func observe(_ report: JobProgressReport) {
+        guard report.state == .transcribing,
+              let range = report.detail.range(of: "chunk "),
+              let value = Int(report.detail[range.upperBound...]
+                  .prefix { $0.isNumber })
+        else { return }
+        completed = Swift.max(completed, value)
     }
 
-    func wait(timeout: Duration) async throws {
-        if fired { return }
+    var count: Int { completed }
+
+    /// Waits until at least `target` chunks are done, or the deadline passes.
+    func waitFor(_ target: Int, timeout: Duration) async throws {
         let deadline = ContinuousClock.now + timeout
-        while !fired && ContinuousClock.now < deadline {
+        while completed < target && ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(20))
         }
     }

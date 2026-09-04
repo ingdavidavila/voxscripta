@@ -49,7 +49,7 @@ let package = Package(
         // that knows the pipeline's shape; everything below it is independent.
         .target(name: "VoxVerbaPipeline",
                 dependencies: ["VoxVerbaCore", "VoxVerbaDSP", "VoxVerbaTranscription",
-                               "VoxVerbaProject", "VoxVerbaBench"],
+                               "VoxVerbaLanguage", "VoxVerbaProject", "VoxVerbaBench"],
                 swiftSettings: strict),
 
         // ── Test support ────────────────────────────────────────────────────

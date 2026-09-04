@@ -46,6 +46,26 @@ public enum SpeechCorpus {
             text: "The quick brown fox jumps over the lazy dog near the river bank at sunrise."),
     ]
 
+    /// Passages containing real disfluencies, for exercising the CLEAN pass.
+    ///
+    /// The fillers are spoken, not inserted afterwards, so the engine has to
+    /// transcribe them and CLEAN has to remove them from genuine output — which
+    /// is a materially different test from feeding it a hand-built transcript.
+    public static let disfluent: [SpeechPassage] = [
+        SpeechPassage(
+            name: "fillers",
+            text: "Uh, so I think we should, um, start on Monday if that works."),
+        SpeechPassage(
+            name: "stutter",
+            text: "I, I wanted to ask about the, the budget for next quarter."),
+        SpeechPassage(
+            name: "mixed",
+            text: "Um, we did not approve it, uh, because the numbers were wrong."),
+        SpeechPassage(
+            name: "affirmation",
+            text: "Uh-huh, that is right, and we sold five hundred units."),
+    ]
+
     /// The reference transcript for a set of passages, joined as spoken.
     public static func referenceText(for passages: [SpeechPassage]) -> String {
         passages.map(\.text).joined(separator: " ")

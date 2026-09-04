@@ -147,6 +147,14 @@ public struct ResumePlanner: Sendable {
             return .resumeMerge
         }
 
+        // 5. The verbatim transcript exists, but the deterministic CLEAN pass may
+        //    not have run — a crash between the two leaves exactly that state.
+        let cleanHash = try await project.store.stageHash(.clean)
+        if cleanHash != inputs.hash(for: .clean)
+            || !FileManager.default.fileExists(atPath: project.package.cleanTranscriptURL.path) {
+            return .restart(from: .clean)
+        }
+
         return .alreadyComplete
     }
 
@@ -162,7 +170,8 @@ public struct ResumePlanner: Sendable {
         case .silence: return fm.fileExists(atPath: package.silenceMapURL.path)
         case .chunking: return fm.fileExists(atPath: package.chunkPlanURL.path)
         case .transcription, .merge: return fm.fileExists(atPath: package.transcriptURL.path)
-        case .clean, .polish: return true
+        case .clean: return fm.fileExists(atPath: package.cleanTranscriptURL.path)
+        case .polish: return true
         }
     }
 }

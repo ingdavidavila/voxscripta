@@ -2,6 +2,7 @@ import Foundation
 import VoxVerbaCore
 import VoxVerbaDSP
 import VoxVerbaTranscription
+import VoxVerbaLanguage
 import VoxVerbaProject
 
 /// A point at which the runner will deliberately kill the process.
@@ -28,16 +29,19 @@ public struct CrashPoint: Sendable, Equatable {
 public struct JobOptions: Sendable {
     public var transcription: TranscriptionOptions
     public var geometry: FrameGeometry
+    public var clean: CleanParameters
     /// Test-only fault injection.
     public var crashPoint: CrashPoint?
 
     public init(
         transcription: TranscriptionOptions = .default,
         geometry: FrameGeometry = .default,
+        clean: CleanParameters = .default,
         crashPoint: CrashPoint? = nil
     ) {
         self.transcription = transcription
         self.geometry = geometry
+        self.clean = clean
         self.crashPoint = crashPoint
     }
 }
@@ -106,6 +110,18 @@ public struct JobRunner: Sendable {
 
         // Anything from the resume point onward is stale by definition.
         try await project.store.clearStageHashes(from: startStage)
+
+        // Only the CLEAN pass is missing — a crash between writing the verbatim
+        // transcript and cleaning it leaves exactly this state. Everything
+        // upstream is valid, so redo just the last, cheap, deterministic stage.
+        if startStage == .clean {
+            let verbatim = try AtomicFile.readJSON(Transcript.self, from: package.transcriptURL)
+            try await runCleanStage(project: project, verbatim: verbatim,
+                                    options: options, progress: progress)
+            try await project.store.setState(.complete)
+            progress(JobProgressReport(state: .complete, fraction: 1, detail: "Complete"))
+            return verbatim
+        }
 
         // ── Decode ──────────────────────────────────────────────────────────
         if startStage <= .decode {
@@ -243,13 +259,71 @@ public struct JobRunner: Sendable {
 
         try AtomicFile.writeJSON(transcript, to: package.transcriptURL)
         try AtomicFile.write(Data(transcript.plainText().utf8),
-                             to: package.outputDirectory.appending(path: "verbatim.txt"))
+                             to: package.textURL(for: .verbatim))
         try await project.store.setStageHash(.merge, to: inputs.hash(for: .merge))
         try crashIfRequested(options, .merge, .after)
+
+        try await runCleanStage(project: project, verbatim: transcript,
+                                options: options, progress: progress)
+        try crashIfRequested(options, .clean, .after)
 
         try await project.store.setState(.complete)
         progress(JobProgressReport(state: .complete, fraction: 1, detail: "Complete"))
         return transcript
+    }
+
+    /// The CLEAN pass: deterministic rules only, no model.
+    ///
+    /// Separate because it is also the whole of a clean-only resume, and because
+    /// keeping it in one place makes it obvious that nothing here consults a
+    /// language model.
+    private func runCleanStage(
+        project: Project,
+        verbatim: Transcript,
+        options: JobOptions,
+        progress: @Sendable (JobProgressReport) -> Void
+    ) async throws {
+        let package = project.package
+        try await advance(project, .cleaning, progress, 0.92, "Cleaning transcript")
+
+        let cleaned = try CleanProcessor().process(
+            verbatim: verbatim, parameters: options.clean,
+            silenceParameters: project.manifest.silenceParameters)
+
+        try AtomicFile.writeJSON(cleaned.transcript, to: package.cleanTranscriptURL)
+        try AtomicFile.write(Data(cleaned.transcript.plainText().utf8),
+                             to: package.textURL(for: .clean))
+        // The edit log ships alongside, so the pass is auditable rather than
+        // merely claimed to be safe.
+        try AtomicFile.writeJSON(cleaned.edits, to: package.cleanEditsURL)
+
+        let inputs = try await stageInputs(for: project, options: options)
+        try await project.store.setStageHash(.clean, to: inputs.hash(for: .clean))
+    }
+
+    /// Rebuilds the stage input set from a project's manifest and options.
+    private func stageInputs(for project: Project, options: JobOptions) async throws -> StageInputs {
+        StageInputs(
+            sourceContentHash: project.manifest.source.contentHash,
+            frameGeometryDescription: "\(options.geometry.windowDuration.nanoseconds)"
+                + ",\(options.geometry.hopDuration.nanoseconds),\(options.geometry.sampleRate)",
+            silenceParameters: project.manifest.silenceParameters,
+            chunkParameters: project.manifest.chunkParameters,
+            engineID: project.manifest.engineID,
+            locale: options.transcription.locale,
+            concurrency: options.transcription.concurrency)
+    }
+
+    /// Reads a produced variant back from a completed project.
+    public static func transcript(
+        _ variant: TranscriptVariant, from package: ProjectPackage
+    ) throws -> Transcript {
+        switch variant {
+        case .verbatim: try AtomicFile.readJSON(Transcript.self, from: package.transcriptURL)
+        case .clean: try AtomicFile.readJSON(Transcript.self, from: package.cleanTranscriptURL)
+        case .polished:
+            throw VoxVerbaError.notImplemented("the polished variant — Phase 6")
+        }
     }
 
     // MARK: - Helpers
