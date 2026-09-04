@@ -4,6 +4,7 @@ import VoxVerbaDSP
 import VoxVerbaTranscription
 import VoxVerbaLanguage
 import VoxVerbaProject
+import VoxVerbaPipeline
 import VoxVerbaExport
 import VoxVerbaBench
 
@@ -33,6 +34,7 @@ struct CLI {
             case "transcribe": try await runTranscribe(args)
             case "bench":     try await runBench(args)
             case "wer":       try runWER(args)
+            case "run":       try await runProject(args)
             case "version", "--version", "-v":
                 print("voxverba \(VoxVerba.version)")
             case "help", "--help", "-h":
@@ -347,6 +349,76 @@ struct CLI {
         }
     }
 
+    /// Creates or resumes a project, running the pipeline to a transcript.
+    ///
+    /// Unlike `transcribe`, this persists every stage, so an interrupted run
+    /// picks up where it stopped instead of starting over.
+    static func runProject(_ args: [String]) async throws {
+        let opts = Options(args)
+        guard let projectPath = opts.value("project") else {
+            throw VoxVerbaError.ioFailure(
+                path: "<args>", reason: "--project <directory> is required")
+        }
+        let projectURL = URL(filePath: projectPath)
+        let store = ProjectStore()
+        let quiet = opts.flag("quiet") || opts.flag("json")
+
+        let project: Project
+        if FileManager.default.fileExists(atPath: projectURL.appending(path: "manifest.json").path) {
+            project = try await store.open(at: projectURL)
+            if !quiet { log("Resuming \(projectURL.lastPathComponent)") }
+        } else {
+            guard let audioPath = opts.positional.first else {
+                throw VoxVerbaError.ioFailure(
+                    path: "<args>", reason: "an audio file is required to create a project")
+            }
+            var silence = SilenceParameters.default
+            if let v = opts.value("silence-threshold").flatMap(Float.init) { silence.marginDB = v }
+            var chunking = ChunkParameters.default
+            if let v = opts.value("chunk-max").flatMap(Double.init) {
+                chunking.maxDuration = .seconds(v)
+                chunking.targetDuration = .seconds(v * 0.8)
+                chunking.minDuration = .seconds(v * 0.4)
+            }
+            let decoder = CanonicalDecoder()
+            project = try await store.create(
+                from: URL(filePath: audioPath), at: projectURL,
+                policy: opts.flag("copy") ? .copy : .reference,
+                silence: silence, chunking: chunking,
+                probe: { url in
+                    (try await decoder.probe(url: url), try decoder.duration(of: url))
+                })
+            if !quiet { log("Created \(projectURL.lastPathComponent)") }
+        }
+
+        var options = JobOptions()
+        if let v = opts.value("concurrency").flatMap(Int.init) { options.transcription.concurrency = v }
+        if let v = opts.value("locale") { options.transcription.locale = v }
+        if let raw = opts.value("crash-at"), let stage = StageKey(rawValue: raw) {
+            options.crashPoint = CrashPoint(
+                stage: stage,
+                afterChunks: opts.value("crash-after-chunks").flatMap(Int.init))
+        }
+
+        let transcript = try await JobRunner().run(project: project, options: options) { report in
+            if !quiet { progressBar(report.detail, report.fraction) }
+        }
+        if !quiet { endProgress() }
+
+        if let out = opts.value("out") {
+            try transcript.plainText().write(to: URL(filePath: out), atomically: true, encoding: .utf8)
+            if !quiet { log("Wrote \(out)") }
+        } else if !quiet {
+            print(transcript.plainText())
+        }
+
+        if !quiet {
+            let gaps = transcript.segments.filter { $0.warnings.contains(.transcriptionGap) }
+            log("  segments \(transcript.segments.count)   words \(transcript.wordCount)"
+                + (gaps.isEmpty ? "" : "   gaps \(gaps.count)"))
+        }
+    }
+
     // MARK: - Pipeline
 
     struct PipelineResult {
@@ -521,6 +593,7 @@ struct CLI {
           transcribe   Run the full pipeline to a merged transcript
           bench        Run the pipeline and emit a JSON measurement report
           wer          Compare a transcript against a known reference
+          run          Create or resume a persistent project and transcribe it
           version      Print the version
           help         Print this message
 
@@ -533,6 +606,8 @@ struct CLI {
           --chunk-max <s>        Maximum chunk duration, default 300
           --concurrency <n>      Chunks in flight; bench accepts a list, e.g. 1,2,4
           --out <path>           Write the transcript to a file
+          --project <dir>        Project package for run; resumes if it exists
+          --copy                 Copy the audio into the project instead of referencing it
           --engine <id>          apple (default) | whisperkit
           --locale <bcp47>       Transcription locale, default en-US
           --concurrency <n>      Chunks in flight, default 1

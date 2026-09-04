@@ -26,6 +26,7 @@ public struct ProjectPackage: Sendable {
     public var framesURL: URL { derivedDirectory.appending(path: "frames.bin") }
     public var peaksURL: URL { derivedDirectory.appending(path: "peaks.bin") }
     public var silenceMapURL: URL { derivedDirectory.appending(path: "silence_map.json") }
+    public var chunkPlanURL: URL { derivedDirectory.appending(path: "chunk_plan.json") }
 
     /// Per-chunk results, written atomically. Safe to delete after merge.
     public var chunksDirectory: URL {

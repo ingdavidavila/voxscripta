@@ -60,11 +60,21 @@ public struct TranscriptMerger: TranscriptMerging {
             segments.append(contentsOf: incoming)
         }
 
-        // Pause durations between consecutive segments drive paragraph and
-        // section breaks (§7). They are measured, not guessed.
+        // Pause durations drive paragraph and section breaks (§7), and they come
+        // from the silence map rather than from the engine's own segmentation.
+        //
+        // This matters for reproducibility. Segment boundaries are chosen by the
+        // speech engine, which is not reproducible under concurrency — the shared
+        // system service segments differently depending on how requests interleave.
+        // Deriving structure from engine timings would make paragraph breaks vary
+        // between identical runs. The silence map is deterministic DSP output, so
+        // taking pauses from there makes the transcript's shape stable even when
+        // its segmentation is not.
         for index in segments.indices.dropFirst() {
-            let gap = segments[index].originalStart - segments[index - 1].originalEnd
-            segments[index].precedingGap = gap > .zero ? gap : .zero
+            let previousEnd = segments[index - 1].originalEnd
+            let currentStart = segments[index].originalStart
+            segments[index].precedingGap = Self.measuredPause(
+                between: previousEnd, and: currentStart, in: silenceMap)
         }
 
         let transcript = Transcript(variant: .verbatim, segments: segments, provenance: provenance)
@@ -77,6 +87,26 @@ public struct TranscriptMerger: TranscriptMerging {
                 reason: "merged segments are not in ascending time order")
         }
         return transcript
+    }
+
+    /// The longest detected silence lying between two segments.
+    ///
+    /// Falls back to the raw time difference when the map records no gap there,
+    /// which happens when two segments sit inside one continuous speech region.
+    static func measuredPause(
+        between previousEnd: MediaTime,
+        and currentStart: MediaTime,
+        in map: SilenceMap
+    ) -> MediaTime {
+        guard currentStart > previousEnd else { return .zero }
+        let window = TimeRange(start: previousEnd, end: currentStart)
+
+        var longest = MediaTime.zero
+        for gap in map.gaps {
+            guard let overlap = gap.range.intersection(window) else { continue }
+            longest = Swift.max(longest, overlap.duration)
+        }
+        return longest > .zero ? longest : window.duration
     }
 
     // MARK: - Overlap de-duplication
