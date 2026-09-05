@@ -11,68 +11,61 @@ polished versions — without changing what the speaker actually said.
 
 ---
 
-## Status: Phase 4 — CLEAN, with no model
+## Status: Phase 5 — the validation gauntlet
 
-Verbatim and Clean are both complete, and no language model is involved in
-either. The LLM is confined to POLISHED, which is Phase 6.
+Built deliberately **before** the language model. The fence goes up before the
+gate opens.
 
-Implemented:
+All seven checks from §14 are implemented and graded by mutation testing: known
+good output is corrupted one damage class at a time, and **a corruption that
+survives the gauntlet is a test failure**. That turns "does it hallucinate?" from
+a worry into a deterministic assertion.
 
-- **`CleanProcessor`** — filler removal, stutter collapse, punctuation repair,
-  capitalization, and sentence termination, all deterministic.
-- **`DisfluencyLexicon`** — a deliberately narrow closed set, with explicit
-  protection for affirmations and legitimately doubled words.
-- **`CleanEdit`** — an audit log of every change, written to
-  `Output/clean_edits.json`.
+| Check | Catches |
+|---|---|
+| Cardinality | merged, dropped or invented sentences |
+| Numeric conservation | `500` becoming `approximately 1,000` |
+| Named-entity conservation | renamed, dropped or invented people and firms |
+| Polarity | `did not approve` becoming `approved` |
+| Modality | a hedge dropped, making a qualified claim absolute |
+| Semantic similarity | wholesale meaning replacement |
+| Extent bounds | summarization and invented padding |
 
-206 tests across 38 suites.
+19 mutations across 7 damage classes, all caught, each by the check that owns it.
+6 legitimate polish pairs, none rejected — a validator that refuses good output
+would make every window fall back to CLEAN and POLISHED would do nothing.
 
-### Why CLEAN is safe, and how that is checked
+224 tests across 41 suites.
 
-Two mechanisms, because "it carries no hallucination risk" is worthless as an
-assertion:
+### What measurement changed
 
-**A structural invariant.** Every token in the CLEAN output must appear in the
-verbatim transcript *in the same order* — output words are a subsequence of input
-words. A pass satisfying this cannot have invented, substituted or reordered
-anything. It is property-tested over adversarial cases and over real engine
-output.
+Three assumptions did not survive contact with the on-device models.
 
-**An audit log.** The number of logged deletions must exactly equal the drop in
-word count, so nothing can be removed silently.
+**The similarity check works in distance, not cosine.** `NLEmbedding` reports a
+distance where lower is closer, on a scale running past 1, so the architecture's
+"cosine ≥ 0.85" was meaningless against it. The threshold is now **0.72 maximum
+distance**, placed in the middle of a measured gap: legitimate polish tops out at
+0.548, the closest real corruption sits at 0.904.
 
-The lexicon covers non-lexical vocalizations only. "basically", "probably", "you
-know" and "I mean" are real words that shade meaning, and §12's own example keeps
-them. "uh-huh" and "mm-hmm" are protected — deleting one can invert an answer.
-"had had" and "that that" are never collapsed.
+**Case folding before embedding is load-bearing.** Capitalizing a sentence moves
+this model almost as far as inverting its meaning — 0.86 for `david met sarah
+chen` vs `David met Sarah Chen`, against a 0.90 floor for genuine corruption.
+Since fixing capitalization is exactly what POLISHED is for, comparing raw text
+spends the whole error budget on an artifact. Folding case widens the margin from
+0.028 to 0.356 — twelve times.
 
-### What reviewing real output caught
+**The embedding check alone would miss most of what matters.** Measured drift for
+changing a number (0.43), renaming a person (0.24) or dropping a hedge (0.42) all
+sit far below the threshold — small, fluent, local edits that barely move a
+sentence vector, and precisely the transformations §14 exists to prevent. Only
+the specific conservation checks catch them. A test asserts this stays true, so
+nobody later "simplifies" the gauntlet down to one embedding comparison.
 
-The gate requires inspecting actual recordings, and that was not ceremonial. Run
-against genuinely spoken disfluencies, the first implementation produced:
-
-```
-we should, um, start   ->   we should, start      (stranded delimiter)
-I, I wanted            ->   I, wanted             (kept the stumble)
-```
-
-Both read as comma splices. Neither appeared in unit tests built from clean
-hand-written transcripts — they only showed up against real engine output, where
-punctuation arrives attached to tokens. Now:
-
-```
-Ah, so I think we should, um, start on Monday if that works.
-So I think we should start on Monday if that works.
-```
-
-Try it:
-
-```
-swift run corpus-gen /tmp/vv-dis --speech 1 --disfluent
-swift run voxverba-cli run /tmp/vv-dis/speech.wav --project /tmp/p --variant clean
-```
-
-`Output/clean_edits.json` lists every change the pass made.
+The named-entity check had to be rebuilt around the tagger's real behaviour: it
+labels `David` a place name and misses entities outright, so comparison is by
+string and never by type. Capitalization decides only *which* tokens to watch;
+the comparison itself is case-insensitive, or fixing `david` → `David` would read
+as adding a name.
 
 ### Earlier phases
 

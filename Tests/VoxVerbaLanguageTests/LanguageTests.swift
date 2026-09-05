@@ -41,8 +41,8 @@ struct ValidationContractTests {
         // An upper bound catches padding; a lower bound catches summarization.
         #expect(t.minimumLengthRatio < 1)
         #expect(t.maximumLengthRatio > 1)
-        #expect(t.minimumSemanticSimilarity > 0.5)
-        #expect(t.minimumSemanticSimilarity < 1)
+        // A distance, not a similarity: lower means closer.
+        #expect(t.maximumSemanticDistance > 0)
     }
 }
 
@@ -79,13 +79,6 @@ struct PolishConfigTests {
 
 @Suite("Language placeholders announce themselves")
 struct LanguagePlaceholderTests {
-
-    @Test("Validator")
-    func validator() {
-        #expect(throws: VoxVerbaError.self) {
-            try ValidationGauntlet().validate(original: ["a"], revised: ["b"], thresholds: .default)
-        }
-    }
 
     @Test("Model host")
     func host() async {

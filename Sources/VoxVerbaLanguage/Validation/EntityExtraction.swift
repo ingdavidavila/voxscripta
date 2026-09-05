@@ -19,13 +19,35 @@ import VoxVerbaCore
 /// the validator stricter, a false negative lets a renamed person through.
 public enum EntityExtraction {
 
-    /// Proper nouns and named entities, normalized for comparison.
-    public static func entities(in text: String) -> [String: Int] {
+    /// The tokens worth watching across a pair of texts.
+    ///
+    /// Capitalization identifies *which* words to watch, but must not be part of
+    /// the comparison itself: fixing "david" to "David" is exactly what POLISHED
+    /// is for, and a case-sensitive comparison reads that as adding a name. So the
+    /// vocabulary is collected from both sides and counted case-insensitively.
+    public static func entityVocabulary(_ texts: [String]) -> Set<String> {
+        var vocabulary: Set<String> = []
+        for text in texts {
+            vocabulary.formUnion(namedEntities(in: text))
+            vocabulary.formUnion(capitalizedTokens(in: text))
+        }
+        return vocabulary
+    }
+
+    /// How often each watched token appears, ignoring case and punctuation.
+    public static func counts(of vocabulary: Set<String>, in text: String) -> [String: Int] {
+        guard !vocabulary.isEmpty else { return [:] }
         var counts: [String: Int] = [:]
-        for entity in namedEntities(in: text) + capitalizedTokens(in: text) {
-            counts[entity, default: 0] += 1
+        for token in TextTokenizer.tokens(text) {
+            let key = SemanticLexicons.normalize(token)
+            if vocabulary.contains(key) { counts[key, default: 0] += 1 }
         }
         return counts
+    }
+
+    /// Proper nouns and named entities found in one text, for diagnostics.
+    public static func entities(in text: String) -> [String: Int] {
+        counts(of: entityVocabulary([text]), in: text)
     }
 
     /// Entities the tagger recognizes, joined across multi-word names.
