@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 import VoxVerbaCore
 import VoxVerbaLanguage
+import VoxVerbaExport
 
 /// The three outputs, and the evidence behind them.
 struct TranscriptWorkspace: View {
@@ -34,6 +35,19 @@ struct TranscriptWorkspace: View {
                 }
                 Button { copy() } label: {
                     Label("Copy", systemImage: "doc.on.doc")
+                }
+                .disabled(model.currentTranscript == nil)
+
+                Menu {
+                    ForEach(model.exportableFormats, id: \.self) { format in
+                        Button(format.displayName) { model.export(format) }
+                    }
+                    Divider()
+                    Toggle("Include timestamps", isOn: $model.exportIncludesTimestamps)
+                    Divider()
+                    Button("Export Every Variant…") { model.exportAll() }
+                } label: {
+                    Label("Export", systemImage: "square.and.arrow.up")
                 }
                 .disabled(model.currentTranscript == nil)
             }
@@ -69,6 +83,18 @@ struct TranscriptWorkspace: View {
         guard let text = model.currentTranscript?.plainText() else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+    }
+}
+
+extension ExportFormat {
+    var displayName: String {
+        switch self {
+        case .plainText: "Plain Text (.txt)"
+        case .markdown: "Markdown (.md)"
+        case .docx: "Word (.docx)"
+        case .subRip: "Subtitles (.srt)"
+        case .webVTT: "Web Captions (.vtt)"
+        }
     }
 }
 

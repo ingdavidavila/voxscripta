@@ -104,6 +104,7 @@ let package = Package(
                     dependencies: ["VoxVerbaApp", "VoxVerbaPipeline"], swiftSettings: strict),
         .testTarget(name: "VoxVerbaPipelineTests",
                     dependencies: ["VoxVerbaPipeline", "VoxVerbaTestSupport"], swiftSettings: strict),
-        .testTarget(name: "VoxVerbaExportTests", dependencies: ["VoxVerbaExport"], swiftSettings: strict),
+        .testTarget(name: "VoxVerbaExportTests",
+                    dependencies: ["VoxVerbaExport", "VoxVerbaTestSupport"], swiftSettings: strict),
     ]
 )

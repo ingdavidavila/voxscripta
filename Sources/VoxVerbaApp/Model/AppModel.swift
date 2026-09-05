@@ -7,6 +7,7 @@ import VoxVerbaTranscription
 import VoxVerbaLanguage
 import VoxVerbaProject
 import VoxVerbaPipeline
+import VoxVerbaExport
 
 /// One row in the library.
 struct ProjectSummary: Identifiable, Sendable, Hashable {
@@ -55,6 +56,7 @@ final class AppModel {
     private(set) var polishSkipReason: String?
     var selectedVariant: TranscriptVariant = .clean
     var showsValidationDetail = false
+    var exportIncludesTimestamps = false
 
     // ── Settings ────────────────────────────────────────────────────────────
     var settings = AppSettings.load() {
@@ -275,6 +277,66 @@ final class AppModel {
     }
 
     func dismissError() { errorMessage = nil }
+
+    // ── Export ──────────────────────────────────────────────────────────────
+
+    /// Formats that can faithfully represent the variant on screen.
+    var exportableFormats: [ExportFormat] {
+        currentTranscript.map { Exporters.available(for: $0) } ?? []
+    }
+
+    /// Writes the visible transcript in `format`, asking where to put it.
+    func export(_ format: ExportFormat) {
+        guard let transcript = currentTranscript, let project = openProject else { return }
+        let base = URL(filePath: project.manifest.source.displayName)
+            .deletingPathExtension().lastPathComponent
+        let exporter = Exporters.make(format)
+
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = exporter.filename(base: base, variant: selectedVariant)
+        panel.canCreateDirectories = true
+        panel.message = "Export the \(selectedVariant.displayName.lowercased()) transcript."
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        do {
+            var options = ExportOptions.default
+            options.includeTimestamps = exportIncludesTimestamps
+            try exporter.export(transcript, options: options).write(to: url)
+        } catch {
+            errorMessage = (error as? VoxVerbaError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    /// Writes every available format for every produced variant, into one folder.
+    func exportAll() {
+        guard let project = openProject else { return }
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.prompt = "Export Here"
+        panel.message = "Choose a folder. Every transcript variant will be written in every format."
+        guard panel.runModal() == .OK, let directory = panel.url else { return }
+
+        let base = URL(filePath: project.manifest.source.displayName)
+            .deletingPathExtension().lastPathComponent
+        var options = ExportOptions.default
+        options.includeTimestamps = exportIncludesTimestamps
+
+        do {
+            for (variant, transcript) in transcripts {
+                for format in Exporters.available(for: transcript) {
+                    let exporter = Exporters.make(format)
+                    let url = directory.appending(
+                        path: exporter.filename(base: base, variant: variant))
+                    try exporter.export(transcript, options: options).write(to: url)
+                }
+            }
+            NSWorkspace.shared.open(directory)
+        } catch {
+            errorMessage = (error as? VoxVerbaError)?.errorDescription ?? error.localizedDescription
+        }
+    }
 
     func reveal(_ summary: ProjectSummary) {
         NSWorkspace.shared.activateFileViewerSelecting([summary.url])

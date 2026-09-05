@@ -36,6 +36,7 @@ struct CLI {
             case "bench":     try await runBench(args)
             case "wer":       try runWER(args)
             case "run":       try await runProject(args)
+            case "export":    try runExport(args)
             case "version", "--version", "-v":
                 print("voxverba \(VoxVerba.version)")
             case "help", "--help", "-h":
@@ -439,6 +440,55 @@ struct CLI {
         }
     }
 
+    /// Writes a finished project's transcripts to disk.
+    static func runExport(_ args: [String]) throws {
+        let opts = Options(args)
+        guard let projectPath = opts.value("project") else {
+            throw VoxVerbaError.ioFailure(path: "<args>", reason: "--project <directory> is required")
+        }
+        let package = ProjectPackage(root: URL(filePath: projectPath))
+        let destination = URL(filePath: opts.value("to") ?? FileManager.default.currentDirectoryPath)
+        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+
+        let requested = (opts.value("format") ?? "txt,md,docx,srt,vtt")
+            .split(separator: ",").compactMap { ExportFormat(extension: String($0)) }
+        guard !requested.isEmpty else {
+            throw VoxVerbaError.ioFailure(path: "<args>",
+                reason: "unknown format; use txt, md, docx, srt or vtt")
+        }
+        let variants: [TranscriptVariant] = opts.value("variant")
+            .flatMap { TranscriptVariant(rawValue: $0).map { [$0] } }
+            ?? TranscriptVariant.allCases
+
+        var options = ExportOptions.default
+        options.includeTimestamps = opts.flag("timestamps")
+        options.includeSpeakerLabels = opts.flag("speakers")
+
+        let base = (try? AtomicFile.readJSON(ProjectManifest.self, from: package.manifestURL))
+            .map { URL(filePath: $0.source.displayName).deletingPathExtension().lastPathComponent }
+            ?? "Transcript"
+
+        var written = 0
+        for variant in variants {
+            guard let transcript = try? JobRunner.transcript(variant, from: package) else { continue }
+            let usable = Exporters.available(for: transcript)
+            for format in requested where usable.contains(format) {
+                let exporter = Exporters.make(format)
+                let url = destination.appending(
+                    path: exporter.filename(base: base, variant: variant))
+                try exporter.export(transcript, options: options).write(to: url)
+                print(url.lastPathComponent)
+                written += 1
+            }
+            for format in requested where !usable.contains(format) {
+                log("  skipped \(format.fileExtension) for \(variant.rawValue): no timing available")
+            }
+        }
+        guard written > 0 else {
+            throw VoxVerbaError.ioFailure(path: projectPath, reason: "this project has no transcripts")
+        }
+    }
+
     // MARK: - Pipeline
 
     struct PipelineResult {
@@ -614,6 +664,7 @@ struct CLI {
           bench        Run the pipeline and emit a JSON measurement report
           wer          Compare a transcript against a known reference
           run          Create or resume a persistent project and transcribe it
+          export       Write a finished project's transcripts to files
           version      Print the version
           help         Print this message
 
@@ -627,7 +678,11 @@ struct CLI {
           --concurrency <n>      Chunks in flight; bench accepts a list, e.g. 1,2,4
           --out <path>           Write the transcript to a file
           --project <dir>        Project package for run; resumes if it exists
-          --variant <name>       verbatim | clean   (default clean)
+          --variant <name>       verbatim | clean | polished
+          --format <list>        txt,md,docx,srt,vtt   (export)
+          --to <dir>             Where to write exports
+          --timestamps           Include timestamps in document exports
+          --speakers             Include speaker labels
           --copy                 Copy the audio into the project instead of referencing it
           --engine <id>          apple (default) | whisperkit
           --locale <bcp47>       Transcription locale, default en-US
