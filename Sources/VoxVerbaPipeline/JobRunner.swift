@@ -55,6 +55,12 @@ public struct JobProgressReport: Sendable {
     public let state: JobState
     public let fraction: Double
     public let detail: String
+
+    public init(state: JobState, fraction: Double, detail: String) {
+        self.state = state
+        self.fraction = fraction
+        self.detail = detail
+    }
 }
 
 /// Runs a project's pipeline, persisting after every stage so it can resume.
@@ -162,6 +168,12 @@ public struct JobRunner: Sendable {
                                            fraction: 0.05 + p * 0.05, detail: "Measuring audio"))
             }
             try AtomicFile.write(features.serialized(), to: package.framesURL)
+            // Peaks are cheap here and expensive later: the UI needs a waveform
+            // the moment a project opens, long before it would want to re-read
+            // the audio.
+            if let peaks = try? WaveformPeaks.build(canonicalFile: package.canonicalAudioURL) {
+                try? AtomicFile.writeJSON(peaks, to: package.peaksURL, formatting: [])
+            }
             try await project.store.setStageHash(.analyze, to: inputs.hash(for: .analyze))
             try crashIfRequested(options, .analyze, .after)
         } else {

@@ -11,67 +11,56 @@ polished versions — without changing what the speaker actually said.
 
 ---
 
-## Status: Phase 6 — POLISHED
+## Status: Phase 7 — the application
 
-The full three-output pipeline works, entirely on device. VERBATIM and CLEAN
-involve no model; POLISHED runs Apple's on-device model behind the Phase 5
-gauntlet, one sentence at a time.
-
-| Corpus | Sentences | Rejected | Fell back | Rewritten |
-|---|---|---|---|---|
-| clean speech (121 s) | 20 | **15%** | **0%** | 40% |
-| disfluent (65 s) | 15 | 33% | 33% | 33% |
-
-On the clean corpus every rejection was recovered by the retry — nothing fell
-back. Numbers, names, negations and hedges all survive: `500`, `312`,
-`Sarah Chen`, `did not approve`, `has not scheduled`, `might be`, `probably`.
-
-232 tests across 41 suites.
-
-### The measurement that reshaped the design
-
-The architecture specified windows of three to eight sentences. It is now **one**,
-and the path there is worth recording.
-
-Guided generation constrains a response's *shape*, not an array's length, so the
-model merged sentences freely — two thirds of windows rejected on cardinality
-alone, each rejection costing every sentence in its window. Building the schema
-at runtime with `minimumElements == maximumElements` fixed the count and produced
-a **worse** failure: forced to return five items for five inputs, the model
-merged two and then shifted and duplicated the rest to fill the array. Right
-length, destroyed alignment.
+VoxVerba is now a Mac app. Drop a recording, watch it process, read the
+transcript in three variants, and see what the polish pass was refused.
 
 ```
-3. "We did not approve it."          → "We did not approve it because the numbers were wrong."
-4. "Because the numbers were wrong." → "Aha, that is right, and we sold 500 units."
-5. "Aha, that is right..."           → "We did not approve it because the numbers were wrong."
+./Tools/make-app-bundle.sh && open build/VoxVerba.app
 ```
 
-At one sentence per call, merging and shifting are structurally impossible and a
-rejection costs exactly one sentence. Rejection fell from 100% to 15%.
+- **Library sidebar** listing recordings with durations; selection opens one, by
+  mouse or keyboard.
+- **Drop anywhere in the window** — the whole window is the target, because
+  aiming at a small well is needless precision.
+- **Processing view** with a live waveform showing detected speech regions, a
+  phase checklist, and a stop button that leaves the work resumable.
+- **Transcript workspace** with Verbatim / Clean / Polished, backed by an
+  `NSTextView` so a six-hour transcript scrolls.
+- **Review panel** showing what polish changed, what it was refused, and why.
+- **Settings** for silence, segmentation, transcription, language and storage.
 
-### Two gaps the real model exposed
+242 tests across 43 suites.
 
-**Retention cannot catch injection.** "Start on Monday if that works" becoming
-"Let's start on Monday if that works *for you*" keeps every original content word
-and still adds a referent the speaker never mentioned. The extent check now
-bounds additions as well as losses.
+### The privacy claim, checkable
 
-**"I" is not a proper noun.** It is always capitalized in English, so the
-capitalization heuristic treated it as a name and rejected every sentence
-containing the pronoun.
+```
+$ codesign -d --entitlements - build/VoxVerba.app | grep network.client
+(nothing)
+```
 
-### Scope note
+The bundle ships with `files.user-selected.read-only` and no network entitlement.
+The app cannot open a socket even if a future dependency tried to. That is what
+§26 asks for: a structural guarantee rather than a sentence in an About box.
 
-The MLX backend is not built. It needs `mlx-swift-lm`, a large dependency fetched
-over the network at build time, which would end this project's zero-dependency,
-offline-buildable property. The system model is sufficient for one-sentence
-windows, so MLX is a quality tier rather than a prerequisite;
-`LanguageModelHosting` is the seam.
+### Keeping the UI responsive
 
-Rejection rates were measured on one- and two-minute recordings, not multi-hour
-ones. Polish costs roughly a second per sentence, so an hour of speech would be
-about ten minutes — projected, not measured.
+A six-hour job reports progress far faster than anyone can read it — every chunk,
+every buffer. Dispatching each report to the main actor would spend the UI's time
+laying out the same label instead of drawing, which is what "beachball" actually
+means here. A `ProgressRelay` coalesces to 10 Hz, and always lets completion and
+cancellation through so the UI can never stick at 97%. Tested directly: a
+thousand reports in a burst deliver fewer than twenty.
+
+### Packaging note
+
+The app is an SPM executable wrapped into a bundle by a script, not an
+`.xcodeproj`. SwiftPM cannot build a `.app`, and a bare binary has no dock icon,
+no activation and no entitlements. Keeping it in the package means one
+`swift build` covers everything and the app is checked by the same strict
+concurrency settings as the libraries. Moving to a real Xcode project later is
+mechanical.
 
 ### Earlier phases
 

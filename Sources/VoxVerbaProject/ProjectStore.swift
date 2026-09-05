@@ -31,7 +31,7 @@ public struct ProjectStore: Sendable {
         silence: SilenceParameters = .default,
         chunking: ChunkParameters = .default,
         engine: EngineID = .appleSpeech,
-        probe: (URL) async throws -> (AudioFormatDescription, MediaTime)
+        probe: @Sendable (URL) async throws -> (AudioFormatDescription, MediaTime)
     ) async throws -> Project {
         guard FileManager.default.fileExists(atPath: audio.path) else {
             throw VoxVerbaError.sourceUnavailable(path: audio.path)

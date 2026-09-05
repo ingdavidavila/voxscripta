@@ -23,6 +23,7 @@ let package = Package(
         .library(name: "VoxVerbaBench", targets: ["VoxVerbaBench"]),
         .library(name: "VoxVerbaPipeline", targets: ["VoxVerbaPipeline"]),
         .library(name: "VoxVerbaTestSupport", targets: ["VoxVerbaTestSupport"]),
+        .executable(name: "VoxVerbaApp", targets: ["VoxVerbaApp"]),
         .executable(name: "voxverba-cli", targets: ["voxverba-cli"]),
         .executable(name: "corpus-gen", targets: ["corpus-gen"]),
     ],
@@ -61,6 +62,16 @@ let package = Package(
                                "VoxVerbaBench"],
                 swiftSettings: strict),
 
+        // ── Application ─────────────────────────────────────────────────────
+        // A thin SwiftUI shell. All logic lives below it, so the app target holds
+        // views, view models and nothing else.
+        .executableTarget(
+            name: "VoxVerbaApp",
+            dependencies: ["VoxVerbaCore", "VoxVerbaDSP", "VoxVerbaTranscription",
+                           "VoxVerbaLanguage", "VoxVerbaProject", "VoxVerbaPipeline",
+                           "VoxVerbaExport"],
+            swiftSettings: strict),
+
         // ── Tools ───────────────────────────────────────────────────────────
         .executableTarget(
             name: "voxverba-cli",
@@ -89,6 +100,8 @@ let package = Package(
                     dependencies: ["VoxVerbaLanguage", "VoxVerbaTestSupport"], swiftSettings: strict),
         .testTarget(name: "VoxVerbaProjectTests",
                     dependencies: ["VoxVerbaProject", "VoxVerbaTestSupport"], swiftSettings: strict),
+        .testTarget(name: "VoxVerbaAppTests",
+                    dependencies: ["VoxVerbaApp", "VoxVerbaPipeline"], swiftSettings: strict),
         .testTarget(name: "VoxVerbaPipelineTests",
                     dependencies: ["VoxVerbaPipeline", "VoxVerbaTestSupport"], swiftSettings: strict),
         .testTarget(name: "VoxVerbaExportTests", dependencies: ["VoxVerbaExport"], swiftSettings: strict),
