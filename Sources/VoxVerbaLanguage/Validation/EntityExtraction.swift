@@ -75,6 +75,13 @@ public enum EntityExtraction {
         return out
     }
 
+    /// Words that are capitalized in English without being proper nouns.
+    ///
+    /// "I" is the whole of this set in practice, and leaving it in was expensive:
+    /// every sentence containing the pronoun was rejected for a "duplicated name"
+    /// whenever polish changed how often it appeared.
+    static let capitalizedNonNouns: Set<String> = ["i"]
+
     /// Capitalized tokens that are not sentence-initial.
     ///
     /// Sentence-initial capitals are excluded because they carry no information
@@ -98,7 +105,8 @@ public enum EntityExtraction {
                   !expectingSentenceStart else { continue }
             // An all-caps acronym is a proper noun too.
             let key = SemanticLexicons.normalize(stripped)
-            if !key.isEmpty { out.append(key) }
+            guard !key.isEmpty, !capitalizedNonNouns.contains(key) else { continue }
+            out.append(key)
         }
         return out
     }

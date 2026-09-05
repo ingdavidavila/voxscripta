@@ -66,36 +66,14 @@ struct PolishConfigTests {
         // The 4096-token context is not a constraint here: the anti-hallucination
         // design independently forces windows of a few sentences.
         let p = PolishParameters.default
-        #expect(p.windowSize <= 8)
-        #expect(p.windowSize >= 1)
+        // One sentence per call: multi-sentence windows let the model merge and
+        // then shift to fill the required count, which destroys alignment.
+        #expect(p.windowSize == 1)
         #expect(p.contextSentences >= 1)
     }
 
     @Test("Window size is floored at 1")
     func windowFloor() {
         #expect(PolishParameters(windowSize: 0).windowSize == 1)
-    }
-}
-
-@Suite("Language placeholders announce themselves")
-struct LanguagePlaceholderTests {
-
-    @Test("Model host")
-    func host() async {
-        let host = LanguageModelHost()
-        #expect(await host.isLoaded == false)
-        await #expect(throws: VoxVerbaError.self) { try await host.load() }
-        await #expect(throws: VoxVerbaError.self) {
-            try await host.generate(prompt: "x", systemInstructions: "y")
-        }
-    }
-
-    @Test("Polish processor")
-    func polish() async {
-        let t = Transcript(variant: .clean, segments: [], provenance: Provenance())
-        await #expect(throws: VoxVerbaError.self) {
-            _ = try await PolishProcessor().process(clean: t, parameters: .default,
-                                                    host: LanguageModelHost()) { _ in }
-        }
     }
 }

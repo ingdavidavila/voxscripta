@@ -416,6 +416,22 @@ struct CLI {
             print(transcript.plainText())
         }
 
+        if let reason = try? String(contentsOf: project.package.polishSkippedURL, encoding: .utf8) {
+            log("  polish skipped: \(reason)")
+        } else if !quiet,
+                  let data = try? Data(contentsOf: project.package.polishReportURL),
+                  let report = try? JSONDecoder().decode([PolishedSentence].self, from: data),
+                  !report.isEmpty {
+            let accepted = report.count { $0.disposition == .accepted }
+            let retried = report.count { $0.disposition == .acceptedAfterRetry }
+            let fell = report.count {
+                $0.disposition == .fellBackToClean || $0.disposition == .modelFailed
+            }
+            let changed = report.count(where: { $0.wasChanged })
+            log(String(format: "  polish     %d sentences · %d accepted · %d after retry · %d kept clean · %.0f%% rewritten",
+                       report.count, accepted, retried, fell,
+                       100 * Double(changed) / Double(report.count)))
+        }
         if !quiet {
             let gaps = transcript.segments.filter { $0.warnings.contains(.transcriptionGap) }
             log("  segments \(transcript.segments.count)   words \(transcript.wordCount)"

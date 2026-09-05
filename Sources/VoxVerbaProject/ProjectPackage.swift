@@ -46,6 +46,14 @@ public struct ProjectPackage: Sendable {
     }
     /// The audit trail for the CLEAN pass.
     public var cleanEditsURL: URL { outputDirectory.appending(path: "clean_edits.json") }
+    public var polishedTranscriptURL: URL { outputDirectory.appending(path: "polished.json") }
+    /// Per-sentence provenance for POLISHED: what changed, and what the validator said.
+    public var polishReportURL: URL { outputDirectory.appending(path: "polish_report.json") }
+    /// Why polish did not run, when it did not.
+    ///
+    /// Written so a missing polished transcript always has a stated reason on
+    /// disk. A silently absent output is indistinguishable from a bug.
+    public var polishSkippedURL: URL { outputDirectory.appending(path: "polish_skipped.txt") }
 
     /// Directories cleanup may remove once a job completes (§5).
     ///

@@ -57,7 +57,8 @@ let package = Package(
         // corpus-gen. Because generation is reproducible, the synthetic fixtures
         // are built at test time rather than committed as binaries.
         .target(name: "VoxVerbaTestSupport",
-                dependencies: ["VoxVerbaCore", "VoxVerbaTranscription", "VoxVerbaBench"],
+                dependencies: ["VoxVerbaCore", "VoxVerbaTranscription", "VoxVerbaLanguage",
+                               "VoxVerbaBench"],
                 swiftSettings: strict),
 
         // ── Tools ───────────────────────────────────────────────────────────

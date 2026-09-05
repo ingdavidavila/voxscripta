@@ -15,6 +15,8 @@ public enum ResumePlan: Sendable, Equatable {
     case resumeTranscription(chunks: [ChunkID])
     /// All chunks are done but the transcript was never written.
     case resumeMerge
+    /// Transcription and merge are done; only the language passes remain.
+    case resumeLanguagePasses
 }
 
 /// The inputs each stage's validity depends on.
@@ -155,6 +157,21 @@ public struct ResumePlanner: Sendable {
             return .restart(from: .clean)
         }
 
+        // 6. Polish is optional, so "absent" is not automatically "unfinished".
+        //    A recorded skip reason means the stage ran and declined — the model
+        //    was unavailable — and the job is genuinely complete. No hash, no
+        //    output and no reason means it never ran, which a crash between clean
+        //    and polish produces exactly.
+        let polishHash = try await project.store.stageHash(.polish)
+        let hasPolish = FileManager.default.fileExists(
+            atPath: project.package.polishedTranscriptURL.path)
+        let declined = FileManager.default.fileExists(
+            atPath: project.package.polishSkippedURL.path)
+
+        if !declined, polishHash != inputs.hash(for: .polish) || !hasPolish {
+            return .restart(from: .polish)
+        }
+
         return .alreadyComplete
     }
 
@@ -171,7 +188,9 @@ public struct ResumePlanner: Sendable {
         case .chunking: return fm.fileExists(atPath: package.chunkPlanURL.path)
         case .transcription, .merge: return fm.fileExists(atPath: package.transcriptURL.path)
         case .clean: return fm.fileExists(atPath: package.cleanTranscriptURL.path)
-        case .polish: return true
+        case .polish:
+            return fm.fileExists(atPath: package.polishedTranscriptURL.path)
+                || fm.fileExists(atPath: package.polishSkippedURL.path)
         }
     }
 }

@@ -11,61 +11,67 @@ polished versions — without changing what the speaker actually said.
 
 ---
 
-## Status: Phase 5 — the validation gauntlet
+## Status: Phase 6 — POLISHED
 
-Built deliberately **before** the language model. The fence goes up before the
-gate opens.
+The full three-output pipeline works, entirely on device. VERBATIM and CLEAN
+involve no model; POLISHED runs Apple's on-device model behind the Phase 5
+gauntlet, one sentence at a time.
 
-All seven checks from §14 are implemented and graded by mutation testing: known
-good output is corrupted one damage class at a time, and **a corruption that
-survives the gauntlet is a test failure**. That turns "does it hallucinate?" from
-a worry into a deterministic assertion.
+| Corpus | Sentences | Rejected | Fell back | Rewritten |
+|---|---|---|---|---|
+| clean speech (121 s) | 20 | **15%** | **0%** | 40% |
+| disfluent (65 s) | 15 | 33% | 33% | 33% |
 
-| Check | Catches |
-|---|---|
-| Cardinality | merged, dropped or invented sentences |
-| Numeric conservation | `500` becoming `approximately 1,000` |
-| Named-entity conservation | renamed, dropped or invented people and firms |
-| Polarity | `did not approve` becoming `approved` |
-| Modality | a hedge dropped, making a qualified claim absolute |
-| Semantic similarity | wholesale meaning replacement |
-| Extent bounds | summarization and invented padding |
+On the clean corpus every rejection was recovered by the retry — nothing fell
+back. Numbers, names, negations and hedges all survive: `500`, `312`,
+`Sarah Chen`, `did not approve`, `has not scheduled`, `might be`, `probably`.
 
-19 mutations across 7 damage classes, all caught, each by the check that owns it.
-6 legitimate polish pairs, none rejected — a validator that refuses good output
-would make every window fall back to CLEAN and POLISHED would do nothing.
+232 tests across 41 suites.
 
-224 tests across 41 suites.
+### The measurement that reshaped the design
 
-### What measurement changed
+The architecture specified windows of three to eight sentences. It is now **one**,
+and the path there is worth recording.
 
-Three assumptions did not survive contact with the on-device models.
+Guided generation constrains a response's *shape*, not an array's length, so the
+model merged sentences freely — two thirds of windows rejected on cardinality
+alone, each rejection costing every sentence in its window. Building the schema
+at runtime with `minimumElements == maximumElements` fixed the count and produced
+a **worse** failure: forced to return five items for five inputs, the model
+merged two and then shifted and duplicated the rest to fill the array. Right
+length, destroyed alignment.
 
-**The similarity check works in distance, not cosine.** `NLEmbedding` reports a
-distance where lower is closer, on a scale running past 1, so the architecture's
-"cosine ≥ 0.85" was meaningless against it. The threshold is now **0.72 maximum
-distance**, placed in the middle of a measured gap: legitimate polish tops out at
-0.548, the closest real corruption sits at 0.904.
+```
+3. "We did not approve it."          → "We did not approve it because the numbers were wrong."
+4. "Because the numbers were wrong." → "Aha, that is right, and we sold 500 units."
+5. "Aha, that is right..."           → "We did not approve it because the numbers were wrong."
+```
 
-**Case folding before embedding is load-bearing.** Capitalizing a sentence moves
-this model almost as far as inverting its meaning — 0.86 for `david met sarah
-chen` vs `David met Sarah Chen`, against a 0.90 floor for genuine corruption.
-Since fixing capitalization is exactly what POLISHED is for, comparing raw text
-spends the whole error budget on an artifact. Folding case widens the margin from
-0.028 to 0.356 — twelve times.
+At one sentence per call, merging and shifting are structurally impossible and a
+rejection costs exactly one sentence. Rejection fell from 100% to 15%.
 
-**The embedding check alone would miss most of what matters.** Measured drift for
-changing a number (0.43), renaming a person (0.24) or dropping a hedge (0.42) all
-sit far below the threshold — small, fluent, local edits that barely move a
-sentence vector, and precisely the transformations §14 exists to prevent. Only
-the specific conservation checks catch them. A test asserts this stays true, so
-nobody later "simplifies" the gauntlet down to one embedding comparison.
+### Two gaps the real model exposed
 
-The named-entity check had to be rebuilt around the tagger's real behaviour: it
-labels `David` a place name and misses entities outright, so comparison is by
-string and never by type. Capitalization decides only *which* tokens to watch;
-the comparison itself is case-insensitive, or fixing `david` → `David` would read
-as adding a name.
+**Retention cannot catch injection.** "Start on Monday if that works" becoming
+"Let's start on Monday if that works *for you*" keeps every original content word
+and still adds a referent the speaker never mentioned. The extent check now
+bounds additions as well as losses.
+
+**"I" is not a proper noun.** It is always capitalized in English, so the
+capitalization heuristic treated it as a name and rejected every sentence
+containing the pronoun.
+
+### Scope note
+
+The MLX backend is not built. It needs `mlx-swift-lm`, a large dependency fetched
+over the network at build time, which would end this project's zero-dependency,
+offline-buildable property. The system model is sufficient for one-sentence
+windows, so MLX is a quality tier rather than a prerequisite;
+`LanguageModelHosting` is the seam.
+
+Rejection rates were measured on one- and two-minute recordings, not multi-hour
+ones. Polish costs roughly a second per sentence, so an hour of speech would be
+about ten minutes — projected, not measured.
 
 ### Earlier phases
 

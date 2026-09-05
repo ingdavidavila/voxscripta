@@ -73,6 +73,14 @@ public struct ValidationThresholds: Hashable, Sendable, Codable {
     public var minimumLengthRatio: Double
     public var maximumLengthRatio: Double
     public var minimumContentWordOverlap: Double
+    /// Most new content words a revision may introduce, as a fraction of the
+    /// original's content-word count.
+    ///
+    /// Retention alone cannot catch injection: "start on Monday if that works"
+    /// becoming "let's start on Monday if that works for you" keeps every
+    /// original content word and still adds a referent the speaker never
+    /// mentioned. §13 forbids adding information, so additions are bounded too.
+    public var maximumContentWordInjection: Double
     /// Allow a hedge or negation to move between adjacent sentences in a window.
     ///
     /// Off by default. Per-sentence comparison is stricter and catches a polarity
@@ -85,12 +93,14 @@ public struct ValidationThresholds: Hashable, Sendable, Codable {
         minimumLengthRatio: Double = 0.5,
         maximumLengthRatio: Double = 1.5,
         minimumContentWordOverlap: Double = 0.5,
+        maximumContentWordInjection: Double = 0.34,
         perWindowPolarity: Bool = false
     ) {
         self.maximumSemanticDistance = maximumSemanticDistance
         self.minimumLengthRatio = minimumLengthRatio
         self.maximumLengthRatio = maximumLengthRatio
         self.minimumContentWordOverlap = minimumContentWordOverlap
+        self.maximumContentWordInjection = maximumContentWordInjection
         self.perWindowPolarity = perWindowPolarity
     }
 
@@ -311,12 +321,25 @@ public struct ValidationGauntlet: Validating {
         // that drops half the original is penalised properly here.
         let retained = Double(contentBefore.intersection(contentAfter).count)
             / Double(contentBefore.count)
-        let passed = retained >= thresholds.minimumContentWordOverlap
-        return CheckResult(
-            check: .extentBounds, passed: passed,
-            detail: passed ? nil
-                : String(format: "only %.0f%% of content words survived (need %.0f%%)",
-                         retained * 100, thresholds.minimumContentWordOverlap * 100),
-            measurement: retained)
+        guard retained >= thresholds.minimumContentWordOverlap else {
+            return CheckResult(
+                check: .extentBounds, passed: false,
+                detail: String(format: "only %.0f%% of content words survived (need %.0f%%)",
+                               retained * 100, thresholds.minimumContentWordOverlap * 100),
+                measurement: retained)
+        }
+
+        // Additions, not just survivals. A revision that keeps everything and
+        // adds a detail the speaker never gave is still adding information.
+        let injected = contentAfter.subtracting(contentBefore)
+        let injectionRatio = Double(injected.count) / Double(contentBefore.count)
+        guard injectionRatio <= thresholds.maximumContentWordInjection else {
+            return CheckResult(
+                check: .extentBounds, passed: false,
+                detail: "added content not in the original: "
+                    + injected.sorted().prefix(4).joined(separator: ", "),
+                measurement: injectionRatio)
+        }
+        return CheckResult(check: .extentBounds, passed: true, measurement: retained)
     }
 }

@@ -30,6 +30,8 @@ public struct JobOptions: Sendable {
     public var transcription: TranscriptionOptions
     public var geometry: FrameGeometry
     public var clean: CleanParameters
+    /// Polish settings, or `nil` to stop after CLEAN.
+    public var polish: PolishParameters?
     /// Test-only fault injection.
     public var crashPoint: CrashPoint?
 
@@ -37,11 +39,13 @@ public struct JobOptions: Sendable {
         transcription: TranscriptionOptions = .default,
         geometry: FrameGeometry = .default,
         clean: CleanParameters = .default,
+        polish: PolishParameters? = .default,
         crashPoint: CrashPoint? = nil
     ) {
         self.transcription = transcription
         self.geometry = geometry
         self.clean = clean
+        self.polish = polish
         self.crashPoint = crashPoint
     }
 }
@@ -111,13 +115,27 @@ public struct JobRunner: Sendable {
         // Anything from the resume point onward is stale by definition.
         try await project.store.clearStageHashes(from: startStage)
 
+        // Only POLISH is missing — a crash between cleaning and polishing leaves
+        // exactly this. Everything upstream is valid, including the clean
+        // transcript, so only the language model pass is redone.
+        if startStage == .polish {
+            let clean = try AtomicFile.readJSON(Transcript.self, from: package.cleanTranscriptURL)
+            try await runPolishStage(project: project, clean: clean,
+                                     options: options, progress: progress)
+            try await project.store.setState(.complete)
+            progress(JobProgressReport(state: .complete, fraction: 1, detail: "Complete"))
+            return try AtomicFile.readJSON(Transcript.self, from: package.transcriptURL)
+        }
+
         // Only the CLEAN pass is missing — a crash between writing the verbatim
         // transcript and cleaning it leaves exactly this state. Everything
         // upstream is valid, so redo just the last, cheap, deterministic stage.
         if startStage == .clean {
             let verbatim = try AtomicFile.readJSON(Transcript.self, from: package.transcriptURL)
-            try await runCleanStage(project: project, verbatim: verbatim,
-                                    options: options, progress: progress)
+            let cleaned = try await runCleanStage(project: project, verbatim: verbatim,
+                                                  options: options, progress: progress)
+            try await runPolishStage(project: project, clean: cleaned,
+                                     options: options, progress: progress)
             try await project.store.setState(.complete)
             progress(JobProgressReport(state: .complete, fraction: 1, detail: "Complete"))
             return verbatim
@@ -263,9 +281,13 @@ public struct JobRunner: Sendable {
         try await project.store.setStageHash(.merge, to: inputs.hash(for: .merge))
         try crashIfRequested(options, .merge, .after)
 
-        try await runCleanStage(project: project, verbatim: transcript,
-                                options: options, progress: progress)
+        let cleaned = try await runCleanStage(project: project, verbatim: transcript,
+                                              options: options, progress: progress)
         try crashIfRequested(options, .clean, .after)
+
+        try await runPolishStage(project: project, clean: cleaned,
+                                 options: options, progress: progress)
+        try crashIfRequested(options, .polish, .after)
 
         try await project.store.setState(.complete)
         progress(JobProgressReport(state: .complete, fraction: 1, detail: "Complete"))
@@ -282,7 +304,7 @@ public struct JobRunner: Sendable {
         verbatim: Transcript,
         options: JobOptions,
         progress: @Sendable (JobProgressReport) -> Void
-    ) async throws {
+    ) async throws -> Transcript {
         let package = project.package
         try await advance(project, .cleaning, progress, 0.92, "Cleaning transcript")
 
@@ -299,6 +321,7 @@ public struct JobRunner: Sendable {
 
         let inputs = try await stageInputs(for: project, options: options)
         try await project.store.setStageHash(.clean, to: inputs.hash(for: .clean))
+        return cleaned.transcript
     }
 
     /// Rebuilds the stage input set from a project's manifest and options.
@@ -319,10 +342,59 @@ public struct JobRunner: Sendable {
         _ variant: TranscriptVariant, from package: ProjectPackage
     ) throws -> Transcript {
         switch variant {
-        case .verbatim: try AtomicFile.readJSON(Transcript.self, from: package.transcriptURL)
-        case .clean: try AtomicFile.readJSON(Transcript.self, from: package.cleanTranscriptURL)
+        case .verbatim: return try AtomicFile.readJSON(Transcript.self, from: package.transcriptURL)
+        case .clean: return try AtomicFile.readJSON(Transcript.self, from: package.cleanTranscriptURL)
         case .polished:
-            throw VoxVerbaError.notImplemented("the polished variant — Phase 6")
+            guard FileManager.default.fileExists(atPath: package.polishedTranscriptURL.path) else {
+                throw VoxVerbaError.modelUnavailable(
+                    .systemDefault,
+                    reason: "this project has no polished transcript; the model may be unavailable")
+            }
+            return try AtomicFile.readJSON(Transcript.self, from: package.polishedTranscriptURL)
+        }
+    }
+
+    /// Runs POLISHED, the only stage that involves a language model.
+    ///
+    /// It is also the only stage allowed to decline. If the model is unavailable
+    /// — Apple Intelligence off, device ineligible, assets still downloading —
+    /// the job still completes with verbatim and clean, and the reason is written
+    /// to disk so a missing polished transcript is never unexplained.
+    private func runPolishStage(
+        project: Project,
+        clean: Transcript,
+        options: JobOptions,
+        progress: @escaping @Sendable (JobProgressReport) -> Void
+    ) async throws {
+        guard let parameters = options.polish else { return }
+        let package = project.package
+
+        try await advance(project, .polishing, progress, 0.94, "Polishing transcript")
+        let host = LanguageModelHost()
+        do {
+            try await host.load()
+            let polished = try await PolishProcessor().process(
+                clean: clean, parameters: parameters, host: host,
+                progress: { fraction in
+                    progress(JobProgressReport(
+                        state: .polishing, fraction: 0.94 + 0.05 * fraction,
+                        detail: "Polishing transcript"))
+                })
+            await host.unload()
+
+            try AtomicFile.writeJSON(polished.transcript, to: package.polishedTranscriptURL)
+            try AtomicFile.write(Data(polished.transcript.plainText().utf8),
+                                 to: package.textURL(for: .polished))
+            try AtomicFile.writeJSON(polished.sentences, to: package.polishReportURL)
+            try? FileManager.default.removeItem(at: package.polishSkippedURL)
+
+            let inputs = try await stageInputs(for: project, options: options)
+            try await project.store.setStageHash(.polish, to: inputs.hash(for: .polish))
+        } catch {
+            await host.unload()
+            let reason = (error as? VoxVerbaError)?.errorDescription ?? error.localizedDescription
+            try? AtomicFile.write(Data(reason.utf8), to: package.polishSkippedURL)
+            Log.language.notice("polish skipped: \(reason, privacy: .public)")
         }
     }
 

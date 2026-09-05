@@ -73,7 +73,7 @@ struct CrashRecoveryTests {
     private let baseArguments = ["--chunk-max", "12", "--concurrency", "1", "--quiet"]
 
     @Test("A clean run and a crash-then-resume produce the same transcript",
-          arguments: ["decode", "analyze", "silence", "chunking", "merge"])
+          arguments: ["decode", "analyze", "silence", "chunking", "merge", "clean", "polish"])
     func resumesFromEveryStage(crashStage: String) async throws {
         let tmp = try TempDirectory()
         let audio = try await makeAudio(in: tmp.url)
