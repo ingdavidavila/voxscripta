@@ -8,6 +8,7 @@ import VoxVerbaLanguage
 import VoxVerbaProject
 import VoxVerbaPipeline
 import VoxVerbaExport
+import VoxVerbaDSP
 
 /// One row in the library.
 struct ProjectSummary: Identifiable, Sendable, Hashable {
@@ -57,6 +58,8 @@ final class AppModel {
     var selectedVariant: TranscriptVariant = .clean
     var showsValidationDetail = false
     var exportIncludesTimestamps = false
+    private(set) var isRendering = false
+    private(set) var lastRenderSummary: String?
 
     // ── Settings ────────────────────────────────────────────────────────────
     var settings = AppSettings.load() {
@@ -134,6 +137,8 @@ final class AppModel {
                         policy: settings.copyOriginalIntoProject ? .copy : .reference,
                         silence: settings.silenceParameters,
                         chunking: settings.chunkParameters,
+                        locale: settings.locale,
+                        concurrency: settings.concurrency,
                         probe: { (try await decoder.probe(url: $0), try decoder.duration(of: $0)) })
                 }
                 await run(project: project)
@@ -182,10 +187,12 @@ final class AppModel {
         progress = 0
         detail = "Preparing"
 
+        // Locale and concurrency come from the project's manifest, not from the
+        // current settings — changing a setting must not silently re-transcribe
+        // every project you open afterwards.
         var options = JobOptions()
-        options.transcription.concurrency = settings.concurrency
-        options.transcription.locale = settings.locale
         options.clean = settings.cleanParameters
+        options.keepIntermediates = settings.keepIntermediateFiles
         options.polish = settings.polishEnabled ? settings.polishParameters : nil
 
         // Progress arrives from background tasks far faster than a person can
@@ -304,6 +311,44 @@ final class AppModel {
             try exporter.export(transcript, options: options).write(to: url)
         } catch {
             errorMessage = (error as? VoxVerbaError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    /// Writes a copy of the recording with the detected silence removed.
+    ///
+    /// Explicitly opt-in. The pipeline never splices audio on its own, because
+    /// doing so hurts transcription — this is for someone who wants the shortened
+    /// recording for its own sake.
+    func renderSilenceRemovedAudio() {
+        guard let project = openProject, let map = silenceMap else { return }
+        let base = URL(filePath: project.manifest.source.displayName)
+            .deletingPathExtension().lastPathComponent
+
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "\(base) — silence removed.wav"
+        panel.canCreateDirectories = true
+        panel.message = "Save a copy with the detected silence removed. "
+            + "The original recording is not modified."
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        isRendering = true
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let (source, release) = try project.resolveSource()
+                defer { release() }
+                let result = try await SilenceRemovalRenderer()
+                    .render(source: source, to: url, using: map)
+                // The time map ships beside the audio so a listener can still
+                // locate themselves in the source recording.
+                try AtomicFile.writeJSON(
+                    result, to: url.deletingPathExtension().appendingPathExtension("json"))
+                lastRenderSummary = "Removed \(result.removedDuration) of silence"
+            } catch {
+                errorMessage = (error as? VoxVerbaError)?.errorDescription
+                    ?? error.localizedDescription
+            }
+            isRendering = false
         }
     }
 

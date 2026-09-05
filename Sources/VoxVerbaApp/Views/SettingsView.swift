@@ -92,6 +92,10 @@ struct SettingsView: View {
                            isOn: $model.settings.copyOriginalIntoProject)
                     Text("Off by default, so a large recording is not duplicated. VoxVerba never modifies or moves the original either way.")
                         .font(.caption).foregroundStyle(.secondary)
+                    Toggle("Keep working files after transcribing",
+                           isOn: $model.settings.keepIntermediateFiles)
+                    Text("VoxVerba writes a working copy of the audio while it transcribes — about 1.4 GB for a six-hour recording. It is deleted when the job finishes; keep it only if you want to re-run with different settings quickly.")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
                 Section("Privacy") {
                     Label("Audio is processed entirely on this Mac", systemImage: "lock.fill")

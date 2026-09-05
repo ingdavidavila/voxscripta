@@ -29,6 +29,15 @@ swift run voxverba-cli export --project /path/to/x.voxverba --to ~/Desktop
 | `.srt` | Cues split on word timings, two lines maximum |
 | `.vtt` | Same, with WebVTT speaker markup |
 
+Plus an opt-in **silence-removed copy of the recording** — rendered from the
+original at its own sample rate, with crossfaded joins so the splices do not
+click, and a JSON time map so a listener can still locate themselves in the
+source (§7).
+
+```
+swift run voxverba-cli render-audio --project /path/to/x.voxverba
+```
+
 Three variants × five formats = fifteen files, each independently exportable.
 
 259 tests across 46 suites.
@@ -43,6 +52,39 @@ self-consistent.
 
 `.docx` is validated with the system `unzip`, both for archive integrity and for
 the presence of every required OOXML part.
+
+### Audio format coverage
+
+Six containers are exercised automatically: **WAV, AIFF, CAF, M4A, FLAC and raw
+AAC**, each synthesized at test time.
+
+**MP3 is the exception, and it is skipped rather than passed.** macOS ships no
+MP3 encoder — `afconvert` refuses it in every container and `AVAudioFile` has no
+format for it — so an MP3 fixture cannot be generated the way the others are.
+Drop any MP3 at `Tests/Fixtures/sample.mp3` and the decode test runs against it;
+with no file present the suite reports it as *skipped*, so the gap stays visible.
+
+### Intermediates are reclaimed automatically
+
+A job deletes its scratch audio when it finishes — about 1.4 GB per six-hour
+recording. `Original/` and `Output/` are never touched, and a reclaimed project
+still opens instantly.
+
+That last part needed a fix before cleanup could ship at all: the resume planner
+checked derived artifacts *before* checking completion, so a cleaned project
+looked unfinished and re-transcribed from scratch. Completion is now decided from
+`Output/` and the recorded hashes, neither of which cleanup touches.
+
+The same work surfaced a second inconsistency. Silence and chunk parameters lived
+in the manifest, but locale and concurrency did not — so reopening any project
+took them from ambient defaults, and if those differed the transcription hash
+changed and the whole file was re-transcribed. They now live in the manifest with
+everything else.
+
+```
+swift run voxverba-cli run audio.wav --project p.voxverba --keep-intermediates
+swift run voxverba-cli clean --project p.voxverba
+```
 
 ### Still zero third-party dependencies
 

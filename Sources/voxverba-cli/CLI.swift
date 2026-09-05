@@ -37,6 +37,8 @@ struct CLI {
             case "wer":       try runWER(args)
             case "run":       try await runProject(args)
             case "export":    try runExport(args)
+            case "render-audio": try await runRenderAudio(args)
+            case "clean":     try await runClean(args)
             case "version", "--version", "-v":
                 print("voxverba \(VoxVerba.version)")
             case "help", "--help", "-h":
@@ -387,6 +389,8 @@ struct CLI {
                 from: URL(filePath: audioPath), at: projectURL,
                 policy: opts.flag("copy") ? .copy : .reference,
                 silence: silence, chunking: chunking,
+                locale: opts.value("locale") ?? "en-US",
+                concurrency: opts.value("concurrency").flatMap(Int.init) ?? 4,
                 probe: { url in
                     (try await decoder.probe(url: url), try decoder.duration(of: url))
                 })
@@ -396,6 +400,7 @@ struct CLI {
         var options = JobOptions()
         if let v = opts.value("concurrency").flatMap(Int.init) { options.transcription.concurrency = v }
         if let v = opts.value("locale") { options.transcription.locale = v }
+        options.keepIntermediates = opts.flag("keep-intermediates")
         if let raw = opts.value("crash-at"), let stage = StageKey(rawValue: raw) {
             options.crashPoint = CrashPoint(
                 stage: stage,
@@ -487,6 +492,64 @@ struct CLI {
         guard written > 0 else {
             throw VoxVerbaError.ioFailure(path: projectPath, reason: "this project has no transcripts")
         }
+    }
+
+    /// Writes a copy of the recording with detected silence removed.
+    ///
+    /// Explicitly opt-in. The pipeline never does this on its own, because
+    /// splicing audio hurts transcription — this exists for someone who wants
+    /// the shortened file for its own sake.
+    static func runRenderAudio(_ args: [String]) async throws {
+        let opts = Options(args)
+        guard let projectPath = opts.value("project") else {
+            throw VoxVerbaError.ioFailure(path: "<args>", reason: "--project <directory> is required")
+        }
+        let project = try await ProjectStore().open(at: URL(filePath: projectPath))
+        let package = project.package
+
+        let map = try AtomicFile.readJSON(SilenceMap.self, from: package.silenceMapURL)
+        let (source, release) = try project.resolveSource()
+        defer { release() }
+
+        let destination = opts.value("to").map { URL(filePath: $0) }
+            ?? package.silenceRemovedAudioURL
+        let quiet = opts.flag("quiet")
+
+        let renderer = SilenceRemovalRenderer()
+        let result = try await renderer.render(source: source, to: destination, using: map) { p in
+            if !quiet { progressBar("Rendering", p) }
+        }
+        if !quiet { endProgress() }
+
+        // The time map ships beside the audio, so a listener can still locate
+        // themselves in the original recording (§7).
+        let mapURL = destination.deletingPathExtension().appendingPathExtension("json")
+        try AtomicFile.writeJSON(result, to: mapURL)
+
+        let saved = result.removedDuration
+        let percent = result.originalDuration.seconds > 0
+            ? Int(100 * saved.seconds / result.originalDuration.seconds) : 0
+        print(destination.path)
+        if !quiet {
+            log("  original \(result.originalDuration) → \(result.renderedDuration)")
+            log("  removed  \(saved) of silence (\(percent)%)")
+            log("  map      \(mapURL.lastPathComponent)")
+        }
+    }
+
+    /// Reclaims a finished project's scratch storage.
+    static func runClean(_ args: [String]) async throws {
+        let opts = Options(args)
+        guard let projectPath = opts.value("project") else {
+            throw VoxVerbaError.ioFailure(path: "<args>", reason: "--project <directory> is required")
+        }
+        let project = try await ProjectStore().open(at: URL(filePath: projectPath))
+        let freed = try project.reclaimDerivedStorage()
+
+        // The transcripts and the original are untouched, and the project still
+        // opens instantly, so this is a pure storage saving.
+        print(String(format: "reclaimed %.1f MB", Double(freed) / Double(1 << 20)))
+        log("  transcripts and the original recording are untouched")
     }
 
     // MARK: - Pipeline
@@ -664,7 +727,9 @@ struct CLI {
           bench        Run the pipeline and emit a JSON measurement report
           wer          Compare a transcript against a known reference
           run          Create or resume a persistent project and transcribe it
+          clean        Reclaim a finished project's intermediate files
           export       Write a finished project's transcripts to files
+          render-audio Write a copy of the recording with silence removed
           version      Print the version
           help         Print this message
 
@@ -684,6 +749,7 @@ struct CLI {
           --timestamps           Include timestamps in document exports
           --speakers             Include speaker labels
           --copy                 Copy the audio into the project instead of referencing it
+          --keep-intermediates   Keep scratch audio after a job finishes
           --engine <id>          apple (default) | whisperkit
           --locale <bcp47>       Transcription locale, default en-US
           --concurrency <n>      Chunks in flight, default 1

@@ -31,6 +31,8 @@ public struct ProjectStore: Sendable {
         silence: SilenceParameters = .default,
         chunking: ChunkParameters = .default,
         engine: EngineID = .appleSpeech,
+        locale: String = "en-US",
+        concurrency: Int = 4,
         probe: @Sendable (URL) async throws -> (AudioFormatDescription, MediaTime)
     ) async throws -> Project {
         guard FileManager.default.fileExists(atPath: audio.path) else {
@@ -64,7 +66,9 @@ public struct ProjectStore: Sendable {
                 contentHash: hash, format: format, duration: duration, byteSize: size),
             silenceParameters: silence,
             chunkParameters: chunking,
-            engineID: engine)
+            engineID: engine,
+            locale: locale,
+            concurrency: concurrency)
 
         try AtomicFile.writeJSON(manifest, to: package.manifestURL)
         let store = try JobStore(url: package.jobStoreURL)
@@ -167,6 +171,10 @@ public struct Project: Sendable {
     ///
     /// `Original/`, `manifest.json` and `Output/` are untouched by any code path
     /// here — the §5 guarantee, enforced by what this function does not do.
+    ///
+    /// Safe to call on a finished project: the resume planner checks completion
+    /// from `Output/` and the recorded hashes, both of which survive, so a
+    /// reclaimed project still opens instantly rather than re-running.
     @discardableResult
     public func reclaimDerivedStorage() throws -> Int64 {
         let fm = FileManager.default

@@ -8,11 +8,14 @@ public enum TestAudioFormat: String, Sendable, CaseIterable {
     case caf
     case m4a
     case aiff
+    case flac
+    /// Raw AAC in an ADTS stream, which is a different container from `.m4a`.
+    case aac
 
     public var fileExtension: String { rawValue }
 
     /// Whether the encoder is lossy, which matters when asserting on decoded values.
-    public var isLossy: Bool { self == .m4a }
+    public var isLossy: Bool { self == .m4a || self == .aac }
 
     var settings: [String: Any] {
         switch self {
@@ -33,7 +36,27 @@ public enum TestAudioFormat: String, Sendable, CaseIterable {
              AVLinearPCMIsBigEndianKey: false]
         case .m4a:
             [AVFormatIDKey: kAudioFormatMPEG4AAC]
+        case .flac:
+            [AVFormatIDKey: kAudioFormatFLAC]
+        case .aac:
+            [AVFormatIDKey: kAudioFormatMPEG4AAC]
         }
+    }
+}
+
+/// Formats macOS can decode but not encode.
+///
+/// There is no MP3 encoder on macOS, in any container — `afconvert` refuses it
+/// and `AVAudioFile` has no format for it. An MP3 fixture therefore cannot be
+/// synthesized the way every other fixture in this project is, so MP3 decoding
+/// is covered only when a real file is supplied. See `DecoderTests`.
+public enum DecodeOnlyFormat: String, Sendable, CaseIterable {
+    case mp3
+
+    /// Where a hand-supplied fixture is looked for.
+    public static func fixture(named name: String, in directory: URL) -> URL? {
+        let url = directory.appending(path: name)
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
     }
 }
 

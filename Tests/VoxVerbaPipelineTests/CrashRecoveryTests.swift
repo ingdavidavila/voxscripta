@@ -72,6 +72,9 @@ struct CrashRecoveryTests {
     /// are about the pipeline's durability rather than the model's stability.
     private let baseArguments = ["--chunk-max", "12", "--concurrency", "1", "--quiet"]
 
+    /// For tests that inspect scratch files, which cleanup removes by default.
+    private var keepingIntermediates: [String] { baseArguments + ["--keep-intermediates"] }
+
     @Test("A clean run and a crash-then-resume produce the same transcript",
           arguments: ["decode", "analyze", "silence", "chunking", "merge", "clean", "polish"])
     func resumesFromEveryStage(crashStage: String) async throws {
@@ -171,7 +174,8 @@ struct CrashRecoveryTests {
         let project = tmp.url.appending(path: "p.voxverba")
 
         #expect(try CLI.run(["run", audio.path, "--project", project.path,
-                             "--out", tmp.url.appending(path: "a.txt").path] + baseArguments) == 0)
+                             "--out", tmp.url.appending(path: "a.txt").path]
+                            + keepingIntermediates) == 0)
 
         let canonical = project.appending(path: "Derived/canonical.f32")
         let attributes = try FileManager.default.attributesOfItem(atPath: canonical.path)
@@ -188,7 +192,8 @@ struct CrashRecoveryTests {
 
         try await Task.sleep(for: .milliseconds(1100))   // filesystem timestamp resolution
         #expect(try CLI.run(["run", "--project", project.path,
-                             "--out", tmp.url.appending(path: "b.txt").path] + baseArguments) == 0)
+                             "--out", tmp.url.appending(path: "b.txt").path]
+                            + keepingIntermediates) == 0)
 
         // The expensive decode survived a threshold change; that is the whole
         // point of hashing stage inputs separately.
@@ -217,5 +222,110 @@ struct CrashRecoveryTests {
         let text = try String(contentsOf: out, encoding: .utf8).lowercased()
         #expect(text.contains("fox") || text.contains("dog"),
                 "stale derived data survived a source change: \(text.prefix(120))")
+    }
+}
+
+/// §5: intermediates are reclaimed automatically, and reclaiming must not cost
+/// anything except disk space.
+@Suite("Intermediate cleanup", .serialized)
+struct CleanupTests {
+
+    private func makeAudio(in directory: URL) async throws -> URL {
+        let samples = try await SpeechCorpus.render(Array(SpeechCorpus.standard.prefix(3)))
+        let url = directory.appending(path: "speech.wav")
+        try AudioFileWriter.write(samples: samples, to: url, format: .wav,
+                                  sampleRate: CanonicalFormat.sampleRate)
+        return url
+    }
+
+    private let arguments = ["--chunk-max", "12", "--concurrency", "1", "--quiet"]
+
+    @Test("A finished job reclaims its scratch files")
+    func reclaimsAfterCompletion() async throws {
+        let tmp = try TempDirectory()
+        let audio = try await makeAudio(in: tmp.url)
+        let project = tmp.url.appending(path: "p.voxverba")
+        #expect(try CLI.run(["run", audio.path, "--project", project.path] + arguments) == 0)
+
+        let fm = FileManager.default
+        #expect(!fm.fileExists(atPath: project.appending(path: "Derived").path),
+                "scratch audio survived a completed job")
+        // The results and the original are untouched.
+        #expect(fm.fileExists(atPath: project.appending(path: "Output/clean.txt").path))
+        #expect(fm.fileExists(atPath: project.appending(path: "manifest.json").path))
+        #expect(fm.fileExists(atPath: audio.path))
+    }
+
+    @Test("Keeping intermediates is respected")
+    func keepsWhenAsked() async throws {
+        let tmp = try TempDirectory()
+        let audio = try await makeAudio(in: tmp.url)
+        let project = tmp.url.appending(path: "p.voxverba")
+        #expect(try CLI.run(["run", audio.path, "--project", project.path,
+                             "--keep-intermediates"] + arguments) == 0)
+        #expect(FileManager.default.fileExists(
+            atPath: project.appending(path: "Derived/canonical.f32").path))
+    }
+
+    @Test("A reclaimed project reopens without re-running anything")
+    func reclaimedProjectStaysComplete() async throws {
+        // The trap this whole change had to avoid: the resume planner used to
+        // check derived artifacts before checking completion, so a cleaned
+        // project looked unfinished and re-transcribed from scratch — turning a
+        // storage saving into a full re-run.
+        let tmp = try TempDirectory()
+        let audio = try await makeAudio(in: tmp.url)
+        let project = tmp.url.appending(path: "p.voxverba")
+        let first = tmp.url.appending(path: "first.txt")
+        let second = tmp.url.appending(path: "second.txt")
+
+        #expect(try CLI.run(["run", audio.path, "--project", project.path,
+                             "--out", first.path] + arguments) == 0)
+        #expect(!FileManager.default.fileExists(atPath: project.appending(path: "Derived").path))
+
+        let started = ContinuousClock.now
+        #expect(try CLI.run(["run", "--project", project.path,
+                             "--out", second.path] + arguments) == 0)
+        let elapsed = ContinuousClock.now - started
+
+        #expect(elapsed < .seconds(3), "a reclaimed project re-ran work: \(elapsed)")
+        #expect(!FileManager.default.fileExists(atPath: project.appending(path: "Derived").path),
+                "reopening regenerated scratch files it did not need")
+
+        let a = try String(contentsOf: first, encoding: .utf8)
+        let b = try String(contentsOf: second, encoding: .utf8)
+        #expect(a == b)
+    }
+
+    @Test("The clean command reclaims an existing project")
+    func cleanCommand() async throws {
+        let tmp = try TempDirectory()
+        let audio = try await makeAudio(in: tmp.url)
+        let project = tmp.url.appending(path: "p.voxverba")
+        #expect(try CLI.run(["run", audio.path, "--project", project.path,
+                             "--keep-intermediates"] + arguments) == 0)
+        #expect(FileManager.default.fileExists(atPath: project.appending(path: "Derived").path))
+
+        #expect(try CLI.run(["clean", "--project", project.path]) == 0)
+        #expect(!FileManager.default.fileExists(atPath: project.appending(path: "Derived").path))
+        #expect(FileManager.default.fileExists(atPath: project.appending(path: "Output/clean.txt").path))
+    }
+
+    @Test("Reopening a project does not re-transcribe it")
+    func reopeningIsStable() async throws {
+        // Locale and concurrency live in the manifest for this reason: taking
+        // them from ambient defaults meant simply reopening a project built at a
+        // different setting invalidated its transcription.
+        let tmp = try TempDirectory()
+        let audio = try await makeAudio(in: tmp.url)
+        let project = tmp.url.appending(path: "p.voxverba")
+        #expect(try CLI.run(["run", audio.path, "--project", project.path,
+                             "--concurrency", "1"] + ["--chunk-max", "12", "--quiet"]) == 0)
+
+        // Reopened with no flags at all, so the defaults differ from the build.
+        let started = ContinuousClock.now
+        #expect(try CLI.run(["run", "--project", project.path, "--quiet"]) == 0)
+        #expect(ContinuousClock.now - started < .seconds(3),
+                "reopening with default flags re-transcribed the project")
     }
 }

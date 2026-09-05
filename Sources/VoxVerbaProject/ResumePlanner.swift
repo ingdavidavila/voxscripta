@@ -117,7 +117,21 @@ public struct ResumePlanner: Sendable {
             return .fullRebuild(reason: "the audio file has changed since it was imported")
         }
 
-        // 2. Walk the stages in order. The first one whose artifacts are missing
+        // 2. Is the job already finished?
+        //
+        //    Checked before anything looks at derived data, because derived data
+        //    is reclaimable. Cleanup deletes canonical.f32 and the chunk results
+        //    on purpose, and a planner that walked the stages first would see the
+        //    decode missing and re-run the entire pipeline on a project that was
+        //    complete — turning a storage saving into a full re-transcription.
+        //
+        //    The stage hashes live in the database, which cleanup never touches,
+        //    so a finished project can still prove it is finished.
+        if try await isComplete(project, inputs: inputs) {
+            return .alreadyComplete
+        }
+
+        // 3. Walk the stages in order. The first one whose artifacts are missing
         //    or whose inputs have changed is where work resumes.
         for stage in [StageKey.decode, .analyze, .silence, .chunking] {
             let recorded = try await project.store.stageHash(stage)
@@ -128,7 +142,7 @@ public struct ResumePlanner: Sendable {
             }
         }
 
-        // 3. Transcription resumes per chunk rather than per stage.
+        // 4. Transcription resumes per chunk rather than per stage.
         let recordedTranscription = try await project.store.stageHash(.transcription)
         if recordedTranscription != inputs.hash(for: .transcription) {
             return .restart(from: .transcription)
@@ -142,7 +156,7 @@ public struct ResumePlanner: Sendable {
             return .resumeTranscription(chunks: outstanding.map(\.id))
         }
 
-        // 4. Every chunk is accounted for; the transcript may still be missing.
+        // 5. Every chunk is accounted for; the transcript may still be missing.
         let mergeHash = try await project.store.stageHash(.merge)
         if mergeHash != inputs.hash(for: .merge)
             || !FileManager.default.fileExists(atPath: project.package.transcriptURL.path) {
@@ -173,6 +187,29 @@ public struct ResumePlanner: Sendable {
         }
 
         return .alreadyComplete
+    }
+
+    /// Whether every output the pipeline promises is present and current.
+    ///
+    /// Deliberately looks only at `Output/` and the recorded hashes, never at
+    /// `Derived/`. Those two directories differ in kind: one is the result, the
+    /// other is scratch work that exists to be thrown away.
+    private func isComplete(_ project: Project, inputs: StageInputs) async throws -> Bool {
+        let fm = FileManager.default
+        let package = project.package
+
+        guard fm.fileExists(atPath: package.transcriptURL.path),
+              try await project.store.stageHash(.merge) == inputs.hash(for: .merge),
+              fm.fileExists(atPath: package.cleanTranscriptURL.path),
+              try await project.store.stageHash(.clean) == inputs.hash(for: .clean)
+        else { return false }
+
+        // Polish may legitimately be absent when the model declined, which the
+        // skip marker records.
+        if fm.fileExists(atPath: package.polishSkippedURL.path) { return true }
+        guard fm.fileExists(atPath: package.polishedTranscriptURL.path) else { return false }
+        let polishHash = try await project.store.stageHash(.polish)
+        return polishHash == inputs.hash(for: .polish)
     }
 
     /// Whether a stage's on-disk output is present.

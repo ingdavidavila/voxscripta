@@ -49,6 +49,17 @@ public struct ProjectPackage: Sendable {
     public var polishedTranscriptURL: URL { outputDirectory.appending(path: "polished.json") }
     /// Per-sentence provenance for POLISHED: what changed, and what the validator said.
     public var polishReportURL: URL { outputDirectory.appending(path: "polish_report.json") }
+    /// The optional silence-removed copy of the recording, and its time map.
+    ///
+    /// Lives in `Output/` rather than `Derived/` because a user asked for it and
+    /// cleanup must not reclaim it.
+    public var silenceRemovedAudioURL: URL {
+        outputDirectory.appending(path: "silence-removed.wav")
+    }
+    public var silenceRemovalMapURL: URL {
+        outputDirectory.appending(path: "silence-removed.json")
+    }
+
     /// Why polish did not run, when it did not.
     ///
     /// Written so a missing polished transcript always has a stated reason on
@@ -72,6 +83,16 @@ public struct ProjectManifest: Sendable, Codable {
     public var silenceParameters: SilenceParameters
     public var chunkParameters: ChunkParameters
     public var engineID: EngineID
+    /// Transcription locale, stored so reopening uses what the project was built with.
+    public var locale: String
+    /// Chunks transcribed at once when this project was built.
+    ///
+    /// Stored for the same reason as the silence and chunk parameters: it is part
+    /// of the transcription stage's input hash, so a project reopened at a
+    /// different value would re-transcribe. Engine output is not reproducible
+    /// across concurrency settings, so that invalidation is correct — which makes
+    /// remembering the original value the only way to avoid it.
+    public var concurrency: Int
     public var createdAt: Date
     public var modifiedAt: Date
 
@@ -82,6 +103,8 @@ public struct ProjectManifest: Sendable, Codable {
         silenceParameters: SilenceParameters = .default,
         chunkParameters: ChunkParameters = .default,
         engineID: EngineID = .appleSpeech,
+        locale: String = "en-US",
+        concurrency: Int = 4,
         createdAt: Date = Date(),
         modifiedAt: Date = Date()
     ) {
@@ -91,6 +114,8 @@ public struct ProjectManifest: Sendable, Codable {
         self.silenceParameters = silenceParameters
         self.chunkParameters = chunkParameters
         self.engineID = engineID
+        self.locale = locale
+        self.concurrency = concurrency
         self.createdAt = createdAt
         self.modifiedAt = modifiedAt
     }

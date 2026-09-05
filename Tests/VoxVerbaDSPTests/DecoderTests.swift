@@ -68,6 +68,39 @@ struct DecoderTests {
         #expect(abs(written - expected) < tolerance)
     }
 
+    /// Where a hand-supplied MP3 lives, derived from this file's compile-time path.
+    static let fixturesDirectory: URL = URL(filePath: #filePath)
+        .deletingLastPathComponent()    // VoxVerbaDSPTests
+        .deletingLastPathComponent()    // Tests
+        .appending(path: "Fixtures")
+
+    static var suppliedMP3: URL? {
+        DecodeOnlyFormat.fixture(named: "sample.mp3", in: fixturesDirectory)
+    }
+
+    @Test("A supplied MP3 decodes",
+          .enabled(if: DecoderTests.suppliedMP3 != nil,
+                   "no Tests/Fixtures/sample.mp3 — macOS cannot encode MP3, so the fixture must be supplied by hand; see Tests/Fixtures/README.md"))
+    func decodesSuppliedMP3() async throws {
+        // §33 names MP3, and it is the one format this project cannot synthesize.
+        // The test is skipped rather than passed when the fixture is absent, so
+        // the gap stays visible instead of masquerading as coverage.
+        let source = try #require(Self.suppliedMP3)
+        let tmp = try TempDirectory()
+        let dest = tmp.url.appending(path: "canonical.f32")
+
+        let format = try await CanonicalDecoder().probe(url: source)
+        #expect(format.sampleRate > 0)
+
+        let written = try await CanonicalDecoder().decode(url: source, to: dest) { _ in }
+        #expect(written > 0)
+
+        // The decode must produce real signal, not a silent buffer of the right size.
+        let samples = try readSamples(at: dest)
+        let peak = samples.map(abs).max() ?? 0
+        #expect(peak > 0.001, "the decoded MP3 is silent")
+    }
+
     @Test("Stereo is downmixed rather than having a channel dropped")
     func stereoDownmix() async throws {
         let tmp = try TempDirectory()

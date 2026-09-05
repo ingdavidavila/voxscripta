@@ -29,6 +29,11 @@ struct AppSettings: Codable, Sendable, Equatable {
     // Output and storage
     var defaultVariant: TranscriptVariant = .clean
     var copyOriginalIntoProject: Bool = false
+    /// Keep scratch audio after a job finishes.
+    ///
+    /// Off by default, per §5. For a six-hour recording the intermediates are
+    /// about 1.4 GB per project, and the transcripts do not need them.
+    var keepIntermediateFiles: Bool = false
 
     var silenceParameters: SilenceParameters {
         var p = SilenceParameters.default

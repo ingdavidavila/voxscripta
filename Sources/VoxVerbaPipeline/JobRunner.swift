@@ -32,6 +32,14 @@ public struct JobOptions: Sendable {
     public var clean: CleanParameters
     /// Polish settings, or `nil` to stop after CLEAN.
     public var polish: PolishParameters?
+    /// Keep the scratch audio and per-chunk results after a job finishes.
+    ///
+    /// §5 asks that intermediates be cleaned up automatically unless the user
+    /// chooses otherwise, so the default is to reclaim them. For a six-hour
+    /// recording that is about 1.4 GB of canonical PCM per project. Nothing in
+    /// `Original/` or `Output/` is ever touched, and a reclaimed project stays
+    /// openable — the transcripts are the result, the scratch work is not.
+    public var keepIntermediates: Bool
     /// Test-only fault injection.
     public var crashPoint: CrashPoint?
 
@@ -40,12 +48,14 @@ public struct JobOptions: Sendable {
         geometry: FrameGeometry = .default,
         clean: CleanParameters = .default,
         polish: PolishParameters? = .default,
+        keepIntermediates: Bool = false,
         crashPoint: CrashPoint? = nil
     ) {
         self.transcription = transcription
         self.geometry = geometry
         self.clean = clean
         self.polish = polish
+        self.keepIntermediates = keepIntermediates
         self.crashPoint = crashPoint
     }
 }
@@ -81,6 +91,7 @@ public struct JobRunner: Sendable {
         options: JobOptions = JobOptions(),
         progress: @escaping @Sendable (JobProgressReport) -> Void = { _ in }
     ) async throws -> Transcript {
+        let options = resolved(options, for: project)
         let package = project.package
         let (sourceURL, release) = try project.resolveSource()
         defer { release() }
@@ -92,8 +103,11 @@ public struct JobRunner: Sendable {
             silenceParameters: project.manifest.silenceParameters,
             chunkParameters: project.manifest.chunkParameters,
             engineID: project.manifest.engineID,
-            locale: options.transcription.locale,
-            concurrency: options.transcription.concurrency)
+            // From the manifest, not the caller. These are part of the
+            // transcription hash, so taking them from ambient defaults would make
+            // simply reopening a project re-transcribe it.
+            locale: project.manifest.locale,
+            concurrency: project.manifest.concurrency)
 
         let plan = try await ResumePlanner().plan(for: project, inputs: inputs)
 
@@ -142,8 +156,7 @@ public struct JobRunner: Sendable {
                                                   options: options, progress: progress)
             try await runPolishStage(project: project, clean: cleaned,
                                      options: options, progress: progress)
-            try await project.store.setState(.complete)
-            progress(JobProgressReport(state: .complete, fraction: 1, detail: "Complete"))
+            try await finish(project: project, options: options, progress: progress)
             return verbatim
         }
 
@@ -301,9 +314,28 @@ public struct JobRunner: Sendable {
                                  options: options, progress: progress)
         try crashIfRequested(options, .polish, .after)
 
-        try await project.store.setState(.complete)
-        progress(JobProgressReport(state: .complete, fraction: 1, detail: "Complete"))
+        try await finish(project: project, options: options, progress: progress)
         return transcript
+    }
+
+    /// Marks the job complete and reclaims scratch storage.
+    ///
+    /// Reclaiming last, after every output is durable, so a failure here can only
+    /// cost disk space rather than results.
+    private func finish(
+        project: Project,
+        options: JobOptions,
+        progress: @escaping @Sendable (JobProgressReport) -> Void
+    ) async throws {
+        try await project.store.setState(.complete)
+
+        if !options.keepIntermediates {
+            let freed = (try? project.reclaimDerivedStorage()) ?? 0
+            if freed > 0 {
+                Log.project.info("reclaimed \(freed / (1 << 20)) MB of intermediate files")
+            }
+        }
+        progress(JobProgressReport(state: .complete, fraction: 1, detail: "Complete"))
     }
 
     /// The CLEAN pass: deterministic rules only, no model.
@@ -337,6 +369,17 @@ public struct JobRunner: Sendable {
     }
 
     /// Rebuilds the stage input set from a project's manifest and options.
+    /// Options with the manifest's stored transcription settings applied.
+    ///
+    /// A project's locale and concurrency belong to the project, exactly like its
+    /// silence thresholds.
+    private func resolved(_ options: JobOptions, for project: Project) -> JobOptions {
+        var resolved = options
+        resolved.transcription.locale = project.manifest.locale
+        resolved.transcription.concurrency = project.manifest.concurrency
+        return resolved
+    }
+
     private func stageInputs(for project: Project, options: JobOptions) async throws -> StageInputs {
         StageInputs(
             sourceContentHash: project.manifest.source.contentHash,
@@ -345,8 +388,11 @@ public struct JobRunner: Sendable {
             silenceParameters: project.manifest.silenceParameters,
             chunkParameters: project.manifest.chunkParameters,
             engineID: project.manifest.engineID,
-            locale: options.transcription.locale,
-            concurrency: options.transcription.concurrency)
+            // From the manifest, not the caller. These are part of the
+            // transcription hash, so taking them from ambient defaults would make
+            // simply reopening a project re-transcribe it.
+            locale: project.manifest.locale,
+            concurrency: project.manifest.concurrency)
     }
 
     /// Reads a produced variant back from a completed project.

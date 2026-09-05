@@ -46,6 +46,11 @@ struct TranscriptWorkspace: View {
                     Toggle("Include timestamps", isOn: $model.exportIncludesTimestamps)
                     Divider()
                     Button("Export Every Variant…") { model.exportAll() }
+                    Divider()
+                    Button("Audio with Silence Removed…") {
+                        model.renderSilenceRemovedAudio()
+                    }
+                    .disabled(model.silenceMap == nil || model.isRendering)
                 } label: {
                     Label("Export", systemImage: "square.and.arrow.up")
                 }
