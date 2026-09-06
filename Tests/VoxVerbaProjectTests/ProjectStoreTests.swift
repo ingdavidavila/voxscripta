@@ -160,3 +160,76 @@ struct ProjectStoreTests {
         #expect(FileManager.default.fileExists(atPath: project.package.manifestURL.path))
     }
 }
+
+@Suite("Manifest compatibility")
+struct ManifestCompatibilityTests {
+
+    /// A manifest as written before `locale` and `concurrency` existed.
+    private let olderManifest = """
+        {
+          "schemaVersion": 1,
+          "projectID": "5E3B7A1C-1111-4222-8333-444455556666",
+          "source": {
+            "id": "5E3B7A1C-9999-4222-8333-444455556666",
+            "reference": { "insidePackage": { "filename": "a.wav" } },
+            "displayName": "a.wav",
+            "contentHash": "abc",
+            "format": { "sampleRate": 16000, "channelCount": 1, "formatDescription": "test" },
+            "duration": { "nanoseconds": 18000000000 },
+            "byteSize": 1234,
+            "importedAt": "2026-01-01T00:00:00Z"
+          },
+          "silenceParameters": {
+            "marginDB": 8, "hysteresisDB": 4, "absoluteFloorDB": -65,
+            "minSpeechDuration": { "nanoseconds": 200000000 },
+            "minSilenceDuration": { "nanoseconds": 500000000 },
+            "padLead": { "nanoseconds": 200000000 },
+            "padTrail": { "nanoseconds": 350000000 },
+            "paragraphPauseThreshold": { "nanoseconds": 1500000000 },
+            "sectionPauseThreshold": { "nanoseconds": 4000000000 },
+            "fricativeProtection": true
+          },
+          "chunkParameters": {
+            "minDuration": { "nanoseconds": 120000000000 },
+            "maxDuration": { "nanoseconds": 300000000000 },
+            "targetDuration": { "nanoseconds": 240000000000 },
+            "overlapDuration": { "nanoseconds": 3000000000 },
+            "minBoundaryGap": { "nanoseconds": 400000000 }
+          },
+          "engineID": "apple.speech-transcriber",
+          "createdAt": "2026-01-01T00:00:00Z",
+          "modifiedAt": "2026-01-01T00:00:00Z"
+        }
+        """
+
+    @Test("A manifest missing newer fields still decodes")
+    func decodesOlderManifest() throws {
+        // The regression this guards: adding two non-optional Codable properties
+        // made every existing project undecodable, and because the library skips
+        // what it cannot read, they vanished from the sidebar. Nothing was lost on
+        // disk, but from the user's side their work had disappeared.
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let manifest = try decoder.decode(ProjectManifest.self,
+                                          from: Data(olderManifest.utf8))
+
+        #expect(manifest.source.displayName == "a.wav")
+        // Fields added later fall back to their defaults rather than failing.
+        #expect(manifest.locale == "en-US")
+        #expect(manifest.concurrency == 4)
+        #expect(manifest.silenceParameters.marginDB == 8)
+    }
+
+    @Test("A project written by an older version opens")
+    func opensOlderProject() async throws {
+        let tmp = try TempDirectory()
+        let root = tmp.url.appending(path: "old.voxverba")
+        try FileManager.default.createDirectory(
+            at: root.appending(path: "Original"), withIntermediateDirectories: true)
+        try Data(olderManifest.utf8).write(to: root.appending(path: "manifest.json"))
+
+        let project = try await ProjectStore().open(at: root)
+        #expect(project.manifest.locale == "en-US")
+        #expect(project.manifest.concurrency == 4)
+    }
+}

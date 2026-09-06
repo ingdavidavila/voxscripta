@@ -119,4 +119,32 @@ public struct ProjectManifest: Sendable, Codable {
         self.createdAt = createdAt
         self.modifiedAt = modifiedAt
     }
+
+    /// Decodes leniently, so a project written by an earlier version still opens.
+    ///
+    /// Learned the hard way: adding `locale` and `concurrency` as non-optional
+    /// `Codable` properties made every existing manifest fail to decode, and
+    /// because the library skips projects it cannot read, they silently vanished
+    /// from the sidebar. Nothing was lost on disk, but from the user's side their
+    /// work had disappeared — which is indistinguishable from data loss.
+    ///
+    /// Any field added after the first release is therefore decoded with
+    /// `decodeIfPresent` and a default. Removing or repurposing a field still
+    /// needs a schema-version bump; this only covers additions, which are the
+    /// common case.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
+        projectID = try container.decode(ProjectID.self, forKey: .projectID)
+        source = try container.decode(AudioSource.self, forKey: .source)
+        silenceParameters = try container.decodeIfPresent(
+            SilenceParameters.self, forKey: .silenceParameters) ?? .default
+        chunkParameters = try container.decodeIfPresent(
+            ChunkParameters.self, forKey: .chunkParameters) ?? .default
+        engineID = try container.decodeIfPresent(EngineID.self, forKey: .engineID) ?? .appleSpeech
+        locale = try container.decodeIfPresent(String.self, forKey: .locale) ?? "en-US"
+        concurrency = try container.decodeIfPresent(Int.self, forKey: .concurrency) ?? 4
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+        modifiedAt = try container.decodeIfPresent(Date.self, forKey: .modifiedAt) ?? Date()
+    }
 }
