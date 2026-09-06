@@ -1,5 +1,6 @@
 import SwiftUI
 import VoxVerbaCore
+import VoxVerbaPipeline
 
 /// Advanced settings (§29), deliberately out of the main workflow.
 struct SettingsView: View {
@@ -79,7 +80,35 @@ struct SettingsView: View {
                 }
                 Section("Polished") {
                     Toggle("Create a polished transcript", isOn: $model.settings.polishEnabled)
-                    Text("Rewrites for readability using Apple's on-device model, one sentence at a time. Every sentence is checked against the original; anything that changes a number, name, negation or meaning is rejected and the clean text is kept.")
+                    Text("Rewrites for readability one sentence at a time. Every sentence is checked against the original; anything that changes a number, name, negation or meaning is rejected and the clean text is kept.")
+                        .font(.caption).foregroundStyle(.secondary)
+
+                    Picker("Language model", selection: $model.settings.polishBackend) {
+                        ForEach(PolishBackendPreference.allCases, id: \.self) { preference in
+                            Text(preference.displayName).tag(preference)
+                        }
+                    }
+                    .disabled(!model.settings.polishEnabled)
+
+                    LabeledContent("Will use") {
+                        Text(model.effectiveBackendDescription)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Section("Models") {
+                    LabeledContent("Apple Intelligence") {
+                        Label(model.systemModelAvailable ? "Available" : "Unavailable",
+                              systemImage: model.systemModelAvailable
+                                  ? "checkmark.circle" : "xmark.circle")
+                            .foregroundStyle(model.systemModelAvailable ? .green : .secondary)
+                            .labelStyle(.titleAndIcon)
+                    }
+                    LabeledContent("Bundled model") {
+                        Text(model.bundledModelDescription ?? "Not included in this build")
+                            .foregroundStyle(.secondary)
+                    }
+                    Text("The bundled model ships inside the app, so polishing works even where Apple Intelligence is unavailable. Nothing is ever downloaded — VoxVerba has no network access at all.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }

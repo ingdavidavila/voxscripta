@@ -26,6 +26,30 @@ if [ ! -f "$ROOT/build/VoxVerba.icns" ]; then
 fi
 cp "$ROOT/build/VoxVerba.icns" "$APP/Contents/Resources/VoxVerba.icns"
 
+# MLX's Metal shaders. SwiftPM cannot build these — see Tools/build-metallib.sh
+# — and without the library the app links fine and then fails at the first GPU
+# call, so it is built here and placed beside the executable where MLX looks for
+# it first.
+if [ ! -f "$ROOT/build/mlx.metallib" ]; then
+    "$ROOT/Tools/build-metallib.sh"
+fi
+cp "$ROOT/build/mlx.metallib" "$APP/Contents/MacOS/mlx.metallib"
+
+# Resource bundles from dependencies (tokenizer data, and so on).
+for bundle in "$BIN"/*.bundle; do
+    [ -e "$bundle" ] || continue
+    cp -R "$bundle" "$APP/Contents/Resources/"
+done
+
+# The bundled language model, if one has been fetched. Its absence is not an
+# error: the app falls back to Apple's system model, and says so when it cannot.
+if [ -d "$ROOT/build/Model" ] && [ -f "$ROOT/build/Model/config.json" ]; then
+    cp -R "$ROOT/build/Model" "$APP/Contents/Resources/Model"
+    MODEL_SIZE=$(du -sh "$APP/Contents/Resources/Model" | cut -f1)
+else
+    MODEL_SIZE="none — run Tools/fetch-model.sh for a self-contained build"
+fi
+
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -58,10 +82,17 @@ cat > "$ROOT/build/VoxVerba.entitlements" <<ENT
 </plist>
 ENT
 
+# The metallib lives beside the executable because that is the first place MLX
+# looks. codesign treats anything in Contents/MacOS as nested code and refuses to
+# seal an unsigned one, which silently dropped the app to a signature with no
+# entitlements — so it is signed first, on its own.
+if [ -f "$APP/Contents/MacOS/mlx.metallib" ]; then
+    codesign --force --sign - "$APP/Contents/MacOS/mlx.metallib"
+fi
+
 # Hardened runtime is required for notarization and costs nothing to enable now.
 codesign --force --options runtime --sign - \
-    --entitlements "$ROOT/build/VoxVerba.entitlements" "$APP" 2>/dev/null || \
-    codesign --force --sign - "$APP"
+    --entitlements "$ROOT/build/VoxVerba.entitlements" "$APP"
 
 # The privacy guarantee is only worth stating if it is checked. A network
 # entitlement here would silently undo §26, so the build refuses to produce one.
@@ -70,10 +101,18 @@ if codesign -d --entitlements - "$APP" 2>/dev/null | grep -q "network.client"; t
     exit 1
 fi
 
+# A signature that lost its entitlements is worse than a failed build, because
+# the privacy guarantee is asserted by what the entitlements do *not* contain.
+if ! codesign -d --entitlements - "$APP" 2>/dev/null | grep -q "user-selected"; then
+    echo "FAIL: the bundle lost its entitlements during signing" >&2
+    exit 1
+fi
+
 RUNTIME=$(codesign -d -v "$APP" 2>&1 | grep -o 'runtime' | head -1)
 echo "built $APP"
 echo "  hardened runtime: ${RUNTIME:-NOT ENABLED}"
 echo "  network access:   none (no com.apple.security.network.client entitlement)"
+echo "  bundled model:    $MODEL_SIZE"
 echo
 echo "Ad-hoc signed. For distribution see Docs/RELEASE.md — notarization needs a"
 echo "Developer ID certificate and an Apple ID, which this script deliberately"

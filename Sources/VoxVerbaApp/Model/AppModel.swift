@@ -7,6 +7,7 @@ import VoxVerbaTranscription
 import VoxVerbaLanguage
 import VoxVerbaProject
 import VoxVerbaPipeline
+import VoxVerbaMLX
 import VoxVerbaExport
 import VoxVerbaDSP
 
@@ -193,6 +194,7 @@ final class AppModel {
         var options = JobOptions()
         options.clean = settings.cleanParameters
         options.keepIntermediates = settings.keepIntermediateFiles
+        options.polishBackend = settings.polishBackend
         options.polish = settings.polishEnabled ? settings.polishParameters : nil
 
         // Progress arrives from background tasks far faster than a person can
@@ -284,6 +286,29 @@ final class AppModel {
     }
 
     func dismissError() { errorMessage = nil }
+
+    // ── Models (§28) ────────────────────────────────────────────────────────
+
+    /// What the bundled model is, if this build shipped one.
+    var bundledModelDescription: String? {
+        guard let directory = ModelLocator.bundledDirectory else { return nil }
+        let bytes = ModelLocator.size(of: directory)
+        let size = ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+        return "\(ModelLocator.displayName(for: directory)) · \(size)"
+    }
+
+    /// Whether Apple's system model can run here.
+    var systemModelAvailable: Bool {
+        (try? LanguageModelHost.availability().get()) != nil
+    }
+
+    /// Which backend a job would actually use right now.
+    var effectiveBackendDescription: String {
+        guard let resolved = try? PolishBackendResolver.resolve(settings.polishBackend) else {
+            return "unavailable — polish will be skipped"
+        }
+        return resolved.describedAs
+    }
 
     // ── Export ──────────────────────────────────────────────────────────────
 

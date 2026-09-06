@@ -86,12 +86,55 @@ swift run voxverba-cli run audio.wav --project p.voxverba --keep-intermediates
 swift run voxverba-cli clean --project p.voxverba
 ```
 
-### Still zero third-party dependencies
+### Self-contained: a bundled language model
 
-`ZIPFoundation` was the last budgeted dependency and it is gone too. A
-stored-entry ZIP writer is about 120 lines, Word accepts stored entries, and a
-transcript barely compresses at these sizes. The whole project builds offline
-against nothing but Apple frameworks.
+VoxVerba ships its own model, so POLISHED works on any Apple silicon Mac —
+including one where Apple Intelligence is off or unsupported.
+
+| Backend | Source | Used when |
+|---|---|---|
+| Apple system model (~3B) | macOS | preferred, when available |
+| Bundled Qwen2.5-1.5B-Instruct-4bit | inside the app | fallback, or forced in Settings |
+
+The default is **best available**: the system model when it exists, the bundled
+one otherwise. Measured on the disfluent corpus the bundled model gives 26.7%
+rejection and 20% fallback, against 33%/33% for the system model — close enough
+that the guarantee costs little.
+
+```
+Tools/fetch-model.sh          # once: downloads the weights into build/Model
+Tools/make-app-bundle.sh      # builds a 924 MB app with the model inside
+```
+
+Nothing is downloaded at runtime. The app still has **no network entitlement**
+and cannot open a socket; the only fetch happens on the build machine.
+
+### Two things this cost
+
+**The dependency count is no longer zero.** `mlx-swift-lm` and swift-transformers
+come in, and with them mlx-swift, swift-syntax, swift-numerics,
+swift-argument-parser and swift-collections. That was the price of independence
+from Apple Intelligence, and it is confined to one target — `VoxVerbaMLX` — so
+the validator, the CLEAN pass and the DSP core stay dependency-free.
+
+**SwiftPM cannot build MLX's Metal shaders.** mlx-swift's own README says so:
+*"SwiftPM (command line) cannot build the Metal shaders so the ultimate build has
+to be done via Xcode."* Without them the app links perfectly and dies at the
+first GPU call with *"Failed to load the default metallib"* — a runtime failure
+from a clean build. Rather than restructure the project around an `.xcodeproj`
+for one artifact, `Tools/build-metallib.sh` compiles the eight shader sources
+directly and drops the result where MLX looks first. It needs the Metal
+toolchain: `xcodebuild -downloadComponent MetalToolchain`.
+
+### A correction to the architecture
+
+This document previously cited WWDC26's `MLXLanguageModel` bridge — which plugs
+MLX into `LanguageModelSession` and keeps `@Generable` guided generation — as the
+way to add MLX. **It requires macOS 27**, gated behind
+`canImport(FoundationModels, _version: 2)`. On macOS 26 the backend drives
+`MLXLLM` directly instead. The cost is small: polish already runs one sentence
+per call, so there is no cardinality for a schema to enforce, and all seven
+validator checks are unchanged.
 
 ### The privacy claim is enforced by the build
 

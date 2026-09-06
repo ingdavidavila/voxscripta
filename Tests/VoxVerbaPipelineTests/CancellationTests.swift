@@ -64,8 +64,11 @@ struct CancellationTests {
 
         let engine = await slowEngine()
         let runner = JobRunner(engineFactory: { engine })
-        var options = JobOptions()
-        options.transcription.concurrency = 1
+        let options: JobOptions = {
+            var o = JobOptions()
+            o.transcription.concurrency = 1
+            return o
+        }()
 
         let watcher = ChunkWatcher()
         let task = Task {
@@ -97,8 +100,11 @@ struct CancellationTests {
 
         let engine = await slowEngine()
         let runner = JobRunner(engineFactory: { engine })
-        var options = JobOptions()
-        options.transcription.concurrency = 1
+        let options: JobOptions = {
+            var o = JobOptions()
+            o.transcription.concurrency = 1
+            return o
+        }()
 
         let watcher = ChunkWatcher()
         let task = Task {

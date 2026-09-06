@@ -3,6 +3,7 @@ import VoxVerbaCore
 import VoxVerbaDSP
 import VoxVerbaTranscription
 import VoxVerbaLanguage
+import VoxVerbaMLX
 import VoxVerbaProject
 
 /// A point at which the runner will deliberately kill the process.
@@ -32,6 +33,11 @@ public struct JobOptions: Sendable {
     public var clean: CleanParameters
     /// Polish settings, or `nil` to stop after CLEAN.
     public var polish: PolishParameters?
+    /// Which language model the polish pass should use.
+    public var polishBackend: PolishBackendPreference
+    /// An explicit model folder, overriding whatever the app bundles.
+    public var polishModelDirectory: URL?
+
     /// Keep the scratch audio and per-chunk results after a job finishes.
     ///
     /// §5 asks that intermediates be cleaned up automatically unless the user
@@ -48,6 +54,8 @@ public struct JobOptions: Sendable {
         geometry: FrameGeometry = .default,
         clean: CleanParameters = .default,
         polish: PolishParameters? = .default,
+        polishBackend: PolishBackendPreference = .automatic,
+        polishModelDirectory: URL? = nil,
         keepIntermediates: Bool = false,
         crashPoint: CrashPoint? = nil
     ) {
@@ -55,6 +63,8 @@ public struct JobOptions: Sendable {
         self.geometry = geometry
         self.clean = clean
         self.polish = polish
+        self.polishBackend = polishBackend
+        self.polishModelDirectory = polishModelDirectory
         self.keepIntermediates = keepIntermediates
         self.crashPoint = crashPoint
     }
@@ -428,7 +438,19 @@ public struct JobRunner: Sendable {
         let package = project.package
 
         try await advance(project, .polishing, progress, 0.94, "Polishing transcript")
-        let host = LanguageModelHost()
+
+        let resolved: ResolvedBackend
+        do {
+            resolved = try PolishBackendResolver.resolve(
+                options.polishBackend, modelDirectory: options.polishModelDirectory)
+        } catch {
+            let reason = (error as? VoxVerbaError)?.errorDescription ?? error.localizedDescription
+            try? AtomicFile.write(Data(reason.utf8), to: package.polishSkippedURL)
+            Log.language.notice("polish skipped: \(reason, privacy: .public)")
+            return
+        }
+        let host = resolved.host
+
         do {
             try await host.load()
             let polished = try await PolishProcessor().process(
@@ -445,6 +467,7 @@ public struct JobRunner: Sendable {
                                  to: package.textURL(for: .polished))
             try AtomicFile.writeJSON(polished.sentences, to: package.polishReportURL)
             try? FileManager.default.removeItem(at: package.polishSkippedURL)
+            Log.language.info("polished with \(resolved.describedAs, privacy: .public)")
 
             let inputs = try await stageInputs(for: project, options: options)
             try await project.store.setStageHash(.polish, to: inputs.hash(for: .polish))

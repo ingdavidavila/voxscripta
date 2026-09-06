@@ -96,14 +96,19 @@ struct MemoryTests {
                                   sampleRate: CanonicalFormat.sampleRate)
 
         let dest = tmp.url.appending(path: "canonical.f32")
+        let baseline = try MemoryFootprint.current()
         let (written, peak) = try await MemoryFootprint.peak {
             try await CanonicalDecoder(bufferDuration: 10).decode(url: source, to: dest) { _ in }
         }
         #expect(written > 9_000_000)
 
-        // Generous, because a test process carries the runtime, the framework and
-        // the fixture. The assertion that matters is the comparative one above;
-        // this one catches a decoder that accidentally accumulates output.
-        #expect(peak < 512 * 1024 * 1024)
+        // Growth, not absolute footprint. This suite shares a process with tests
+        // that load MLX and an 868 MB model, so the absolute figure says more
+        // about what else ran than about the decoder. What must hold is that
+        // decoding ten minutes of audio costs a bounded amount *more* than
+        // whatever the process was already using.
+        let growth = peak - baseline
+        #expect(growth < 256 * 1024 * 1024,
+                "decoding grew the footprint by \(growth / (1 << 20)) MB")
     }
 }

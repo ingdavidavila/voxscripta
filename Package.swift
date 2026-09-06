@@ -21,11 +21,22 @@ let package = Package(
         .library(name: "VoxVerbaProject", targets: ["VoxVerbaProject"]),
         .library(name: "VoxVerbaExport", targets: ["VoxVerbaExport"]),
         .library(name: "VoxVerbaBench", targets: ["VoxVerbaBench"]),
+        .library(name: "VoxVerbaMLX", targets: ["VoxVerbaMLX"]),
         .library(name: "VoxVerbaPipeline", targets: ["VoxVerbaPipeline"]),
         .library(name: "VoxVerbaTestSupport", targets: ["VoxVerbaTestSupport"]),
         .executable(name: "VoxVerbaApp", targets: ["VoxVerbaApp"]),
         .executable(name: "voxverba-cli", targets: ["voxverba-cli"]),
         .executable(name: "corpus-gen", targets: ["corpus-gen"]),
+    ],
+    // The only external dependency in the project, and it buys independence from
+    // Apple Intelligence: a bundled model means the app works on any Apple
+    // silicon Mac regardless of whether the system LLM is available.
+    dependencies: [
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", branch: "main"),
+        // The tokenizer half. mlx-swift-lm defines the Tokenizer protocol but
+        // leaves the implementation to the consumer, which is what its
+        // #adaptHuggingFaceTokenizer macro exists to bridge.
+        .package(url: "https://github.com/huggingface/swift-transformers", from: "1.3.0"),
     ],
     targets: [
         // ── Foundation layer ────────────────────────────────────────────────
@@ -45,12 +56,31 @@ let package = Package(
         .target(name: "VoxVerbaExport", dependencies: ["VoxVerbaCore"], swiftSettings: strict),
         .target(name: "VoxVerbaBench", dependencies: ["VoxVerbaCore"], swiftSettings: strict),
 
+        // ── Bundled language model ──────────────────────────────────────────
+        // Kept in its own target so MLX does not reach the validator, the CLEAN
+        // pass, or anything that must stay dependency-free and fast to compile.
+        // Swift 6 mode, but without ExistentialAny: the tokenizer bridge comes
+        // from mlx-swift-lm's #adaptHuggingFaceTokenizer macro, whose expansion
+        // writes a bare `Tokenizer` existential. The warning is in generated code
+        // that cannot be edited here, and the whole project builds with warnings
+        // as errors, so the one upcoming feature is dropped for this target only.
+        .target(name: "VoxVerbaMLX",
+                dependencies: [
+                    "VoxVerbaCore", "VoxVerbaLanguage",
+                    .product(name: "MLXLLM", package: "mlx-swift-lm"),
+                    .product(name: "MLXLMCommon", package: "mlx-swift-lm"),
+                    .product(name: "MLXHuggingFace", package: "mlx-swift-lm"),
+                    .product(name: "Transformers", package: "swift-transformers"),
+                ],
+                swiftSettings: [.swiftLanguageMode(.v6)]),
+
         // ── Orchestration ───────────────────────────────────────────────────
         // Ties the stages together and persists after each one. The only target
         // that knows the pipeline's shape; everything below it is independent.
         .target(name: "VoxVerbaPipeline",
                 dependencies: ["VoxVerbaCore", "VoxVerbaDSP", "VoxVerbaTranscription",
-                               "VoxVerbaLanguage", "VoxVerbaProject", "VoxVerbaBench"],
+                               "VoxVerbaLanguage", "VoxVerbaMLX", "VoxVerbaProject",
+                               "VoxVerbaBench"],
                 swiftSettings: strict),
 
         // ── Test support ────────────────────────────────────────────────────
@@ -96,6 +126,9 @@ let package = Package(
                     dependencies: ["VoxVerbaTranscription", "VoxVerbaDSP",
                                    "VoxVerbaTestSupport", "VoxVerbaBench"],
                     swiftSettings: strict),
+        .testTarget(name: "VoxVerbaMLXTests",
+                    dependencies: ["VoxVerbaMLX", "VoxVerbaLanguage"],
+                    swiftSettings: [.swiftLanguageMode(.v6)]),
         .testTarget(name: "VoxVerbaLanguageTests",
                     dependencies: ["VoxVerbaLanguage", "VoxVerbaTestSupport"], swiftSettings: strict),
         .testTarget(name: "VoxVerbaProjectTests",

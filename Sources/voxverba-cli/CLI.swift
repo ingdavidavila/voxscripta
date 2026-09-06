@@ -401,6 +401,11 @@ struct CLI {
         if let v = opts.value("concurrency").flatMap(Int.init) { options.transcription.concurrency = v }
         if let v = opts.value("locale") { options.transcription.locale = v }
         options.keepIntermediates = opts.flag("keep-intermediates")
+        if let raw = opts.value("polish-backend"),
+           let backend = PolishBackendPreference(rawValue: raw) {
+            options.polishBackend = backend
+        }
+        options.polishModelDirectory = opts.value("model").map { URL(filePath: $0) }
         if let raw = opts.value("crash-at"), let stage = StageKey(rawValue: raw) {
             options.crashPoint = CrashPoint(
                 stage: stage,
@@ -750,6 +755,8 @@ struct CLI {
           --speakers             Include speaker labels
           --copy                 Copy the audio into the project instead of referencing it
           --keep-intermediates   Keep scratch audio after a job finishes
+          --polish-backend <k>   automatic | system | bundled
+          --model <dir>          An MLX model folder to polish with
           --engine <id>          apple (default) | whisperkit
           --locale <bcp47>       Transcription locale, default en-US
           --concurrency <n>      Chunks in flight, default 1

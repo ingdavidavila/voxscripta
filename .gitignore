@@ -23,3 +23,6 @@ Tests/Fixtures/generated/
 
 # Local model assets. Never committed — large, and license-encumbered.
 Models/
+
+# Fetched model weights — see Tools/fetch-model.sh
+build/Model/

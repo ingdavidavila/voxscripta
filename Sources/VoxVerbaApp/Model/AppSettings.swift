@@ -2,6 +2,7 @@ import Foundation
 import VoxVerbaCore
 import VoxVerbaTranscription
 import VoxVerbaLanguage
+import VoxVerbaPipeline
 import VoxVerbaProject
 
 /// User-facing settings (§29), persisted between launches.
@@ -25,6 +26,11 @@ struct AppSettings: Codable, Sendable, Equatable {
     var removeFillers: Bool = true
     var collapseRepetitions: Bool = true
     var polishEnabled: Bool = true
+    /// Which language model polishes.
+    ///
+    /// Automatic prefers Apple's system model and falls back to the bundled one,
+    /// which is what lets POLISHED be promised on any Mac.
+    var polishBackend: PolishBackendPreference = .automatic
 
     // Output and storage
     var defaultVariant: TranscriptVariant = .clean
