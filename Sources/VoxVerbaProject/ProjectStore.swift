@@ -98,6 +98,94 @@ public struct ProjectStore: Sendable {
         return Project(package: package, manifest: manifest, store: store)
     }
 
+    /// What deleting a project would actually remove.
+    ///
+    /// Presented before the fact, because "delete" means different things
+    /// depending on how the recording was imported, and the difference is the
+    /// whole §5 guarantee. A referenced recording lives in the user's own folder
+    /// and is never touched; a copied one exists twice, and only the copy inside
+    /// the project goes.
+    public struct DeletionPlan: Sendable {
+        public let projectName: String
+        /// Bytes freed by removing the package.
+        public let bytesFreed: Int64
+        /// The user's own recording, which is not deleted.
+        public let originalKept: URL?
+        /// True when the only copy of the audio is inside the package.
+        public let removesAudioCopy: Bool
+
+        public init(projectName: String, bytesFreed: Int64,
+                    originalKept: URL?, removesAudioCopy: Bool) {
+            self.projectName = projectName
+            self.bytesFreed = bytesFreed
+            self.originalKept = originalKept
+            self.removesAudioCopy = removesAudioCopy
+        }
+    }
+
+    /// Describes what deleting `url` would remove, without removing anything.
+    public func deletionPlan(for url: URL) async throws -> DeletionPlan {
+        let package = ProjectPackage(root: url)
+        let manifest = try AtomicFile.readJSON(ProjectManifest.self, from: package.manifestURL)
+
+        let bytes = Self.sizeOnDisk(of: url)
+        let copied = manifest.source.reference.isCopy
+        var kept: URL?
+        if !copied {
+            let project = Project(package: package, manifest: manifest,
+                                  store: try JobStore(url: package.jobStoreURL))
+            if let (resolved, release) = try? project.resolveSource() {
+                release()
+                kept = resolved
+            }
+        }
+
+        return DeletionPlan(projectName: manifest.source.displayName,
+                            bytesFreed: bytes, originalKept: kept,
+                            removesAudioCopy: copied)
+    }
+
+    /// Total bytes a directory occupies. Synchronous: directory enumeration is
+    /// unavailable from an async context.
+    nonisolated static func sizeOnDisk(of url: URL) -> Int64 {
+        guard let walker = FileManager.default.enumerator(
+            at: url, includingPropertiesForKeys: [.fileSizeKey]) else { return 0 }
+        var bytes: Int64 = 0
+        for case let entry as URL in walker {
+            bytes += Int64((try? entry.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
+        }
+        return bytes
+    }
+
+    /// Deletes a project package.
+    ///
+    /// Moves it to the Trash rather than unlinking, so a mistaken delete is
+    /// recoverable — this is the only destructive action in the app, and an
+    /// undoable one costs nothing.
+    ///
+    /// - Important: Only the package is removed. A recording the user imported by
+    ///   reference stays exactly where they put it; nothing here can reach
+    ///   outside `url`.
+    @discardableResult
+    public func delete(at url: URL) throws -> URL? {
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        // Only ever removes something that is demonstrably a VoxVerba project.
+        // The UI hands this a URL; a bug there must not be able to trash an
+        // arbitrary folder of the user's.
+        guard FileManager.default.fileExists(
+            atPath: ProjectPackage(root: url).manifestURL.path) else {
+            throw VoxVerbaError.projectCorrupt(
+                reason: "\(url.lastPathComponent) is not a VoxVerba project")
+        }
+        var trashed: NSURL?
+        do {
+            try FileManager.default.trashItem(at: url, resultingItemURL: &trashed)
+        } catch {
+            throw VoxVerbaError.ioFailure(path: url.path, reason: error.localizedDescription)
+        }
+        return trashed as URL?
+    }
+
     /// Deletes leftover `.tmp` files from an interrupted atomic write.
     ///
     /// These are always safe to remove: an atomic write only renames into place

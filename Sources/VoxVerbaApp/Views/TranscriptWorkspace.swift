@@ -31,30 +31,50 @@ struct TranscriptWorkspace: View {
                     Toggle(isOn: $model.showsValidationDetail) {
                         Label("Review", systemImage: "checkmark.shield")
                     }
-                    .help("Show what the polish pass changed, and what was rejected.")
+                    .help("Show what the polish pass changed, and what it refused to change.")
                 }
-                Button { copy() } label: {
+
+                Button { model.copyTranscript() } label: {
                     Label("Copy", systemImage: "doc.on.doc")
                 }
                 .disabled(model.currentTranscript == nil)
+                .keyboardShortcut("c", modifiers: [.command, .shift])
+                .help("Copy the whole \(model.selectedVariant.displayName.lowercased()) "
+                      + "transcript to the clipboard. (⇧⌘C)")
 
+                // A plain click saves the transcript; the arrow opens the other
+                // formats. Downloading should not require finding a submenu first.
                 Menu {
-                    ForEach(model.exportableFormats, id: \.self) { format in
-                        Button(format.displayName) { model.export(format) }
+                    Section("Save As") {
+                        ForEach(model.exportableFormats, id: \.self) { format in
+                            Button(format.displayName) { model.export(format) }
+                                .help(format.explanation)
+                        }
                     }
                     Divider()
                     Toggle("Include timestamps", isOn: $model.exportIncludesTimestamps)
+                        .help("Write each segment's start time alongside its text. "
+                              + "Subtitle formats always carry timings.")
                     Divider()
-                    Button("Export Every Variant…") { model.exportAll() }
-                    Divider()
+                    Button("Save Every Variant…") { model.exportAll() }
+                        .help("Write the verbatim, clean and polished transcripts "
+                              + "to one folder.")
                     Button("Audio with Silence Removed…") {
                         model.renderSilenceRemovedAudio()
                     }
                     .disabled(model.silenceMap == nil || model.isRendering)
+                    .help("Render a new audio file with the silences taken out. "
+                          + "Your original recording is left untouched.")
                 } label: {
-                    Label("Export", systemImage: "square.and.arrow.up")
+                    Label("Download", systemImage: "square.and.arrow.down")
+                } primaryAction: {
+                    model.export(model.defaultExportFormat)
                 }
+                .menuIndicator(.visible)
                 .disabled(model.currentTranscript == nil)
+                .help("Save this transcript as "
+                      + "\(model.defaultExportFormat.displayName). "
+                      + "Use the arrow for other formats.")
             }
         }
     }
@@ -65,14 +85,25 @@ struct TranscriptWorkspace: View {
         return HStack {
             Picker("", selection: $model.selectedVariant) {
                 ForEach(model.availableVariants, id: \.self) { variant in
-                    Text(variant.displayName).tag(variant)
+                    Text(variant.displayName)
+                        .help(variant.explanation)
+                        .tag(variant)
                 }
             }
             .pickerStyle(.segmented)
             .labelsHidden()
             .frame(maxWidth: 340)
+            .help(model.selectedVariant.explanation)
 
             Spacer()
+
+            if let note = model.copyConfirmation {
+                Label(note, systemImage: "checkmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .transition(.opacity)
+                    .padding(.trailing, 4)
+            }
 
             if let transcript = model.currentTranscript {
                 Text("\(transcript.wordCount) words · \(transcript.segments.count) segments")
@@ -82,12 +113,7 @@ struct TranscriptWorkspace: View {
             }
         }
         .padding(12)
-    }
-
-    private func copy() {
-        guard let text = model.currentTranscript?.plainText() else { return }
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
+        .animation(.easeInOut(duration: 0.15), value: model.copyConfirmation)
     }
 }
 
@@ -99,6 +125,16 @@ extension ExportFormat {
         case .docx: "Word (.docx)"
         case .subRip: "Subtitles (.srt)"
         case .webVTT: "Web Captions (.vtt)"
+        }
+    }
+
+    var explanation: String {
+        switch self {
+        case .plainText: "Just the words, in a file any editor can open."
+        case .markdown: "Words with light formatting, for notes and documentation."
+        case .docx: "A Word document, for sharing and further editing."
+        case .subRip: "Timed subtitles, the format most video editors expect."
+        case .webVTT: "Timed captions for the web."
         }
     }
 }

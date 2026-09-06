@@ -24,6 +24,8 @@ struct ImportView: View {
             Button("Choose Audio…") { model.presentImportPanel() }
                 .controlSize(.large)
                 .buttonStyle(.borderedProminent)
+                .help("Pick an audio file to transcribe. "
+                      + "VoxVerba reads it and never writes to it.")
 
             Divider().frame(width: 260).padding(.vertical, 4)
 

@@ -159,6 +159,76 @@ struct ProjectStoreTests {
             atPath: project.package.outputDirectory.appending(path: "verbatim.txt").path))
         #expect(FileManager.default.fileExists(atPath: project.package.manifestURL.path))
     }
+
+    // ── Deletion ────────────────────────────────────────────────────────────
+
+    @Test("Deleting a referencing project never touches the original (§5)")
+    func deleteKeepsReferencedOriginal() async throws {
+        let tmp = try TempDirectory()
+        let audio = try makeAudio(in: tmp.url)
+        let before = try Data(contentsOf: audio)
+        let root = tmp.url.appending(path: "p.voxverba")
+        let store = ProjectStore()
+        _ = try await store.create(from: audio, at: root, policy: .reference, probe: probe)
+
+        let plan = try await store.deletionPlan(for: root)
+        #expect(plan.originalKept?.lastPathComponent == "source.wav")
+        #expect(!plan.removesAudioCopy)
+
+        let trashed = try store.delete(at: root)
+        defer { if let trashed { try? FileManager.default.removeItem(at: trashed) } }
+
+        #expect(!FileManager.default.fileExists(atPath: root.path))
+        #expect(try Data(contentsOf: audio) == before)
+    }
+
+    @Test("Deleting a copied project says the copy goes too")
+    func deleteReportsCopy() async throws {
+        let tmp = try TempDirectory()
+        let audio = try makeAudio(in: tmp.url)
+        let root = tmp.url.appending(path: "p.voxverba")
+        let store = ProjectStore()
+        _ = try await store.create(from: audio, at: root, policy: .copy, probe: probe)
+
+        let plan = try await store.deletionPlan(for: root)
+        #expect(plan.removesAudioCopy)
+        #expect(plan.originalKept == nil)
+        #expect(plan.bytesFreed > 0)
+
+        let trashed = try store.delete(at: root)
+        defer { if let trashed { try? FileManager.default.removeItem(at: trashed) } }
+
+        // The file the user imported is still theirs, and still there.
+        #expect(FileManager.default.fileExists(atPath: audio.path))
+    }
+
+    @Test("Deletion is recoverable rather than permanent")
+    func deleteIsRecoverable() async throws {
+        let tmp = try TempDirectory()
+        let audio = try makeAudio(in: tmp.url)
+        let root = tmp.url.appending(path: "p.voxverba")
+        let store = ProjectStore()
+        _ = try await store.create(from: audio, at: root, policy: .copy, probe: probe)
+
+        let trashed = try store.delete(at: root)
+        defer { if let trashed { try? FileManager.default.removeItem(at: trashed) } }
+
+        let recovered = try #require(trashed)
+        #expect(FileManager.default.fileExists(atPath: recovered.path))
+        #expect(FileManager.default.fileExists(
+            atPath: recovered.appending(path: "manifest.json").path))
+    }
+
+    @Test("Deleting something that is not a project is refused")
+    func deleteRefusesNonProject() async throws {
+        let tmp = try TempDirectory()
+        let stray = tmp.url.appending(path: "notes.txt")
+        try "keep me".write(to: stray, atomically: true, encoding: .utf8)
+
+        #expect(throws: (any Error).self) { try ProjectStore().delete(at: stray) }
+        #expect(FileManager.default.fileExists(atPath: stray.path))
+    }
+
 }
 
 @Suite("Manifest compatibility")

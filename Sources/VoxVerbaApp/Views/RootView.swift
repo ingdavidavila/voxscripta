@@ -41,8 +41,21 @@ struct RootView: View {
         .alert("Something went wrong",
                isPresented: .constant(model.errorMessage != nil)) {
             Button("OK") { model.dismissError() }
+                .help("Dismiss this message.")
         } message: {
             Text(model.errorMessage ?? "")
+        }
+        // Names what will actually happen rather than asking "are you sure?" —
+        // what deleting removes depends on how the recording was imported.
+        .alert("Delete “\(model.pendingDeletion?.plan.projectName ?? "")”?",
+               isPresented: .constant(model.pendingDeletion != nil)) {
+            Button("Move to Trash", role: .destructive) { model.confirmDelete() }
+                .help("Move this recording and its transcripts to the Trash. "
+                      + "You can put them back from there.")
+            Button("Cancel", role: .cancel) { model.cancelDelete() }
+                .help("Keep this recording.")
+        } message: {
+            Text(model.deletionMessage)
         }
     }
 
@@ -62,6 +75,7 @@ struct RootView: View {
                 Label("Open Audio", systemImage: "waveform.badge.plus")
             }
             .disabled(model.isRunning)
+            .help("Choose a recording to transcribe. The original file is never modified.")
         }
     }
 
@@ -106,14 +120,30 @@ struct LibrarySidebar: View {
                     ForEach(model.projects) { project in
                         ProjectRow(project: project)
                             .tag(project.id)
+                            .help("\(project.displayName) · \(project.duration). "
+                                  + "Click to open its transcript.")
                             .contextMenu {
                                 Button("Show in Finder") { model.reveal(project) }
+                                    .help("Reveal this recording's project folder.")
+                                Divider()
+                                Button("Delete…", role: .destructive) {
+                                    model.requestDelete(project)
+                                }
+                                .help("Move this recording and its transcripts to the Trash.")
                             }
                     }
                 }
             }
         }
         .listStyle(.sidebar)
+        // Delete key on the selection, as a Mac list is expected to behave.
+        // It belongs on the List, which is what actually holds focus.
+        .onDeleteCommand {
+            guard let id = model.selectedProjectID,
+                  let project = model.projects.first(where: { $0.id == id })
+            else { return }
+            model.requestDelete(project)
+        }
         // Driven by selection rather than a tap gesture. A List with a selection
         // binding consumes taps for its own hit testing, so an `onTapGesture` on
         // the row never fires — and reacting to selection means arrow-key

@@ -62,6 +62,11 @@ final class AppModel {
     private(set) var isRendering = false
     private(set) var lastRenderSummary: String?
 
+    /// A pending delete awaiting confirmation, and what it would remove.
+    private(set) var pendingDeletion: (summary: ProjectSummary, plan: ProjectStore.DeletionPlan)?
+    /// Briefly set after copying, so the button can confirm it did something.
+    private(set) var copyConfirmation: String?
+
     // ── Settings ────────────────────────────────────────────────────────────
     var settings = AppSettings.load() {
         didSet { settings.save() }
@@ -287,6 +292,99 @@ final class AppModel {
 
     func dismissError() { errorMessage = nil }
 
+    // ── Delete ──────────────────────────────────────────────────────────────
+
+    /// Asks what deleting a recording would remove, then waits for confirmation.
+    ///
+    /// Deleting is the only destructive action in the app, and what it destroys
+    /// depends on how the recording was imported — so the question names the
+    /// consequence rather than asking "are you sure?".
+    func requestDelete(_ summary: ProjectSummary) {
+        // Deleting a project out from under a running job would leave the
+        // runner writing into a directory that is on its way to the Trash.
+        if isRunning, openProject?.manifest.projectID == summary.id {
+            errorMessage = "“\(summary.displayName)” is still being transcribed. "
+                + "Stop it first, then delete it."
+            return
+        }
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let plan = try await store.deletionPlan(for: summary.url)
+                pendingDeletion = (summary, plan)
+            } catch {
+                // A project too damaged to describe can still be removed.
+                pendingDeletion = (summary, ProjectStore.DeletionPlan(
+                    projectName: summary.displayName,
+                    bytesFreed: 0, originalKept: nil, removesAudioCopy: false))
+            }
+        }
+    }
+
+    func cancelDelete() { pendingDeletion = nil }
+
+    /// Spells out exactly what deleting removes, and what it does not.
+    var deletionMessage: String {
+        guard let (_, plan) = pendingDeletion else { return "" }
+        let size = ByteCountFormatter.string(fromByteCount: plan.bytesFreed, countStyle: .file)
+
+        if let kept = plan.originalKept {
+            return "The transcripts and working files move to the Trash, freeing \(size).\n\n"
+                + "Your recording stays where it is:\n\(kept.path)"
+        }
+        if plan.removesAudioCopy {
+            return "This project holds its own copy of the audio, so the copy goes to the "
+                + "Trash along with the transcripts, freeing \(size).\n\n"
+                + "Any recording you imported from elsewhere is untouched."
+        }
+        return "The transcripts and working files move to the Trash, freeing \(size)."
+    }
+
+    /// Moves the confirmed project to the Trash.
+    func confirmDelete() {
+        guard let (summary, _) = pendingDeletion else { return }
+        pendingDeletion = nil
+
+        do {
+            try store.delete(at: summary.url)
+            if openProject?.manifest.projectID == summary.id {
+                closeOpenProject()
+            }
+            refreshLibrary()
+        } catch {
+            errorMessage = (error as? VoxVerbaError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    /// Clears whatever is on screen, after its project goes away.
+    private func closeOpenProject() {
+        openProject = nil
+        selectedProjectID = nil
+        transcripts = [:]
+        polishReport = []
+        polishSkipReason = nil
+        peaks = nil
+        silenceMap = nil
+        mode = .empty
+    }
+
+    // ── Clipboard ───────────────────────────────────────────────────────────
+
+    /// Copies the whole visible transcript.
+    func copyTranscript() {
+        guard let transcript = currentTranscript else { return }
+        let text = transcript.plainText()
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+
+        let words = transcript.wordCount
+        copyConfirmation = words == 1 ? "Copied 1 word" : "Copied \(words) words"
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            self?.copyConfirmation = nil
+        }
+    }
+
     // ── Models (§28) ────────────────────────────────────────────────────────
 
     /// What the bundled model is, if this build shipped one.
@@ -315,6 +413,13 @@ final class AppModel {
     /// Formats that can faithfully represent the variant on screen.
     var exportableFormats: [ExportFormat] {
         currentTranscript.map { Exporters.available(for: $0) } ?? []
+    }
+
+    /// What a plain click on Download writes: plain text unless the transcript
+    /// cannot be represented that way.
+    var defaultExportFormat: ExportFormat {
+        let formats = exportableFormats
+        return formats.contains(.plainText) ? .plainText : (formats.first ?? .plainText)
     }
 
     /// Writes the visible transcript in `format`, asking where to put it.
