@@ -13,6 +13,12 @@ public enum VoxVerbaError: Error, Sendable, Equatable {
     /// The file exists but its content hash no longer matches the manifest.
     case sourceChanged(path: String)
     case unsupportedFormat(description: String)
+    /// The container opened, but carries no audio — a silent video, typically.
+    /// Distinct from ``unsupportedFormat`` because nothing is wrong with the file.
+    case noAudioTrack(path: String)
+    /// A container macOS has no demuxer for. The fix is to convert the file,
+    /// so the error names the extension rather than a codec.
+    case unsupportedContainer(fileExtension: String)
     case decodingFailed(reason: String)
 
     // ── Analysis ────────────────────────────────────────────────────────────
@@ -53,6 +59,7 @@ public enum VoxVerbaError: Error, Sendable, Equatable {
         case .transcriptionFailed, .ioFailure, .engineUnavailable, .modelUnavailable:
             return true
         case .sourceUnavailable, .sourceChanged, .unsupportedFormat, .decodingFailed,
+             .noAudioTrack, .unsupportedContainer,
              .analysisFailed, .noSpeechDetected, .localeUnsupported, .modelAssetMissing,
              .contextWindowExceeded, .validationRejected, .projectCorrupt, .schemaTooNew,
              .insufficientDiskSpace, .cancelled, .notImplemented:
@@ -63,7 +70,8 @@ public enum VoxVerbaError: Error, Sendable, Equatable {
     /// Whether this error should fail the entire job rather than a single work item.
     public var isFatalToJob: Bool {
         switch self {
-        case .sourceUnavailable, .sourceChanged, .unsupportedFormat, .projectCorrupt,
+        case .sourceUnavailable, .sourceChanged, .unsupportedFormat, .noAudioTrack,
+             .unsupportedContainer, .projectCorrupt,
              .schemaTooNew, .insufficientDiskSpace:
             return true
         default:
@@ -78,6 +86,12 @@ extension VoxVerbaError: LocalizedError {
         case .sourceUnavailable(let p): "The audio file could not be found at \(p)."
         case .sourceChanged(let p): "The audio file at \(p) has changed since it was imported."
         case .unsupportedFormat(let d): "This audio format is not supported: \(d)."
+        case .noAudioTrack(let p):
+            "“\(URL(filePath: p).lastPathComponent)” has no audio track, so there is "
+                + "nothing to transcribe."
+        case .unsupportedContainer(let e):
+            "macOS cannot read .\(e) files. Convert it to .mp4, .m4a or .wav first — "
+                + "a stream copy is enough, and costs no quality."
         case .decodingFailed(let r): "The audio could not be decoded: \(r)."
         case .analysisFailed(let s, let r): "Audio analysis failed during \(s): \(r)."
         case .noSpeechDetected: "No speech was detected in this recording."

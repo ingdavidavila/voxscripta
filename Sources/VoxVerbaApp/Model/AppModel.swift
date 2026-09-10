@@ -1,5 +1,7 @@
 import Foundation
 import SwiftUI
+import UniformTypeIdentifiers
+import AVFoundation
 import Observation
 import VoxVerbaCore
 import VoxVerbaDSP
@@ -113,9 +115,24 @@ final class AppModel {
 
     // ── Import ──────────────────────────────────────────────────────────────
 
+    /// What the open panel offers.
+    ///
+    /// `.movie` on its own is too generous. macOS registers types for WebM, WMV,
+    /// Flash and RealMedia that AVFoundation has no demuxer for, so the panel
+    /// would accept a file and the decode would then fail on something the user
+    /// had just been told was fine. Asking AVFoundation what it can actually
+    /// read keeps the offer and the capability in step, and needs no hardcoded
+    /// list to drift out of date.
+    static let importableContentTypes: [UTType] = {
+        let movies = AVURLAsset.audiovisualTypes()
+            .compactMap { UTType($0.rawValue) }
+            .filter { $0.conforms(to: .movie) }
+        return [.audio] + movies
+    }()
+
     func presentImportPanel() {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.audio, .movie]
+        panel.allowedContentTypes = Self.importableContentTypes
         panel.allowsMultipleSelection = false
         panel.message = "Choose a recording. VoxVerba never modifies the original."
         guard panel.runModal() == .OK, let url = panel.url else { return }
@@ -125,6 +142,16 @@ final class AppModel {
     /// Creates a project for `url` and starts processing.
     func importAudio(at url: URL) {
         errorMessage = nil
+
+        // Drag and drop reaches here without passing the panel's filter, so the
+        // same rule is applied to both routes.
+        if let type = try? url.resourceValues(forKeys: [.contentTypeKey]).contentType,
+           type.conforms(to: .movie), !CanonicalDecoder.isDemuxable(type) {
+            errorMessage = VoxVerbaError.unsupportedContainer(
+                fileExtension: url.pathExtension.lowercased()).errorDescription
+            return
+        }
+
         let name = url.deletingPathExtension().lastPathComponent
         let destination = Self.libraryDirectory
             .appending(path: "\(name).\(ProjectPackage.fileExtension)")

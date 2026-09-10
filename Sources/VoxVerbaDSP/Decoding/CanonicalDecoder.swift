@@ -1,5 +1,6 @@
 import Foundation
 import AVFoundation
+import UniformTypeIdentifiers
 import VoxVerbaCore
 
 /// Streams a source file into the canonical 16 kHz mono float PCM representation.
@@ -41,7 +42,15 @@ public struct CanonicalDecoder: CanonicalDecoding {
     // MARK: - Probe
 
     public func probe(url: URL) async throws -> AudioFormatDescription {
-        let file = try openForReading(url)
+        let file: AVAudioFile
+        do {
+            file = try openForReading(url)
+        } catch let error as VoxVerbaError {
+            // Only a format complaint is worth a second opinion; a missing file
+            // already says what it means.
+            guard case .unsupportedFormat = error else { throw error }
+            throw await Self.diagnose(url, fallback: error)
+        }
         let f = file.fileFormat
         return AudioFormatDescription(
             sampleRate: f.sampleRate,
@@ -185,6 +194,42 @@ public struct CanonicalDecoder: CanonicalDecoding {
         } catch {
             throw VoxVerbaError.unsupportedFormat(description: error.localizedDescription)
         }
+    }
+
+    /// A better explanation than AVFoundation's, where one exists.
+    ///
+    /// `AVAudioFile` reports a silent video as an unsupported *format*, which
+    /// sends the reader hunting for a codec problem that is not there: the
+    /// container is fine, it simply has no sound in it. Silent screen
+    /// recordings and stock footage are common enough that the distinction is
+    /// worth the extra look. A container macOS cannot demux at all is worth
+    /// naming for the opposite reason — the fix is to convert the file, and no
+    /// amount of codec detail leads anyone to that.
+    ///
+    /// Falls back to the original error, so this can only improve a message.
+    static func diagnose(_ url: URL, fallback: VoxVerbaError) async -> VoxVerbaError {
+        let type = try? url.resourceValues(forKeys: [.contentTypeKey]).contentType
+
+        if let type, type.conforms(to: .movie), !Self.isDemuxable(type) {
+            return .unsupportedContainer(fileExtension: url.pathExtension.lowercased())
+        }
+
+        if let tracks = try? await AVURLAsset(url: url).loadTracks(withMediaType: .audio),
+           tracks.isEmpty {
+            return .noAudioTrack(path: url.path)
+        }
+
+        return fallback
+    }
+
+    /// Whether AVFoundation has a demuxer for this container.
+    ///
+    /// Asked of the system rather than hardcoded, so the answer stays correct
+    /// as macOS gains and loses format support.
+    public static func isDemuxable(_ type: UTType) -> Bool {
+        AVURLAsset.audiovisualTypes()
+            .compactMap { UTType($0.rawValue) }
+            .contains { type.conforms(to: $0) }
     }
 
     private func bitDepth(of format: AVAudioFormat) -> Int? {
