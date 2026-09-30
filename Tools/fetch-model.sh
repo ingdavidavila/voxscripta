@@ -1,5 +1,5 @@
 #!/bin/bash
-# Downloads the language model that ships inside VoxVerba.app.
+# Downloads the language model that ships inside VoxScripta.app.
 #
 # Run once. The weights are not in the repository — a gigabyte of binary has no
 # place in git — so this fetches them into build/Model, and make-app-bundle.sh
@@ -16,7 +16,7 @@ DEST="${1:-$ROOT/build/Model}"
 # still rewrites a sentence without mangling it, since it has to fit inside an app
 # people will move around. A larger model can be used instead — point the app at
 # any mlx-community directory in Settings.
-REPO="${VOXVERBA_MODEL_REPO:-mlx-community/Qwen2.5-1.5B-Instruct-4bit}"
+REPO="${VOXSCRIPTA_MODEL_REPO:-mlx-community/Qwen2.5-1.5B-Instruct-4bit}"
 BASE="https://huggingface.co/$REPO/resolve/main"
 
 REQUIRED=(config.json tokenizer.json tokenizer_config.json)

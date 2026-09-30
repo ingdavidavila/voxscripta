@@ -1,7 +1,7 @@
 import Foundation
-import VoxVerbaCore
-import VoxVerbaDSP
-import VoxVerbaTestSupport
+import VoxScriptaCore
+import VoxScriptaDSP
+import VoxScriptaTestSupport
 
 /// Generates the synthetic test corpus.
 ///
@@ -23,7 +23,7 @@ struct CorpusGen {
         let args = Array(CommandLine.arguments.dropFirst())
         guard let outPath = args.first else {
             print("""
-            corpus-gen — synthetic ground-truth audio for the VoxVerba test suite
+            corpus-gen — synthetic ground-truth audio for the VoxScripta test suite
 
             USAGE
               corpus-gen <output-directory>              signal corpus for the detector
@@ -44,7 +44,7 @@ struct CorpusGen {
             } else {
                 try await generate(into: URL(filePath: outPath))
             }
-        } catch let error as VoxVerbaError {
+        } catch let error as VoxScriptaError {
             FileHandle.standardError.write(Data("error: \(error.localizedDescription)\n".utf8))
             exit(EXIT_FAILURE)
         } catch {

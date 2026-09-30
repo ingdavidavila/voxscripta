@@ -1,4 +1,4 @@
-# Releasing VoxVerba
+# Releasing Vox Scripta
 
 The build produces an ad-hoc signed, hardened-runtime app that runs on this Mac.
 Distributing it to anyone else needs a Developer ID and a notarization round trip
@@ -13,10 +13,10 @@ This document is what remains to be done, and by whom.
 ./Tools/make-app-bundle.sh release
 ```
 
-- Assembles `build/VoxVerba.app` with a real `Info.plist` and the generated icon.
+- Assembles `build/VoxScripta.app` with a real `Info.plist` and the generated icon.
 - Signs with **hardened runtime enabled** (`--options runtime`), which
   notarization requires.
-- Applies `build/VoxVerba.entitlements`.
+- Applies `build/VoxScripta.entitlements`.
 - **Fails the build** if a network entitlement ever appears. The §26 privacy
   claim is only meaningful if something checks it, so the check is in the build
   rather than in a checklist.
@@ -24,8 +24,8 @@ This document is what remains to be done, and by whom.
 Verify any build:
 
 ```
-codesign -d -v build/VoxVerba.app            # expect flags=...(runtime)
-codesign -d --entitlements - build/VoxVerba.app
+codesign -d -v build/VoxScripta.app            # expect flags=...(runtime)
+codesign -d --entitlements - build/VoxScripta.app
 ```
 
 `spctl -a -vv` will report **rejected** on an ad-hoc build. That is correct and
@@ -41,8 +41,8 @@ account holder can perform them.
 ```
 codesign --force --options runtime --timestamp \
     --sign "Developer ID Application: YOUR NAME (TEAMID)" \
-    --entitlements build/VoxVerba.entitlements \
-    build/VoxVerba.app
+    --entitlements build/VoxScripta.entitlements \
+    build/VoxScripta.app
 ```
 
 The `--timestamp` flag is required for notarization and is absent from the
@@ -53,7 +53,7 @@ an otherwise offline build.
 file:
 
 ```
-xcrun notarytool store-credentials voxverba-notary \
+xcrun notarytool store-credentials voxscripta-notary \
     --apple-id "you@example.com" \
     --team-id TEAMID \
     --password "app-specific-password"
@@ -65,10 +65,10 @@ password.
 **3. Submit and staple:**
 
 ```
-ditto -c -k --keepParent build/VoxVerba.app build/VoxVerba.zip
-xcrun notarytool submit build/VoxVerba.zip --keychain-profile voxverba-notary --wait
-xcrun stapler staple build/VoxVerba.app
-spctl -a -vv build/VoxVerba.app        # now: accepted
+ditto -c -k --keepParent build/VoxScripta.app build/VoxScripta.zip
+xcrun notarytool submit build/VoxScripta.zip --keychain-profile voxscripta-notary --wait
+xcrun stapler staple build/VoxScripta.app
+spctl -a -vv build/VoxScripta.app        # now: accepted
 ```
 
 ## Sandboxing

@@ -48,9 +48,12 @@ echo "  $COUNT shaders -> $OUT ($(du -h "$OUT" | cut -f1))"
 
 # Place it beside every binary that runs MLX, including the test bundle, so
 # `swift test` exercises the real GPU path rather than skipping it.
-for dir in "$(swift build --package-path "$ROOT" --show-bin-path)" \
-           "$(swift build --package-path "$ROOT" --show-bin-path)/VoxVerbaPackageTests.xctest/Contents/MacOS"; do
+#
+# The bin path moved when Swift 6.4 made the Xcode build system the default, so
+# this asks SwiftPM where the binaries are rather than assuming a layout.
+BIN="$(swift build --package-path "$ROOT" --show-bin-path)"
+for dir in "$BIN" "$BIN"/*.xctest/Contents/MacOS; do
     [ -d "$dir" ] || continue
     cp "$OUT" "$dir/mlx.metallib"
-    echo "  installed into $(basename "$dir")"
+    echo "  installed into ${dir#"$ROOT"/}"
 done

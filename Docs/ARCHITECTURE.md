@@ -1,4 +1,4 @@
-# VoxVerba — Technical Architecture
+# Vox Scripta — Technical Architecture
 
 Revision 1. Target: Apple M5, 24 GB, macOS 26.5, Xcode 26.6, Swift 6.3.
 
@@ -10,7 +10,7 @@ authoritative in-repo copy.
 
 ## 1. Philosophy
 
-VoxVerba decodes an audio file exactly once into a canonical PCM scratch file,
+Vox Scripta decodes an audio file exactly once into a canonical PCM scratch file,
 measures it with deterministic DSP, transcribes it with an on-device ASR engine,
 and reconstructs one continuous transcript on the recording's **original**
 timeline. A local language model is invited in only at the last step, in small
@@ -152,7 +152,7 @@ overlap.
 model's input window. Whisper's encoder takes 30 s, but every serious runtime
 handles long-form internally, and `SpeechAnalyzer` is explicitly designed for
 continuous input. Feeding either engine 30-second slices *hurts* accuracy by
-stripping context. VoxVerba's chunks exist for checkpointing, memory bounding,
+stripping context. Vox Scripta's chunks exist for checkpointing, memory bounding,
 and progress reporting — none of which relate to model windows.
 
 ### 4.5 Merging
@@ -361,7 +361,7 @@ number, swap a name, delete a negation, drop a hedge, merge two sentences,
 summarize, add a plausible clause. **A corruption that passes the gauntlet is a
 test failure.** This turns "does it hallucinate?" into a CI assertion.
 
-**Crash recovery.** `SIGKILL` at every state, driven through `voxverba-cli`,
+**Crash recovery.** `SIGKILL` at every state, driven through `voxscripta-cli`,
 then resume; the final transcript must be byte-identical to an uninterrupted run.
 
 **Memory.** `task_vm_info.phys_footprint` sampled in-test with hard assertions
@@ -369,7 +369,7 @@ against per-stage budgets.
 
 ### Measured results (Phase 2, Apple M5, macOS 26.5)
 
-Every figure below comes from `voxverba-cli bench` and is reproducible with the
+Every figure below comes from `voxscripta-cli bench` and is reproducible with the
 commands in the README. Nothing here is estimated.
 
 | Metric | Value | Conditions |

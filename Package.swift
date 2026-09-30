@@ -1,5 +1,5 @@
 // swift-tools-version: 6.0
-// VoxVerba — local-first transcription for Apple Silicon.
+// VoxScripta — local-first transcription for Apple Silicon.
 
 import PackageDescription
 
@@ -11,21 +11,21 @@ let strict: [SwiftSetting] = [
 ]
 
 let package = Package(
-    name: "VoxVerba",
+    name: "VoxScripta",
     platforms: [.macOS("26.0")],
     products: [
-        .library(name: "VoxVerbaCore", targets: ["VoxVerbaCore"]),
-        .library(name: "VoxVerbaDSP", targets: ["VoxVerbaDSP"]),
-        .library(name: "VoxVerbaTranscription", targets: ["VoxVerbaTranscription"]),
-        .library(name: "VoxVerbaLanguage", targets: ["VoxVerbaLanguage"]),
-        .library(name: "VoxVerbaProject", targets: ["VoxVerbaProject"]),
-        .library(name: "VoxVerbaExport", targets: ["VoxVerbaExport"]),
-        .library(name: "VoxVerbaBench", targets: ["VoxVerbaBench"]),
-        .library(name: "VoxVerbaMLX", targets: ["VoxVerbaMLX"]),
-        .library(name: "VoxVerbaPipeline", targets: ["VoxVerbaPipeline"]),
-        .library(name: "VoxVerbaTestSupport", targets: ["VoxVerbaTestSupport"]),
-        .executable(name: "VoxVerbaApp", targets: ["VoxVerbaApp"]),
-        .executable(name: "voxverba-cli", targets: ["voxverba-cli"]),
+        .library(name: "VoxScriptaCore", targets: ["VoxScriptaCore"]),
+        .library(name: "VoxScriptaDSP", targets: ["VoxScriptaDSP"]),
+        .library(name: "VoxScriptaTranscription", targets: ["VoxScriptaTranscription"]),
+        .library(name: "VoxScriptaLanguage", targets: ["VoxScriptaLanguage"]),
+        .library(name: "VoxScriptaProject", targets: ["VoxScriptaProject"]),
+        .library(name: "VoxScriptaExport", targets: ["VoxScriptaExport"]),
+        .library(name: "VoxScriptaBench", targets: ["VoxScriptaBench"]),
+        .library(name: "VoxScriptaMLX", targets: ["VoxScriptaMLX"]),
+        .library(name: "VoxScriptaPipeline", targets: ["VoxScriptaPipeline"]),
+        .library(name: "VoxScriptaTestSupport", targets: ["VoxScriptaTestSupport"]),
+        .executable(name: "VoxScriptaApp", targets: ["VoxScriptaApp"]),
+        .executable(name: "voxscripta-cli", targets: ["voxscripta-cli"]),
         .executable(name: "corpus-gen", targets: ["corpus-gen"]),
     ],
     // The only external dependency in the project, and it buys independence from
@@ -41,20 +41,20 @@ let package = Package(
     targets: [
         // ── Foundation layer ────────────────────────────────────────────────
         // No dependencies, by design. Every other module speaks this vocabulary.
-        .target(name: "VoxVerbaCore", swiftSettings: strict),
+        .target(name: "VoxScriptaCore", swiftSettings: strict),
 
         // ── Deterministic audio ─────────────────────────────────────────────
-        .target(name: "VoxVerbaDSP", dependencies: ["VoxVerbaCore"], swiftSettings: strict),
+        .target(name: "VoxScriptaDSP", dependencies: ["VoxScriptaCore"], swiftSettings: strict),
 
         // ── Model-facing layers ─────────────────────────────────────────────
-        .target(name: "VoxVerbaTranscription",
-                dependencies: ["VoxVerbaCore", "VoxVerbaDSP"], swiftSettings: strict),
-        .target(name: "VoxVerbaLanguage", dependencies: ["VoxVerbaCore"], swiftSettings: strict),
+        .target(name: "VoxScriptaTranscription",
+                dependencies: ["VoxScriptaCore", "VoxScriptaDSP"], swiftSettings: strict),
+        .target(name: "VoxScriptaLanguage", dependencies: ["VoxScriptaCore"], swiftSettings: strict),
 
         // ── Support layers ──────────────────────────────────────────────────
-        .target(name: "VoxVerbaProject", dependencies: ["VoxVerbaCore"], swiftSettings: strict),
-        .target(name: "VoxVerbaExport", dependencies: ["VoxVerbaCore"], swiftSettings: strict),
-        .target(name: "VoxVerbaBench", dependencies: ["VoxVerbaCore"], swiftSettings: strict),
+        .target(name: "VoxScriptaProject", dependencies: ["VoxScriptaCore"], swiftSettings: strict),
+        .target(name: "VoxScriptaExport", dependencies: ["VoxScriptaCore"], swiftSettings: strict),
+        .target(name: "VoxScriptaBench", dependencies: ["VoxScriptaCore"], swiftSettings: strict),
 
         // ── Bundled language model ──────────────────────────────────────────
         // Kept in its own target so MLX does not reach the validator, the CLEAN
@@ -64,9 +64,9 @@ let package = Package(
         // writes a bare `Tokenizer` existential. The warning is in generated code
         // that cannot be edited here, and the whole project builds with warnings
         // as errors, so the one upcoming feature is dropped for this target only.
-        .target(name: "VoxVerbaMLX",
+        .target(name: "VoxScriptaMLX",
                 dependencies: [
-                    "VoxVerbaCore", "VoxVerbaLanguage",
+                    "VoxScriptaCore", "VoxScriptaLanguage",
                     .product(name: "MLXLLM", package: "mlx-swift-lm"),
                     .product(name: "MLXLMCommon", package: "mlx-swift-lm"),
                     .product(name: "MLXHuggingFace", package: "mlx-swift-lm"),
@@ -77,67 +77,67 @@ let package = Package(
         // ── Orchestration ───────────────────────────────────────────────────
         // Ties the stages together and persists after each one. The only target
         // that knows the pipeline's shape; everything below it is independent.
-        .target(name: "VoxVerbaPipeline",
-                dependencies: ["VoxVerbaCore", "VoxVerbaDSP", "VoxVerbaTranscription",
-                               "VoxVerbaLanguage", "VoxVerbaMLX", "VoxVerbaProject",
-                               "VoxVerbaBench"],
+        .target(name: "VoxScriptaPipeline",
+                dependencies: ["VoxScriptaCore", "VoxScriptaDSP", "VoxScriptaTranscription",
+                               "VoxScriptaLanguage", "VoxScriptaMLX", "VoxScriptaProject",
+                               "VoxScriptaBench"],
                 swiftSettings: strict),
 
         // ── Test support ────────────────────────────────────────────────────
         // Deterministic corpus synthesis, shared by the test targets and by
         // corpus-gen. Because generation is reproducible, the synthetic fixtures
         // are built at test time rather than committed as binaries.
-        .target(name: "VoxVerbaTestSupport",
-                dependencies: ["VoxVerbaCore", "VoxVerbaTranscription", "VoxVerbaLanguage",
-                               "VoxVerbaBench"],
+        .target(name: "VoxScriptaTestSupport",
+                dependencies: ["VoxScriptaCore", "VoxScriptaTranscription", "VoxScriptaLanguage",
+                               "VoxScriptaBench"],
                 swiftSettings: strict),
 
         // ── Application ─────────────────────────────────────────────────────
         // A thin SwiftUI shell. All logic lives below it, so the app target holds
         // views, view models and nothing else.
         .executableTarget(
-            name: "VoxVerbaApp",
-            dependencies: ["VoxVerbaCore", "VoxVerbaDSP", "VoxVerbaTranscription",
-                           "VoxVerbaLanguage", "VoxVerbaProject", "VoxVerbaPipeline",
-                           "VoxVerbaExport"],
+            name: "VoxScriptaApp",
+            dependencies: ["VoxScriptaCore", "VoxScriptaDSP", "VoxScriptaTranscription",
+                           "VoxScriptaLanguage", "VoxScriptaProject", "VoxScriptaPipeline",
+                           "VoxScriptaExport"],
             swiftSettings: strict),
 
         // ── Tools ───────────────────────────────────────────────────────────
         .executableTarget(
-            name: "voxverba-cli",
+            name: "voxscripta-cli",
             dependencies: [
-                "VoxVerbaCore", "VoxVerbaDSP", "VoxVerbaTranscription", "VoxVerbaLanguage",
-                "VoxVerbaProject", "VoxVerbaPipeline", "VoxVerbaExport", "VoxVerbaBench",
+                "VoxScriptaCore", "VoxScriptaDSP", "VoxScriptaTranscription", "VoxScriptaLanguage",
+                "VoxScriptaProject", "VoxScriptaPipeline", "VoxScriptaExport", "VoxScriptaBench",
             ],
             swiftSettings: strict
         ),
         .executableTarget(
             name: "corpus-gen",
-            dependencies: ["VoxVerbaCore", "VoxVerbaDSP", "VoxVerbaTestSupport"],
+            dependencies: ["VoxScriptaCore", "VoxScriptaDSP", "VoxScriptaTestSupport"],
             swiftSettings: strict
         ),
 
         // ── Tests ───────────────────────────────────────────────────────────
-        .testTarget(name: "VoxVerbaCoreTests", dependencies: ["VoxVerbaCore"], swiftSettings: strict),
-        .testTarget(name: "VoxVerbaDSPTests",
-                    dependencies: ["VoxVerbaDSP", "VoxVerbaTestSupport", "VoxVerbaBench"],
+        .testTarget(name: "VoxScriptaCoreTests", dependencies: ["VoxScriptaCore"], swiftSettings: strict),
+        .testTarget(name: "VoxScriptaDSPTests",
+                    dependencies: ["VoxScriptaDSP", "VoxScriptaTestSupport", "VoxScriptaBench"],
                     swiftSettings: strict),
-        .testTarget(name: "VoxVerbaTranscriptionTests",
-                    dependencies: ["VoxVerbaTranscription", "VoxVerbaDSP",
-                                   "VoxVerbaTestSupport", "VoxVerbaBench"],
+        .testTarget(name: "VoxScriptaTranscriptionTests",
+                    dependencies: ["VoxScriptaTranscription", "VoxScriptaDSP",
+                                   "VoxScriptaTestSupport", "VoxScriptaBench"],
                     swiftSettings: strict),
-        .testTarget(name: "VoxVerbaMLXTests",
-                    dependencies: ["VoxVerbaMLX", "VoxVerbaLanguage"],
+        .testTarget(name: "VoxScriptaMLXTests",
+                    dependencies: ["VoxScriptaMLX", "VoxScriptaLanguage"],
                     swiftSettings: [.swiftLanguageMode(.v6)]),
-        .testTarget(name: "VoxVerbaLanguageTests",
-                    dependencies: ["VoxVerbaLanguage", "VoxVerbaTestSupport"], swiftSettings: strict),
-        .testTarget(name: "VoxVerbaProjectTests",
-                    dependencies: ["VoxVerbaProject", "VoxVerbaTestSupport"], swiftSettings: strict),
-        .testTarget(name: "VoxVerbaAppTests",
-                    dependencies: ["VoxVerbaApp", "VoxVerbaPipeline"], swiftSettings: strict),
-        .testTarget(name: "VoxVerbaPipelineTests",
-                    dependencies: ["VoxVerbaPipeline", "VoxVerbaTestSupport"], swiftSettings: strict),
-        .testTarget(name: "VoxVerbaExportTests",
-                    dependencies: ["VoxVerbaExport", "VoxVerbaTestSupport"], swiftSettings: strict),
+        .testTarget(name: "VoxScriptaLanguageTests",
+                    dependencies: ["VoxScriptaLanguage", "VoxScriptaTestSupport"], swiftSettings: strict),
+        .testTarget(name: "VoxScriptaProjectTests",
+                    dependencies: ["VoxScriptaProject", "VoxScriptaTestSupport"], swiftSettings: strict),
+        .testTarget(name: "VoxScriptaAppTests",
+                    dependencies: ["VoxScriptaApp", "VoxScriptaPipeline"], swiftSettings: strict),
+        .testTarget(name: "VoxScriptaPipelineTests",
+                    dependencies: ["VoxScriptaPipeline", "VoxScriptaTestSupport"], swiftSettings: strict),
+        .testTarget(name: "VoxScriptaExportTests",
+                    dependencies: ["VoxScriptaExport", "VoxScriptaTestSupport"], swiftSettings: strict),
     ]
 )

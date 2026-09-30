@@ -1,7 +1,7 @@
 import AppKit
 import Foundation
 
-// Generates VoxVerba's app icon: a sound wave resolving into lines of text (§2).
+// Generates VoxScripta's app icon: a sound wave resolving into lines of text (§2).
 //
 // Drawn rather than shipped as a binary asset, so the icon is reproducible, and
 // so the concept stays editable — the wave-to-text transition is the whole idea
@@ -107,7 +107,7 @@ let output = CommandLine.arguments.count > 1
     ? URL(filePath: CommandLine.arguments[1])
     : URL(filePath: FileManager.default.currentDirectoryPath).appending(path: "build")
 
-let iconset = output.appending(path: "VoxVerba.iconset")
+let iconset = output.appending(path: "VoxScripta.iconset")
 try? FileManager.default.createDirectory(at: iconset, withIntermediateDirectories: true)
 
 let variants: [(String, CGFloat)] = [

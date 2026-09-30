@@ -1,5 +1,5 @@
 #!/bin/bash
-# Assembles VoxVerba.app around the SPM-built executable.
+# Assembles VoxScripta.app around the SPM-built executable.
 #
 # SwiftPM produces a bare binary, and a bare binary on macOS runs without a dock
 # icon, without proper activation, and without the entitlements that make the
@@ -10,21 +10,21 @@ set -euo pipefail
 CONFIG="${1:-debug}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BIN="$(swift build --package-path "$ROOT" -c "$CONFIG" --show-bin-path)"
-APP="$ROOT/build/VoxVerba.app"
+APP="$ROOT/build/VoxScripta.app"
 
-swift build --package-path "$ROOT" -c "$CONFIG" --product VoxVerbaApp
+swift build --package-path "$ROOT" -c "$CONFIG" --product VoxScriptaApp
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$BIN/VoxVerbaApp" "$APP/Contents/MacOS/VoxVerba"
+cp "$BIN/VoxScriptaApp" "$APP/Contents/MacOS/VoxScripta"
 
 # The icon is generated, not committed as a binary, so it stays reproducible.
-if [ ! -f "$ROOT/build/VoxVerba.icns" ]; then
+if [ ! -f "$ROOT/build/VoxScripta.icns" ]; then
     swiftc -O "$ROOT/Tools/make-icon.swift" -o "$ROOT/build/make-icon"
     "$ROOT/build/make-icon" "$ROOT/build"
-    iconutil -c icns "$ROOT/build/VoxVerba.iconset" -o "$ROOT/build/VoxVerba.icns"
+    iconutil -c icns "$ROOT/build/VoxScripta.iconset" -o "$ROOT/build/VoxScripta.icns"
 fi
-cp "$ROOT/build/VoxVerba.icns" "$APP/Contents/Resources/VoxVerba.icns"
+cp "$ROOT/build/VoxScripta.icns" "$APP/Contents/Resources/VoxScripta.icns"
 
 # MLX's Metal shaders. SwiftPM cannot build these — see Tools/build-metallib.sh
 # — and without the library the app links fine and then fails at the first GPU
@@ -55,11 +55,11 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleName</key><string>VoxVerba</string>
-    <key>CFBundleDisplayName</key><string>VoxVerba</string>
-    <key>CFBundleIdentifier</key><string>com.voxverba.app</string>
-    <key>CFBundleExecutable</key><string>VoxVerba</string>
-    <key>CFBundleIconFile</key><string>VoxVerba</string>
+    <key>CFBundleName</key><string>VoxScripta</string>
+    <key>CFBundleDisplayName</key><string>Vox Scripta</string>
+    <key>CFBundleIdentifier</key><string>com.voxscripta.app</string>
+    <key>CFBundleExecutable</key><string>VoxScripta</string>
+    <key>CFBundleIconFile</key><string>VoxScripta</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>0.1.0</string>
     <key>CFBundleVersion</key><string>1</string>
@@ -71,7 +71,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 PLIST
 
 # Entitlements assert the privacy claim structurally: no network client, ever.
-cat > "$ROOT/build/VoxVerba.entitlements" <<ENT
+cat > "$ROOT/build/VoxScripta.entitlements" <<ENT
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -92,7 +92,7 @@ fi
 
 # Hardened runtime is required for notarization and costs nothing to enable now.
 codesign --force --options runtime --sign - \
-    --entitlements "$ROOT/build/VoxVerba.entitlements" "$APP"
+    --entitlements "$ROOT/build/VoxScripta.entitlements" "$APP"
 
 # The privacy guarantee is only worth stating if it is checked. A network
 # entitlement here would silently undo §26, so the build refuses to produce one.

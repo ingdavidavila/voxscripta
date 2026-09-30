@@ -1,8 +1,8 @@
-# VoxVerba
+# Vox Scripta
 
 Local-first audio transcription for Apple Silicon Macs.
 
-Drop in a recording. VoxVerba analyses it with deterministic signal processing,
+Drop in a recording. Vox Scripta analyses it with deterministic signal processing,
 transcribes it with an on-device speech model, reassembles one continuous
 transcript, and optionally uses a local language model to produce clean and
 polished versions — without changing what the speaker actually said.
@@ -13,12 +13,12 @@ polished versions — without changing what the speaker actually said.
 
 ## Status: Phase 8 — export and release
 
-The roadmap is complete. VoxVerba imports a recording, transcribes it on device,
+The roadmap is complete. Vox Scripta imports a recording, transcribes it on device,
 produces three transcripts, and exports any of them in five formats.
 
 ```
-swift run voxverba-cli export --project /path/to/x.voxverba --to ~/Desktop
-./Tools/make-app-bundle.sh && open build/VoxVerba.app
+swift run voxscripta-cli export --project /path/to/x.voxscripta --to ~/Desktop
+./Tools/make-app-bundle.sh && open build/VoxScripta.app
 ```
 
 | Format | Notes |
@@ -35,7 +35,7 @@ click, and a JSON time map so a listener can still locate themselves in the
 source (§7).
 
 ```
-swift run voxverba-cli render-audio --project /path/to/x.voxverba
+swift run voxscripta-cli render-audio --project /path/to/x.voxscripta
 ```
 
 Three variants × five formats = fifteen files, each independently exportable.
@@ -82,13 +82,13 @@ changed and the whole file was re-transcribed. They now live in the manifest wit
 everything else.
 
 ```
-swift run voxverba-cli run audio.wav --project p.voxverba --keep-intermediates
-swift run voxverba-cli clean --project p.voxverba
+swift run voxscripta-cli run audio.wav --project p.voxscripta --keep-intermediates
+swift run voxscripta-cli clean --project p.voxscripta
 ```
 
 ### Self-contained: a bundled language model
 
-VoxVerba ships its own model, so POLISHED works on any Apple silicon Mac —
+Vox Scripta ships its own model, so POLISHED works on any Apple silicon Mac —
 including one where Apple Intelligence is off or unsupported.
 
 | Backend | Source | Used when |
@@ -114,7 +114,7 @@ and cannot open a socket; the only fetch happens on the build machine.
 **The dependency count is no longer zero.** `mlx-swift-lm` and swift-transformers
 come in, and with them mlx-swift, swift-syntax, swift-numerics,
 swift-argument-parser and swift-collections. That was the price of independence
-from Apple Intelligence, and it is confined to one target — `VoxVerbaMLX` — so
+from Apple Intelligence, and it is confined to one target — `VoxScriptaMLX` — so
 the validator, the CLEAN pass and the DSP core stay dependency-free.
 
 **SwiftPM cannot build MLX's Metal shaders.** mlx-swift's own README says so:
@@ -178,7 +178,7 @@ all validated against a synthetic corpus with exact ground truth. See
 
 ```
 swift run corpus-gen /tmp/vv-corpus
-swift run voxverba-cli analyze /tmp/vv-corpus/continuous_speech.wav --chunk-max 60
+swift run voxscripta-cli analyze /tmp/vv-corpus/continuous_speech.wav --chunk-max 60
 ```
 
 ## Requirements
@@ -199,7 +199,7 @@ Open `Package.swift` directly in Xcode for a full IDE session. There is no
 app to put in it.
 
 ```
-swift run voxverba-cli help
+swift run voxscripta-cli help
 ```
 
 ## Architecture
@@ -217,13 +217,13 @@ possible to state confidently that no model influenced the audio segmentation.
 ## Module graph
 
 ```
-VoxVerbaCore          identifiers, timing, transcript model, state machines
-  ├── VoxVerbaDSP             decode · analyse · detect silence · plan chunks
-  │     └── VoxVerbaTranscription   engines · scheduler · merger
-  ├── VoxVerbaLanguage        clean (rules) · polish (LLM) · validation
-  ├── VoxVerbaProject         package format · job store · resume
-  ├── VoxVerbaExport          TXT · Markdown · DOCX · SRT · VTT
-  └── VoxVerbaBench           signposts · footprint · benchmark reports
+VoxScriptaCore          identifiers, timing, transcript model, state machines
+  ├── VoxScriptaDSP             decode · analyse · detect silence · plan chunks
+  │     └── VoxScriptaTranscription   engines · scheduler · merger
+  ├── VoxScriptaLanguage        clean (rules) · polish (LLM) · validation
+  ├── VoxScriptaProject         package format · job store · resume
+  ├── VoxScriptaExport          TXT · Markdown · DOCX · SRT · VTT
+  └── VoxScriptaBench           signposts · footprint · benchmark reports
 ```
 
 Dependencies point one way only, and SPM enforces it: a module cannot import a
@@ -231,7 +231,7 @@ target it does not declare.
 
 ## Privacy
 
-VoxVerba ships without the `com.apple.security.network.client` entitlement, so
+Vox Scripta ships without the `com.apple.security.network.client` entitlement, so
 the sandbox prevents it from opening a socket even if a dependency tried. CI
 additionally fails the build if any source file references a networking API.
 
