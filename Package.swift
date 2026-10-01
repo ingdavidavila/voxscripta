@@ -15,6 +15,7 @@ let package = Package(
     platforms: [.macOS("26.0")],
     products: [
         .library(name: "VoxScriptaCore", targets: ["VoxScriptaCore"]),
+        .library(name: "VoxScriptaCoreCxx", targets: ["VoxScriptaCoreCxx"]),
         .library(name: "VoxScriptaDSP", targets: ["VoxScriptaDSP"]),
         .library(name: "VoxScriptaTranscription", targets: ["VoxScriptaTranscription"]),
         .library(name: "VoxScriptaLanguage", targets: ["VoxScriptaLanguage"]),
@@ -39,6 +40,19 @@ let package = Package(
         .package(url: "https://github.com/huggingface/swift-transformers", from: "1.3.0"),
     ],
     targets: [
+        // ── The portable core (P1 of the React Native migration) ────────────
+        // Plain C++20 with no dependencies, built here by SwiftPM and by CMake
+        // for Android. The Swift modules above it are being ported into this
+        // one target by target; until that finishes both implementations exist
+        // and VoxScriptaCoreParityTests holds them to the same answers.
+        .target(
+            name: "VoxScriptaCoreCxx",
+            path: "core",
+            exclude: ["CMakeLists.txt", "tests"],
+            sources: ["src"],
+            publicHeadersPath: "include"
+        ),
+
         // ── Foundation layer ────────────────────────────────────────────────
         // No dependencies, by design. Every other module speaks this vocabulary.
         .target(name: "VoxScriptaCore", swiftSettings: strict),
@@ -137,7 +151,15 @@ let package = Package(
                     dependencies: ["VoxScriptaApp", "VoxScriptaPipeline"], swiftSettings: strict),
         .testTarget(name: "VoxScriptaPipelineTests",
                     dependencies: ["VoxScriptaPipeline", "VoxScriptaTestSupport"], swiftSettings: strict),
+        // Holds the C++ port and the Swift original to the same answers.
+        // Deleted, target by target, as each Swift module is retired.
+        .testTarget(
+            name: "VoxScriptaCoreParityTests",
+            dependencies: ["VoxScriptaCore", "VoxScriptaCoreCxx"],
+            swiftSettings: [.swiftLanguageMode(.v6), .interoperabilityMode(.Cxx)]
+        ),
         .testTarget(name: "VoxScriptaExportTests",
                     dependencies: ["VoxScriptaExport", "VoxScriptaTestSupport"], swiftSettings: strict),
-    ]
+    ],
+    cxxLanguageStandard: .cxx20
 )

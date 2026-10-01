@@ -46,12 +46,23 @@ mkdir -p "$ROOT/build"
 xcrun -sdk macosx metallib "$WORK"/*.air -o "$OUT"
 echo "  $COUNT shaders -> $OUT ($(du -h "$OUT" | cut -f1))"
 
-# Place it beside every binary that runs MLX, including the test bundle, so
+# Place it beside every binary that runs MLX, including the test bundles, so
 # `swift test` exercises the real GPU path rather than skipping it.
 #
 # The bin path moved when Swift 6.4 made the Xcode build system the default, so
 # this asks SwiftPM where the binaries are rather than assuming a layout.
+#
+# Order matters now. The Xcode build system code-signs each .xctest bundle and
+# tracks its contents, so a file added afterwards makes the *next* build fail
+# to re-sign it. Run this after building and then test without rebuilding:
+#
+#     swift build --build-tests && ./Tools/build-metallib.sh && swift test --skip-build
+#
+# A plain `swift build` after this will fail until the injected copies are
+# removed, which this script does on each run before copying them back.
 BIN="$(swift build --package-path "$ROOT" --show-bin-path)"
+# Clear previous injections so a rebuild is not tripped by them.
+find "$BIN" -name mlx.metallib -delete 2>/dev/null || true
 for dir in "$BIN" "$BIN"/*.xctest/Contents/MacOS; do
     [ -d "$dir" ] || continue
     cp "$OUT" "$dir/mlx.metallib"

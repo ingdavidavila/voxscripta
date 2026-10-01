@@ -1,0 +1,6 @@
+file(GLOB_RECURSE VOXSCRIPTA_TEST_SOURCES CONFIGURE_DEPENDS *.cpp)
+add_executable(voxscripta_core_tests ${VOXSCRIPTA_TEST_SOURCES})
+target_link_libraries(voxscripta_core_tests PRIVATE voxscripta_core)
+target_include_directories(voxscripta_core_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_options(voxscripta_core_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+add_test(NAME core COMMAND voxscripta_core_tests)
