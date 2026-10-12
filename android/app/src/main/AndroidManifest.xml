@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  No <uses-permission> entries at all, and in particular no INTERNET.
+  That is the Android counterpart of the macOS build's missing network
+  entitlement: the promise in §26 is enforced by the platform rather than by
+  our good intentions. Tools/verify-android-core.sh should grow a check for
+  this before the first release, the way make-app-bundle.sh fails the macOS
+  build if a network entitlement appears.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.AppCompat.DayNight">
+
+        <activity
+            android:name=".CoreCheckActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

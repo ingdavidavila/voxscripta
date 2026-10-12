@@ -29,3 +29,13 @@ build/Model/
 
 # Android cross-compile output
 build/android-*
+
+# Android Studio / Gradle
+android/.gradle/
+android/.idea/
+android/local.properties
+android/build/
+android/app/build/
+android/.cxx/
+android/app/.cxx/
+*.iml
