@@ -26,3 +26,6 @@ Models/
 
 # Fetched model weights — see Tools/fetch-model.sh
 build/Model/
+
+# Android cross-compile output
+build/android-*
