@@ -58,7 +58,7 @@ struct CorpusCase {
     }
     /// Speech spans with adjacent spans coalesced.
     std::vector<TimeRange> expected_speech_regions() const;
-    std::vector<float> render() const;
+    std::vector<float> render(int sample_rate = CanonicalFormat::sample_rate) const;
 };
 
 namespace corpus {

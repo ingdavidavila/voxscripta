@@ -8,14 +8,13 @@ namespace voxscripta::testing {
 namespace {
 
 constexpr double kPi = 3.14159265358979323846;
-constexpr int kRate = CanonicalFormat::sample_rate;
 
 void add_voiced(std::vector<float>& out, int start, int end, double amplitude,
-                DeterministicRandom& rng) {
+                DeterministicRandom& rng, int rate) {
     const double f0 = 120.0;
     const double weights[6] = {1.0, 0.6, 0.42, 0.22, 0.13, 0.07};
     for (int i = start; i < end; ++i) {
-        const double t = static_cast<double>(i - start) / kRate;
+        const double t = static_cast<double>(i - start) / rate;
         // ~12 dB variation within a syllable at ~4 Hz; never reaches zero.
         const double raised = 0.5 + 0.5 * std::sin(2 * kPi * 4.0 * t);
         const double syllable = 0.25 + 0.75 * std::pow(raised, 1.4);
@@ -39,10 +38,10 @@ void add_fricative(std::vector<float>& out, int start, int end, double amplitude
 }
 
 void add_voiced_with_closures(std::vector<float>& out, int start, int end, double amplitude,
-                              DeterministicRandom& rng) {
-    add_voiced(out, start, end, amplitude, rng);
-    const int closure = static_cast<int>(0.060 * kRate);
-    const int period = static_cast<int>(0.400 * kRate);
+                              DeterministicRandom& rng, int rate) {
+    add_voiced(out, start, end, amplitude, rng, rate);
+    const int closure = static_cast<int>(0.060 * rate);
+    const int period = static_cast<int>(0.400 * rate);
     for (int position = start + period; position + closure < end; position += period) {
         for (int i = position; i < position + closure; ++i) out[i] *= 0.02f;
     }
@@ -67,8 +66,8 @@ std::vector<TimeRange> CorpusCase::expected_speech_regions() const {
     return out;
 }
 
-std::vector<float> CorpusCase::render() const {
-    const int count = static_cast<int>(duration().samples_at(kRate));
+std::vector<float> CorpusCase::render(int rate) const {
+    const int count = static_cast<int>(duration().samples_at(rate));
     if (count <= 0) return {};
     std::vector<float> out(count);
     DeterministicRandom rng(seed);
@@ -81,16 +80,16 @@ std::vector<float> CorpusCase::render() const {
         out[i] = static_cast<float>(rng.gaussian() * std::pow(10, level / 20) * 0.3);
     }
     for (const auto& s : spans) {
-        const int start = static_cast<int>(s.range.start_time().samples_at(kRate));
-        const int end = std::min(static_cast<int>(s.range.end_time().samples_at(kRate)), count);
+        const int start = static_cast<int>(s.range.start_time().samples_at(rate));
+        const int end = std::min(static_cast<int>(s.range.end_time().samples_at(rate)), count);
         if (end <= start) continue;
         const double amplitude = std::pow(10, s.level_db / 20);
         switch (s.kind) {
             case SignalKind::silence: break;
-            case SignalKind::voiced: add_voiced(out, start, end, amplitude, rng); break;
+            case SignalKind::voiced: add_voiced(out, start, end, amplitude, rng, rate); break;
             case SignalKind::fricative: add_fricative(out, start, end, amplitude, rng); break;
             case SignalKind::voiced_with_closures:
-                add_voiced_with_closures(out, start, end, amplitude, rng);
+                add_voiced_with_closures(out, start, end, amplitude, rng, rate);
                 break;
         }
     }
