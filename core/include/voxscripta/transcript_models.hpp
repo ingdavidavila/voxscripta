@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <vector>
@@ -46,6 +47,33 @@ struct TranscriptSegment {
     std::vector<SegmentWarning> warnings;
 
     TimeRange range() const { return TimeRange(original_start, original_end); }
+};
+
+/// A complete verbatim transcript: ordered, non-overlapping segments on the
+/// original timeline. (The Swift model also carries clean/polished variants and
+/// provenance; those arrive with the language phase.)
+struct Transcript {
+    std::vector<TranscriptSegment> segments;
+    std::string engine_id;
+
+    bool empty() const { return segments.empty(); }
+    std::size_t word_count() const {
+        std::size_t n = 0;
+        for (const auto& s : segments) n += s.words.size();
+        return n;
+    }
+    /// First segment's start to last segment's end.
+    std::optional<TimeRange> time_range() const {
+        if (segments.empty()) return std::nullopt;
+        return TimeRange(segments.front().original_start, segments.back().original_end);
+    }
+    /// Segments must be ordered and non-overlapping; exports rely on it.
+    bool is_monotonic() const {
+        for (std::size_t i = 1; i < segments.size(); ++i) {
+            if (segments[i - 1].original_end > segments[i].original_start) return false;
+        }
+        return true;
+    }
 };
 
 }  // namespace voxscripta

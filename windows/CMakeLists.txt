@@ -46,3 +46,12 @@ target_compile_definitions(voxscripta_windows_tests PRIVATE
                            VOXSCRIPTA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/..")
 target_link_libraries(voxscripta_windows_tests PRIVATE voxscripta_windows voxscripta_whisper mfplat mfreadwrite mfuuid ole32)
 add_test(NAME windows COMMAND voxscripta_windows_tests)
+
+# The command-line transcriber.
+add_executable(voxscripta-cli cli/main.cpp)
+target_link_libraries(voxscripta-cli PRIVATE voxscripta_windows voxscripta_whisper shell32)
+if(NOT MSVC)
+    target_compile_options(voxscripta-cli PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    # Ship the runtime inside the exe so it runs from any folder.
+    target_link_options(voxscripta-cli PRIVATE -static-libgcc -static-libstdc++)
+endif()

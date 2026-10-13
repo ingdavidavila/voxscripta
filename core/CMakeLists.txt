@@ -15,6 +15,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 file(GLOB_RECURSE VOXSCRIPTA_CORE_SOURCES CONFIGURE_DEPENDS src/*.cpp)
 
 add_library(voxscripta_core STATIC ${VOXSCRIPTA_CORE_SOURCES})
+find_package(Threads REQUIRED)
+target_link_libraries(voxscripta_core PUBLIC Threads::Threads)
 target_include_directories(voxscripta_core PUBLIC include)
 target_compile_options(voxscripta_core PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
