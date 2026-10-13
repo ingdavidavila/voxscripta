@@ -5,6 +5,7 @@
 // does differently on purpose — Codable has no counterpart, invalid input
 // throws rather than trapping — the difference is noted at the case.
 
+#include <cmath>
 #include <stdexcept>
 
 #include "harness.hpp"
