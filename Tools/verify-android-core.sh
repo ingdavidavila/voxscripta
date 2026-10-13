@@ -12,25 +12,37 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-# Looked up rather than hardcoded, because this runs on two machines: one with
-# a standalone NDK unzipped by hand, one with Android Studio's SDK.
+# Looked up rather than hardcoded. This runs wherever the Android work happens:
+# a Mac with a standalone NDK, or a Windows or Linux box with Android Studio's
+# SDK in that platform's own default location. Git Bash or WSL on Windows.
+sdk_candidates() {
+    for candidate in "${ANDROID_HOME:-}" "${ANDROID_SDK_ROOT:-}" \
+                     "$HOME/Library/Android/sdk" \
+                     "$HOME/Android/Sdk" "$HOME/Android/sdk" \
+                     "${LOCALAPPDATA:-$HOME/AppData/Local}/Android/Sdk" \
+                     "/usr/lib/android-sdk" "/opt/android-sdk"; do
+        [ -n "$candidate" ] && [ -d "$candidate" ] && echo "$candidate"
+    done
+}
+
 find_ndk() {
     [ -n "${ANDROID_NDK_HOME:-}" ] && { echo "$ANDROID_NDK_HOME"; return; }
-    for sdk in "${ANDROID_HOME:-}" "${ANDROID_SDK_ROOT:-}" "$HOME/Library/Android/sdk"; do
-        [ -d "${sdk:-/nonexistent}/ndk" ] || continue
+    for sdk in $(sdk_candidates); do
+        [ -d "$sdk/ndk" ] || continue
         # Highest installed version.
         local newest
         newest="$(ls -1 "$sdk/ndk" | sort -V | tail -1)"
         [ -n "$newest" ] && { echo "$sdk/ndk/$newest"; return; }
     done
-    ls -d "$HOME"/Library/Android/android-ndk-* 2>/dev/null | sort -V | tail -1
+    { ls -d "$HOME"/Library/Android/android-ndk-* "$HOME"/android-ndk-* 2>/dev/null \
+        || true; } | sort -V | tail -1
 }
 
 find_cmake() {
     [ -n "${CMAKE:-}" ] && { echo "$CMAKE"; return; }
-    command -v cmake 2>/dev/null && return
-    for sdk in "${ANDROID_HOME:-}" "${ANDROID_SDK_ROOT:-}" "$HOME/Library/Android/sdk"; do
-        [ -d "${sdk:-/nonexistent}/cmake" ] || continue
+    command -v cmake 2>/dev/null && return || true
+    for sdk in $(sdk_candidates); do
+        [ -d "$sdk/cmake" ] || continue
         local newest
         newest="$(ls -1 "$sdk/cmake" | sort -V | tail -1)"
         [ -x "$sdk/cmake/$newest/bin/cmake" ] && { echo "$sdk/cmake/$newest/bin/cmake"; return; }

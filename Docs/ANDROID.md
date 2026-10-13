@@ -64,8 +64,9 @@ None of these touch the native code, which is known to build.
 
 ## Verifying without Studio
 
-The cross-compile and the JNI contract can be checked from a terminal on either
-machine:
+Runs on macOS, Linux and Windows (Git Bash or WSL). It finds the SDK from
+`ANDROID_HOME`, `ANDROID_SDK_ROOT`, or each platform's default location, so no
+configuration is normally needed:
 
 ```bash
 ./Tools/verify-android-core.sh
