@@ -22,6 +22,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(VOXSCRIPTA_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../core core)
 
+# The Whisper engine (portable; lives beside core/).
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../whisper whisper)
+
 add_library(voxscripta_windows STATIC src/mf_decoder.cpp)
 target_include_directories(voxscripta_windows PUBLIC include)
 target_link_libraries(voxscripta_windows PUBLIC voxscripta_core
@@ -39,5 +42,7 @@ add_executable(voxscripta_windows_tests ${VOXSCRIPTA_WINDOWS_TEST_SOURCES}
                ${CMAKE_CURRENT_SOURCE_DIR}/../core/tests/synthesis.cpp)
 target_include_directories(voxscripta_windows_tests PRIVATE
                            ${CMAKE_CURRENT_SOURCE_DIR}/../core/tests)
-target_link_libraries(voxscripta_windows_tests PRIVATE voxscripta_windows mfplat mfreadwrite mfuuid ole32)
+target_compile_definitions(voxscripta_windows_tests PRIVATE
+                           VOXSCRIPTA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/..")
+target_link_libraries(voxscripta_windows_tests PRIVATE voxscripta_windows voxscripta_whisper mfplat mfreadwrite mfuuid ole32)
 add_test(NAME windows COMMAND voxscripta_windows_tests)
