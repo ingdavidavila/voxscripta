@@ -89,6 +89,8 @@ inline int run_all() {
         }                                                                                  \
     } while (false)
 
+#define VS_EXPECT_MSG(condition, message)                                                      do {                                                                                           if (!(condition)) {                                                                            ::voxscripta::testing::report_failure(                                                         __FILE__, __LINE__, std::string(#condition) + " -- " + (message));                 }                                                                                      } while (false)
+
 #define VS_EXPECT_EQ(actual, expected)                                                     \
     do {                                                                                   \
         const auto vs_a = (actual);                                                        \
