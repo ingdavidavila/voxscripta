@@ -38,10 +38,10 @@ struct RootView: View {
                     .allowsHitTesting(false)
             }
         }
-        .alert("Something went wrong",
+        .alert(Strings.somethingWrong,
                isPresented: .constant(model.errorMessage != nil)) {
-            Button("OK") { model.dismissError() }
-                .help("Dismiss this message.")
+            Button(Strings.ok) { model.dismissError() }
+                .help(Strings.dismissHelp)
         } message: {
             Text(model.errorMessage ?? "")
         }
@@ -49,11 +49,10 @@ struct RootView: View {
         // what deleting removes depends on how the recording was imported.
         .alert("Delete “\(model.pendingDeletion?.plan.projectName ?? "")”?",
                isPresented: .constant(model.pendingDeletion != nil)) {
-            Button("Move to Trash", role: .destructive) { model.confirmDelete() }
-                .help("Move this recording and its transcripts to the Trash. "
-                      + "You can put them back from there.")
-            Button("Cancel", role: .cancel) { model.cancelDelete() }
-                .help("Keep this recording.")
+            Button(Strings.moveToTrash, role: .destructive) { model.confirmDelete() }
+                .help(Strings.moveToTrashHelp)
+            Button(Strings.cancel, role: .cancel) { model.cancelDelete() }
+                .help(Strings.keepRecordingHelp)
         } message: {
             Text(model.deletionMessage)
         }
@@ -67,15 +66,15 @@ struct RootView: View {
         ToolbarItemGroup(placement: .primaryAction) {
             if model.isRunning {
                 Button(role: .cancel) { model.cancel() } label: {
-                    Label("Stop", systemImage: "stop.fill")
+                    Label(Strings.stop, systemImage: "stop.fill")
                 }
-                .help("Stop processing. Finished work is kept and can be resumed.")
+                .help(Strings.stopHelp)
             }
             Button { model.presentImportPanel() } label: {
-                Label("Open Audio", systemImage: "waveform.badge.plus")
+                Label(Strings.openAudio, systemImage: "waveform.badge.plus")
             }
             .disabled(model.isRunning)
-            .help("Choose a recording to transcribe. The original file is never modified.")
+            .help(Strings.openAudioHelp)
         }
     }
 
@@ -95,11 +94,10 @@ struct RootView: View {
 /// actual capability rather than a hardcoded label.
 struct PrivacyBadge: View {
     var body: some View {
-        Label("On this Mac", systemImage: "lock.fill")
+        Label(Strings.onThisMac, systemImage: "lock.fill")
             .font(.caption)
             .foregroundStyle(.secondary)
-            .help("Vox Scripta processes audio entirely on this Mac. "
-                  + "It ships without network access and cannot upload anything.")
+            .help(Strings.privacyBadgeHelp)
     }
 }
 
@@ -111,25 +109,25 @@ struct LibrarySidebar: View {
 
         List(selection: $model.selectedProjectID) {
             if model.projects.isEmpty {
-                ContentUnavailableView("No recordings yet",
+                ContentUnavailableView(Strings.noRecordings,
                                        systemImage: "waveform",
-                                       description: Text("Drop an audio file to begin."))
+                                       description: Text(Strings.noRecordingsDetail))
                 .listRowSeparator(.hidden)
             } else {
-                Section("Recordings") {
+                Section(Strings.recordings) {
                     ForEach(model.projects) { project in
                         ProjectRow(project: project)
                             .tag(project.id)
                             .help("\(project.displayName) · \(project.duration). "
                                   + "Click to open its transcript.")
                             .contextMenu {
-                                Button("Show in Finder") { model.reveal(project) }
-                                    .help("Reveal this recording's project folder.")
+                                Button(Strings.showInFinder) { model.reveal(project) }
+                                    .help(Strings.showInFinderHelp)
                                 Divider()
-                                Button("Delete…", role: .destructive) {
+                                Button(Strings.deleteEllipsis, role: .destructive) {
                                     model.requestDelete(project)
                                 }
-                                .help("Move this recording and its transcripts to the Trash.")
+                                .help(Strings.deleteHelp)
                             }
                     }
                 }

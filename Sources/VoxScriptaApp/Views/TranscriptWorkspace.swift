@@ -29,13 +29,13 @@ struct TranscriptWorkspace: View {
             ToolbarItemGroup(placement: .automatic) {
                 if !model.polishReport.isEmpty || model.polishSkipReason != nil {
                     Toggle(isOn: $model.showsValidationDetail) {
-                        Label("Review", systemImage: "checkmark.shield")
+                        Label(Strings.review, systemImage: "checkmark.shield")
                     }
-                    .help("Show what the polish pass changed, and what it refused to change.")
+                    .help(Strings.reviewHelp)
                 }
 
                 Button { model.copyTranscript() } label: {
-                    Label("Copy", systemImage: "doc.on.doc")
+                    Label(Strings.copy, systemImage: "doc.on.doc")
                 }
                 .disabled(model.currentTranscript == nil)
                 .keyboardShortcut("c", modifiers: [.command, .shift])
@@ -45,28 +45,25 @@ struct TranscriptWorkspace: View {
                 // A plain click saves the transcript; the arrow opens the other
                 // formats. Downloading should not require finding a submenu first.
                 Menu {
-                    Section("Save As") {
+                    Section(Strings.saveAs) {
                         ForEach(model.exportableFormats, id: \.self) { format in
-                            Button(format.displayName) { model.export(format) }
+                            Button(format.localizedName) { model.export(format) }
                                 .help(format.explanation)
                         }
                     }
                     Divider()
-                    Toggle("Include timestamps", isOn: $model.exportIncludesTimestamps)
-                        .help("Write each segment's start time alongside its text. "
-                              + "Subtitle formats always carry timings.")
+                    Toggle(Strings.includeTimestamps, isOn: $model.exportIncludesTimestamps)
+                        .help(Strings.includeTimestampsHelp)
                     Divider()
-                    Button("Save Every Variant…") { model.exportAll() }
-                        .help("Write the verbatim, clean and polished transcripts "
-                              + "to one folder.")
-                    Button("Audio with Silence Removed…") {
+                    Button(Strings.saveEveryVariant) { model.exportAll() }
+                        .help(Strings.saveEveryVariantHelp)
+                    Button(Strings.silenceRemovedAudio) {
                         model.renderSilenceRemovedAudio()
                     }
                     .disabled(model.silenceMap == nil || model.isRendering)
-                    .help("Render a new audio file with the silences taken out. "
-                          + "Your original recording is left untouched.")
+                    .help(Strings.silenceRemovedAudioHelp)
                 } label: {
-                    Label("Download", systemImage: "square.and.arrow.down")
+                    Label(Strings.download, systemImage: "square.and.arrow.down")
                 } primaryAction: {
                     model.export(model.defaultExportFormat)
                 }
@@ -85,7 +82,7 @@ struct TranscriptWorkspace: View {
         return HStack {
             Picker("", selection: $model.selectedVariant) {
                 ForEach(model.availableVariants, id: \.self) { variant in
-                    Text(variant.displayName)
+                    Text(variant.localizedName)
                         .help(variant.explanation)
                         .tag(variant)
                 }
@@ -118,41 +115,62 @@ struct TranscriptWorkspace: View {
 }
 
 extension ExportFormat {
-    var displayName: String {
+    /// For SwiftUI, which localizes a `LocalizedStringKey` and not a `String`.
+    @MainActor var localizedName: LocalizedStringKey {
         switch self {
-        case .plainText: "Plain Text (.txt)"
-        case .markdown: "Markdown (.md)"
-        case .docx: "Word (.docx)"
-        case .subRip: "Subtitles (.srt)"
-        case .webVTT: "Web Captions (.vtt)"
+        case .plainText: Strings.formatPlainText
+        case .markdown: Strings.formatMarkdown
+        case .docx: Strings.formatDocx
+        case .subRip: Strings.formatSubRip
+        case .webVTT: Strings.formatWebVTT
         }
     }
 
-    var explanation: String {
+    /// For AppKit and for string interpolation, where a key cannot be used.
+    /// Resolved through the same table, so both forms stay translated.
+    var displayName: String {
         switch self {
-        case .plainText: "Just the words, in a file any editor can open."
-        case .markdown: "Words with light formatting, for notes and documentation."
-        case .docx: "A Word document, for sharing and further editing."
-        case .subRip: "Timed subtitles, the format most video editors expect."
-        case .webVTT: "Timed captions for the web."
+        case .plainText: String(localized: "Plain Text (.txt)")
+        case .markdown: String(localized: "Markdown (.md)")
+        case .docx: String(localized: "Word (.docx)")
+        case .subRip: String(localized: "Subtitles (.srt)")
+        case .webVTT: String(localized: "Web Captions (.vtt)")
+        }
+    }
+
+    @MainActor var explanation: LocalizedStringKey {
+        switch self {
+        case .plainText: Strings.explainPlainText
+        case .markdown: Strings.explainMarkdown
+        case .docx: Strings.explainDocx
+        case .subRip: Strings.explainSubRip
+        case .webVTT: Strings.explainWebVTT
         }
     }
 }
 
 extension TranscriptVariant {
-    var displayName: String {
+    @MainActor var localizedName: LocalizedStringKey {
         switch self {
-        case .verbatim: "Verbatim"
-        case .clean: "Clean"
-        case .polished: "Polished"
+        case .verbatim: Strings.verbatim
+        case .clean: Strings.clean
+        case .polished: Strings.polished
         }
     }
 
-    var explanation: String {
+    var displayName: String {
         switch self {
-        case .verbatim: "Exactly what was said, including hesitations."
-        case .clean: "Tidied by fixed rules. No language model was involved."
-        case .polished: "Rewritten for readability, checked against the original."
+        case .verbatim: String(localized: "Verbatim")
+        case .clean: String(localized: "Clean")
+        case .polished: String(localized: "Polished")
+        }
+    }
+
+    @MainActor var explanation: LocalizedStringKey {
+        switch self {
+        case .verbatim: Strings.verbatimExplanation
+        case .clean: Strings.cleanExplanation
+        case .polished: Strings.polishedExplanation
         }
     }
 }
@@ -169,7 +187,7 @@ struct ValidationPanel: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 if let reason = model.polishSkipReason {
-                    Label("Polish did not run", systemImage: "exclamationmark.triangle")
+                    Label(Strings.polishDidNotRun, systemImage: "exclamationmark.triangle")
                         .font(.headline)
                     Text(reason)
                         .font(.callout)
@@ -177,8 +195,7 @@ struct ValidationPanel: View {
                 } else {
                     summary
                     if model.flaggedSentences.isEmpty {
-                        Label("Every sentence passed on the first attempt.",
-                              systemImage: "checkmark.seal")
+                        Label(Strings.everySentencePassed, systemImage: "checkmark.seal")
                             .font(.callout)
                             .foregroundStyle(.secondary)
                     } else {
@@ -202,11 +219,11 @@ struct ValidationPanel: View {
             $0.disposition == .fellBackToClean || $0.disposition == .modelFailed
         }
         return VStack(alignment: .leading, spacing: 6) {
-            Text("Polish review").font(.headline)
+            Text(Strings.polishReview).font(.headline)
             Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 3) {
-                GridRow { Text("Accepted"); Text("\(accepted)").monospacedDigit() }
-                GridRow { Text("Accepted after retry"); Text("\(retried)").monospacedDigit() }
-                GridRow { Text("Kept the clean text"); Text("\(kept)").monospacedDigit() }
+                GridRow { Text(Strings.accepted); Text("\(accepted)").monospacedDigit() }
+                GridRow { Text(Strings.acceptedAfterRetry); Text("\(retried)").monospacedDigit() }
+                GridRow { Text(Strings.keptCleanText); Text("\(kept)").monospacedDigit() }
             }
             .font(.callout)
             .foregroundStyle(.secondary)

@@ -35,6 +35,15 @@ if [ ! -f "$ROOT/build/mlx.metallib" ]; then
 fi
 cp "$ROOT/build/mlx.metallib" "$APP/Contents/MacOS/mlx.metallib"
 
+# Translations. Checked first: an untranslated string falls back to English and
+# looks deliberate, so the only way to catch one is to compare the table against
+# the catalogues before shipping.
+"$ROOT/Tools/check-localization.sh"
+for lproj in "$ROOT"/Resources/Localization/*.lproj; do
+    [ -d "$lproj" ] || continue
+    cp -R "$lproj" "$APP/Contents/Resources/"
+done
+
 # Resource bundles from dependencies (tokenizer data, and so on).
 for bundle in "$BIN"/*.bundle; do
     [ -e "$bundle" ] || continue
@@ -61,6 +70,9 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleExecutable</key><string>VoxScripta</string>
     <key>CFBundleIconFile</key><string>VoxScripta</string>
     <key>CFBundlePackageType</key><string>APPL</string>
+    <key>CFBundleDevelopmentRegion</key><string>en</string>
+    <key>CFBundleLocalizations</key>
+    <array><string>en</string><string>es</string></array>
     <key>CFBundleShortVersionString</key><string>0.1.0</string>
     <key>CFBundleVersion</key><string>1</string>
     <key>LSMinimumSystemVersion</key><string>26.0</string>

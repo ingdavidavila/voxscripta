@@ -15,24 +15,23 @@ struct ImportView: View {
                 .accessibilityHidden(true)
 
             VStack(spacing: 6) {
-                Text("Drop a recording")
+                Text(Strings.dropRecording)
                     .font(.title2.weight(.medium))
-                Text("Interviews, meetings, lectures — any length.")
+                Text(Strings.dropSubtitle)
                     .foregroundStyle(.secondary)
             }
 
-            Button("Choose Audio…") { model.presentImportPanel() }
+            Button(Strings.chooseAudio) { model.presentImportPanel() }
                 .controlSize(.large)
                 .buttonStyle(.borderedProminent)
-                .help("Pick an audio file to transcribe. "
-                      + "Vox Scripta reads it and never writes to it.")
+                .help(Strings.chooseAudioHelp)
 
             Divider().frame(width: 260).padding(.vertical, 4)
 
             VStack(spacing: 4) {
-                Label("Your audio never leaves this Mac", systemImage: "lock.fill")
+                Label(Strings.neverLeaves, systemImage: "lock.fill")
                     .font(.callout)
-                Text("The original file is never modified.")
+                Text(Strings.originalUnmodified)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

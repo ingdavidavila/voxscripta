@@ -23,7 +23,7 @@ struct ProcessingView: View {
                 RoundedRectangle(cornerRadius: 8)
                     .fill(.quaternary.opacity(0.4))
                     .frame(height: 96)
-                    .overlay { Text("Reading audio…").foregroundStyle(.secondary) }
+                    .overlay { Text(Strings.readingAudio).foregroundStyle(.secondary) }
             }
 
             PhaseList(current: model.phase)

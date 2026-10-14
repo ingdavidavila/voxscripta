@@ -11,60 +11,55 @@ struct SettingsView: View {
 
         TabView {
             Form {
-                Section("Silence detection") {
-                    LabeledContent("Threshold above noise floor") {
+                Section(Strings.silenceDetection) {
+                    LabeledContent(Strings.thresholdAboveNoise) {
                         Slider(value: $model.settings.silenceMarginDB, in: 3...20, step: 1) {
-                            Text("Threshold")
+                            Text(Strings.thresholdAboveNoise)
                         }
                         .frame(width: 200)
                         Text("\(Int(model.settings.silenceMarginDB)) dB").monospacedDigit()
                     }
-                    .help("How far above the measured background noise a sound must be "
-                          + "to count as speech. Raise it for a noisy recording.")
-                    LabeledContent("Shortest pause") {
+                    .help(Strings.thresholdHelp)
+                    LabeledContent(Strings.shortestPause) {
                         Slider(value: $model.settings.minimumSilenceSeconds, in: 0.2...2, step: 0.1)
                             .frame(width: 200)
                         Text(String(format: "%.1f s", model.settings.minimumSilenceSeconds))
                             .monospacedDigit()
                     }
-                    .help("A quiet stretch shorter than this is treated as part of "
-                          + "the speech, not as a pause.")
-                    LabeledContent("Padding after speech") {
+                    .help(Strings.shortestPauseHelp)
+                    LabeledContent(Strings.paddingAfterSpeech) {
                         Slider(value: $model.settings.padTrailSeconds, in: 0...1, step: 0.05)
                             .frame(width: 200)
                         Text(String(format: "%.2f s", model.settings.padTrailSeconds))
                             .monospacedDigit()
                     }
-                    .help("Silence kept after each phrase, so word endings are not "
-                          + "clipped when silence is removed.")
+                    .help(Strings.paddingHelp)
                 }
                 Section {
-                    LabeledContent("Maximum segment length") {
+                    LabeledContent(Strings.maximumSegmentLength) {
                         Slider(value: $model.settings.maximumChunkSeconds, in: 60...600, step: 30)
                             .frame(width: 200)
                         Text("\(Int(model.settings.maximumChunkSeconds)) s").monospacedDigit()
                     }
-                    .help("The longest stretch of audio transcribed as one unit. "
-                          + "Shorter segments save progress more often.")
+                    .help(Strings.maximumSegmentHelp)
                 } header: {
-                    Text("Segmentation")
+                    Text(Strings.segmentation)
                 } footer: {
-                    Text("Segments are internal. They set how often work is saved, not how the transcript reads.")
+                    Text(Strings.segmentationFooter)
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
             .formStyle(.grouped)
-            .tabItem { Label("Audio", systemImage: "waveform") }
+            .tabItem { Label(Strings.settingsAudio, systemImage: "waveform") }
 
             Form {
-                Section("Transcription") {
-                    Picker("Language", selection: $model.settings.locale) {
+                Section(Strings.settingsTranscription) {
+                    Picker(Strings.language, selection: $model.settings.locale) {
                         ForEach(model.availableLocales) { option in
                             Text(option.displayName).tag(option.identifier)
                         }
                     }
-                    .help("The language spoken in the recording. Getting this wrong "
-                          + "costs accuracy more than any other setting.")
+                    .help(Strings.languageHelp)
                     .task { await model.loadAvailableLocales() }
 
                     if model.settings.transcriptLanguage == nil {
@@ -72,128 +67,110 @@ struct SettingsView: View {
                         // Transcription works; the text stages do not, because
                         // applying one language's filler list to another
                         // deletes real words.
-                        Label("Verbatim only in this language. Clean and Polished "
-                              + "need lexicons VoxScripta does not have yet.",
-                              systemImage: "exclamationmark.triangle")
+                        Label(Strings.verbatimOnlyNotice, systemImage: "exclamationmark.triangle")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     } else if model.settings.transcriptLanguage == .spanish {
-                        Label("Polished is unavailable in Spanish. The check that "
-                              + "catches a reversed meaning does not work in "
-                              + "Spanish, so the pass is withheld rather than run "
-                              + "unguarded.",
-                              systemImage: "exclamationmark.shield")
+                        Label(Strings.polishUnavailableNotice, systemImage: "exclamationmark.shield")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    LabeledContent("Segments at once") {
+                    LabeledContent(Strings.segmentsAtOnce) {
                         Stepper(value: $model.settings.concurrency, in: 1...8) {
                             Text("\(model.settings.concurrency)").monospacedDigit()
                         }
                     }
-                    .help("How many segments are transcribed in parallel. "
-                          + "Four is fastest here; more is not.")
+                    .help(Strings.segmentsAtOnceHelp)
                 }
                 Section {
-                    Text("Four is fastest on Apple silicon in our measurements. "
-                         + "Changing this re-transcribes, because results are only "
-                         + "reproducible at a fixed setting.")
+                    Text(Strings.concurrencyFooter)
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
             .formStyle(.grouped)
-            .tabItem { Label("Transcription", systemImage: "text.bubble") }
+            .tabItem { Label(Strings.settingsTranscription, systemImage: "text.bubble") }
 
             Form {
-                Section("Clean") {
-                    Toggle("Remove filler sounds", isOn: $model.settings.removeFillers)
-                        .help("Drop “um”, “uh”, “you know” and the like from the "
-                              + "clean transcript. The verbatim one keeps them.")
-                    Toggle("Collapse stutters", isOn: $model.settings.collapseRepetitions)
-                        .help("Turn “the the the point” into “the point”. "
-                              + "Only exact repeats are collapsed.")
-                    Text("Clean uses fixed rules. No language model is involved, and it can only delete filler words — never rewrite what was said.")
+                Section(Strings.clean) {
+                    Toggle(Strings.removeFillers, isOn: $model.settings.removeFillers)
+                        .help(Strings.removeFillersHelp)
+                    Toggle(Strings.collapseStutters, isOn: $model.settings.collapseRepetitions)
+                        .help(Strings.collapseStuttersHelp)
+                    Text(Strings.cleanFooter)
                         .font(.caption).foregroundStyle(.secondary)
                 }
-                Section("Polished") {
-                    Toggle("Create a polished transcript", isOn: $model.settings.polishEnabled)
+                Section(Strings.polished) {
+                    Toggle(Strings.createPolished, isOn: $model.settings.polishEnabled)
                         .disabled(!model.settings.polishSupported)
-                        .help("Add a third transcript, rewritten sentence by sentence "
-                              + "for readability. This is the only stage that uses a "
-                              + "language model, and it runs on this Mac.")
-                    Text("Rewrites for readability one sentence at a time. Every sentence is checked against the original; anything that changes a number, name, negation or meaning is rejected and the clean text is kept.")
+                        .help(Strings.createPolishedHelp)
+                    Text(Strings.polishFooter)
                         .font(.caption).foregroundStyle(.secondary)
 
-                    Picker("Language model", selection: $model.settings.polishBackend) {
+                    Picker(Strings.languageModel, selection: $model.settings.polishBackend) {
                         ForEach(PolishBackendPreference.allCases, id: \.self) { preference in
                             Text(preference.displayName).tag(preference)
                         }
                     }
                     .disabled(!model.settings.polishEnabled)
-                    .help("Which model does the polishing: Apple Intelligence, the "
-                          + "model bundled with the app, or whichever is available.")
+                    .help(Strings.languageModelHelp)
 
-                    LabeledContent("Will use") {
+                    LabeledContent(Strings.willUse) {
                         Text(model.effectiveBackendDescription)
                             .foregroundStyle(.secondary)
                     }
-                    .help("The model a job would actually use right now, "
-                          + "given what is installed on this Mac.")
+                    .help(Strings.willUseHelp)
                 }
 
-                Section("Models") {
-                    LabeledContent("Apple Intelligence") {
-                        Label(model.systemModelAvailable ? "Available" : "Unavailable",
+                Section(Strings.models) {
+                    LabeledContent(Strings.appleIntelligence) {
+                        Label(model.systemModelAvailable ? Strings.available : Strings.unavailable,
                               systemImage: model.systemModelAvailable
                                   ? "checkmark.circle" : "xmark.circle")
                             .foregroundStyle(model.systemModelAvailable ? .green : .secondary)
                             .labelStyle(.titleAndIcon)
                     }
-                    .help("Whether the system model is ready. It depends on your Mac "
-                          + "and your Apple Intelligence settings, not on Vox Scripta.")
-                    LabeledContent("Bundled model") {
-                        Text(model.bundledModelDescription ?? "Not included in this build")
-                            .foregroundStyle(.secondary)
+                    .help(Strings.appleIntelligenceHelp)
+                    LabeledContent(Strings.bundledModel) {
+                        if let description = model.bundledModelDescription {
+                            Text(description).foregroundStyle(.secondary)
+                        } else {
+                            Text(Strings.notIncluded).foregroundStyle(.secondary)
+                        }
                     }
-                    .help("The model shipped inside the app. It works offline and "
-                          + "needs no Apple Intelligence.")
-                    Text("The bundled model ships inside the app, so polishing works even where Apple Intelligence is unavailable. Nothing is ever downloaded — Vox Scripta has no network access at all.")
+                    .help(Strings.bundledModelHelp)
+                    Text(Strings.modelsFooter)
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
             .formStyle(.grouped)
-            .tabItem { Label("Language", systemImage: "text.quote") }
+            .tabItem { Label(Strings.language, systemImage: "text.quote") }
 
             Form {
-                Section("Storage") {
-                    Toggle("Copy the original into the project",
+                Section(Strings.storage) {
+                    Toggle(Strings.copyOriginal,
                            isOn: $model.settings.copyOriginalIntoProject)
-                        .help("Keep a second copy of the recording inside the project, "
-                              + "so it survives the original being moved. "
-                              + "Your original is never touched either way.")
-                    Text("Off by default, so a large recording is not duplicated. Vox Scripta never modifies or moves the original either way.")
+                        .help(Strings.copyOriginalHelp)
+                    Text(Strings.copyOriginalFooter)
                         .font(.caption).foregroundStyle(.secondary)
-                    Toggle("Keep working files after transcribing",
+                    Toggle(Strings.keepWorkingFiles,
                            isOn: $model.settings.keepIntermediateFiles)
-                        .help("Keep the decoded working audio so re-running with "
-                              + "different settings is fast. It costs disk space.")
-                    Text("Vox Scripta writes a working copy of the audio while it transcribes — about 1.4 GB for a six-hour recording. It is deleted when the job finishes; keep it only if you want to re-run with different settings quickly.")
+                        .help(Strings.keepWorkingFilesHelp)
+                    Text(Strings.keepWorkingFilesFooter)
                         .font(.caption).foregroundStyle(.secondary)
                 }
-                Section("Privacy") {
-                    Label("Audio is processed entirely on this Mac", systemImage: "lock.fill")
-                        .help("The app is built without the network entitlement, "
-                              + "so macOS itself prevents it from connecting out.")
-                    Text("Vox Scripta ships without network access. It has no telemetry and no accounts, and cannot upload anything.")
+                Section(Strings.settingsPrivacy) {
+                    Label(Strings.processedOnThisMac, systemImage: "lock.fill")
+                        .help(Strings.processedHelp)
+                    Text(Strings.privacyFooter)
                         .font(.caption).foregroundStyle(.secondary)
-                    Button("Show Projects Folder") {
+                    Button(Strings.showProjectsFolder) {
                         NSWorkspace.shared.open(AppModel.libraryDirectory)
                     }
-                    .help("Open the folder where Vox Scripta keeps its projects in Finder.")
+                    .help(Strings.showProjectsFolderHelp)
                 }
             }
             .formStyle(.grouped)
-            .tabItem { Label("Privacy", systemImage: "lock") }
+            .tabItem { Label(Strings.settingsPrivacy, systemImage: "lock") }
         }
         .padding(.top, 8)
     }

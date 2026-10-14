@@ -1,0 +1,351 @@
+/* Vox Scripta — Spanish interface.
+ *
+ * Keys are the English source text, so an untranslated string falls back to
+ * readable English rather than to an identifier. Tools/check-localization.sh
+ * fails the build if this file and Strings.swift drift apart.
+ */
+
+/* dropRecording */
+"Drop a recording" = "Suelta una grabación";
+
+/* dropSubtitle */
+"Interviews, meetings, lectures — any length." = "Entrevistas, reuniones, clases — de cualquier duración.";
+
+/* chooseAudio */
+"Choose Audio…" = "Elegir audio…";
+
+/* chooseAudioHelp */
+"Pick an audio file to transcribe. Vox Scripta reads it and never writes to it." = "Elige un archivo de audio para transcribir. Vox Scripta lo lee y nunca escribe en él.";
+
+/* neverLeaves */
+"Your audio never leaves this Mac" = "Tu audio nunca sale de este Mac";
+
+/* originalUnmodified */
+"The original file is never modified." = "El archivo original nunca se modifica.";
+
+/* openAudio */
+"Open Audio" = "Abrir audio";
+
+/* openAudioHelp */
+"Choose a recording to transcribe. The original file is never modified." = "Elige una grabación para transcribir. El archivo original nunca se modifica.";
+
+/* stop */
+"Stop" = "Detener";
+
+/* stopHelp */
+"Stop processing. Finished work is kept and can be resumed." = "Detiene el proceso. El trabajo terminado se conserva y puede reanudarse.";
+
+/* onThisMac */
+"On this Mac" = "En este Mac";
+
+/* privacyBadgeHelp */
+"Vox Scripta processes audio entirely on this Mac. It ships without network access and cannot upload anything." = "Vox Scripta procesa el audio por completo en este Mac. Se distribuye sin acceso a la red y no puede subir nada.";
+
+/* recordings */
+"Recordings" = "Grabaciones";
+
+/* noRecordings */
+"No recordings yet" = "Aún no hay grabaciones";
+
+/* noRecordingsDetail */
+"Drop an audio file to begin." = "Suelta un archivo de audio para empezar.";
+
+/* showInFinder */
+"Show in Finder" = "Mostrar en el Finder";
+
+/* showInFinderHelp */
+"Reveal this recording's project folder." = "Muestra la carpeta del proyecto de esta grabación.";
+
+/* deleteEllipsis */
+"Delete…" = "Eliminar…";
+
+/* deleteHelp */
+"Move this recording and its transcripts to the Trash." = "Mueve esta grabación y sus transcripciones a la Papelera.";
+
+/* somethingWrong */
+"Something went wrong" = "Algo ha fallado";
+
+/* ok */
+"OK" = "Aceptar";
+
+/* dismissHelp */
+"Dismiss this message." = "Descarta este mensaje.";
+
+/* moveToTrash */
+"Move to Trash" = "Mover a la Papelera";
+
+/* moveToTrashHelp */
+"Move this recording and its transcripts to the Trash. You can put them back from there." = "Mueve esta grabación y sus transcripciones a la Papelera. Puedes recuperarlas desde allí.";
+
+/* cancel */
+"Cancel" = "Cancelar";
+
+/* keepRecordingHelp */
+"Keep this recording." = "Conserva esta grabación.";
+
+/* readingAudio */
+"Reading audio…" = "Leyendo el audio…";
+
+/* review */
+"Review" = "Revisión";
+
+/* reviewHelp */
+"Show what the polish pass changed, and what it refused to change." = "Muestra qué cambió el pulido y qué se negó a cambiar.";
+
+/* copy */
+"Copy" = "Copiar";
+
+/* download */
+"Download" = "Descargar";
+
+/* saveAs */
+"Save As" = "Guardar como";
+
+/* includeTimestamps */
+"Include timestamps" = "Incluir marcas de tiempo";
+
+/* includeTimestampsHelp */
+"Write each segment's start time alongside its text. Subtitle formats always carry timings." = "Escribe la hora de inicio de cada segmento junto a su texto. Los formatos de subtítulos siempre llevan tiempos.";
+
+/* saveEveryVariant */
+"Save Every Variant…" = "Guardar todas las versiones…";
+
+/* saveEveryVariantHelp */
+"Write the verbatim, clean and polished transcripts to one folder." = "Guarda las transcripciones literal, limpia y pulida en una sola carpeta.";
+
+/* silenceRemovedAudio */
+"Audio with Silence Removed…" = "Audio sin silencios…";
+
+/* silenceRemovedAudioHelp */
+"Render a new audio file with the silences taken out. Your original recording is left untouched." = "Genera un archivo de audio nuevo con los silencios quitados. Tu grabación original queda intacta.";
+
+/* polishDidNotRun */
+"Polish did not run" = "El pulido no se ejecutó";
+
+/* polishReview */
+"Polish review" = "Revisión del pulido";
+
+/* accepted */
+"Accepted" = "Aceptadas";
+
+/* acceptedAfterRetry */
+"Accepted after retry" = "Aceptadas tras reintentar";
+
+/* keptCleanText */
+"Kept the clean text" = "Se conservó el texto limpio";
+
+/* modelCouldNotRun */
+"The model could not run" = "El modelo no pudo ejecutarse";
+
+/* everySentencePassed */
+"Every sentence passed on the first attempt." = "Todas las frases pasaron al primer intento.";
+
+/* verbatim */
+"Verbatim" = "Literal";
+
+/* clean */
+"Clean" = "Limpia";
+
+/* polished */
+"Polished" = "Pulida";
+
+/* verbatimExplanation */
+"Exactly what was said, including hesitations." = "Exactamente lo que se dijo, titubeos incluidos.";
+
+/* cleanExplanation */
+"Tidied by fixed rules. No language model was involved." = "Ordenada con reglas fijas. No interviene ningún modelo de lenguaje.";
+
+/* polishedExplanation */
+"Rewritten for readability, checked against the original." = "Reescrita para que se lea mejor, contrastada con el original.";
+
+/* formatPlainText */
+"Plain Text (.txt)" = "Texto sin formato (.txt)";
+
+/* formatMarkdown */
+"Markdown (.md)" = "Markdown (.md)";
+
+/* formatDocx */
+"Word (.docx)" = "Word (.docx)";
+
+/* formatSubRip */
+"Subtitles (.srt)" = "Subtítulos (.srt)";
+
+/* formatWebVTT */
+"Web Captions (.vtt)" = "Subtítulos web (.vtt)";
+
+/* explainPlainText */
+"Just the words, in a file any editor can open." = "Solo las palabras, en un archivo que abre cualquier editor.";
+
+/* explainMarkdown */
+"Words with light formatting, for notes and documentation." = "Palabras con formato ligero, para notas y documentación.";
+
+/* explainDocx */
+"A Word document, for sharing and further editing." = "Un documento de Word, para compartir y seguir editando.";
+
+/* explainSubRip */
+"Timed subtitles, the format most video editors expect." = "Subtítulos con tiempos, el formato que esperan casi todos los editores de vídeo.";
+
+/* explainWebVTT */
+"Timed captions for the web." = "Subtítulos con tiempos para la web.";
+
+/* settingsAudio */
+"Audio" = "Audio";
+
+/* silenceDetection */
+"Silence detection" = "Detección de silencios";
+
+/* thresholdAboveNoise */
+"Threshold above noise floor" = "Umbral sobre el ruido de fondo";
+
+/* thresholdHelp */
+"How far above the measured background noise a sound must be to count as speech. Raise it for a noisy recording." = "Cuánto debe superar un sonido al ruido de fondo medido para contar como habla. Súbelo si la grabación es ruidosa.";
+
+/* shortestPause */
+"Shortest pause" = "Pausa más corta";
+
+/* shortestPauseHelp */
+"A quiet stretch shorter than this is treated as part of the speech, not as a pause." = "Un tramo callado más breve que esto se considera parte del habla, no una pausa.";
+
+/* paddingAfterSpeech */
+"Padding after speech" = "Margen tras el habla";
+
+/* paddingHelp */
+"Silence kept after each phrase, so word endings are not clipped when silence is removed." = "Silencio que se conserva después de cada frase, para que no se corten los finales de palabra al quitar los silencios.";
+
+/* segmentation */
+"Segmentation" = "Segmentación";
+
+/* maximumSegmentLength */
+"Maximum segment length" = "Duración máxima del segmento";
+
+/* maximumSegmentHelp */
+"The longest stretch of audio transcribed as one unit. Shorter segments save progress more often." = "El tramo de audio más largo que se transcribe como una unidad. Los segmentos cortos guardan el progreso más a menudo.";
+
+/* segmentationFooter */
+"Segments are internal. They set how often work is saved, not how the transcript reads." = "Los segmentos son internos. Determinan con qué frecuencia se guarda el trabajo, no cómo se lee la transcripción.";
+
+/* settingsTranscription */
+"Transcription" = "Transcripción";
+
+/* language */
+"Language" = "Idioma";
+
+/* languageHelp */
+"The language spoken in the recording. Getting this wrong costs accuracy more than any other setting." = "El idioma que se habla en la grabación. Equivocarse aquí cuesta más precisión que cualquier otro ajuste.";
+
+/* verbatimOnlyNotice */
+"Verbatim only in this language. Clean and Polished need lexicons Vox Scripta does not have yet." = "En este idioma solo hay versión literal. Limpia y Pulida necesitan léxicos que Vox Scripta aún no tiene.";
+
+/* polishUnavailableNotice */
+"Polished is unavailable in Spanish. The check that catches a reversed meaning does not work in Spanish, so the pass is withheld rather than run unguarded." = "La versión pulida no está disponible en español. La comprobación que detecta un significado invertido no funciona en español, así que el pulido se retiene en lugar de ejecutarse sin protección.";
+
+/* segmentsAtOnce */
+"Segments at once" = "Segmentos a la vez";
+
+/* segmentsAtOnceHelp */
+"How many segments are transcribed in parallel. Four is fastest here; more is not." = "Cuántos segmentos se transcriben en paralelo. Cuatro es lo más rápido aquí; más no lo mejora.";
+
+/* concurrencyFooter */
+"Four is fastest on Apple silicon in our measurements. Changing this re-transcribes, because results are only reproducible at a fixed setting." = "Cuatro es lo más rápido en Apple silicon según nuestras mediciones. Cambiarlo vuelve a transcribir, porque los resultados solo son reproducibles con un ajuste fijo.";
+
+/* removeFillers */
+"Remove filler sounds" = "Quitar muletillas";
+
+/* removeFillersHelp */
+"Drop “um”, “uh”, “you know” and the like from the clean transcript. The verbatim one keeps them." = "Elimina “eh”, “em”, “este” y similares de la transcripción limpia. La literal los conserva.";
+
+/* collapseStutters */
+"Collapse stutters" = "Unir repeticiones";
+
+/* collapseStuttersHelp */
+"Turn “the the the point” into “the point”. Only exact repeats are collapsed." = "Convierte “el el el punto” en “el punto”. Solo se unen repeticiones idénticas.";
+
+/* cleanFooter */
+"Clean uses fixed rules. No language model is involved, and it can only delete filler words — never rewrite what was said." = "La versión limpia usa reglas fijas. No interviene ningún modelo de lenguaje y solo puede borrar muletillas, nunca reescribir lo que se dijo.";
+
+/* createPolished */
+"Create a polished transcript" = "Crear una transcripción pulida";
+
+/* createPolishedHelp */
+"Add a third transcript, rewritten sentence by sentence for readability. This is the only stage that uses a language model, and it runs on this Mac." = "Añade una tercera transcripción, reescrita frase a frase para que se lea mejor. Es la única fase que usa un modelo de lenguaje, y se ejecuta en este Mac.";
+
+/* polishFooter */
+"Rewrites for readability one sentence at a time. Every sentence is checked against the original; anything that changes a number, name, negation or meaning is rejected and the clean text is kept." = "Reescribe para la legibilidad frase a frase. Cada frase se contrasta con el original; todo lo que cambie una cifra, un nombre, una negación o el significado se rechaza y se conserva el texto limpio.";
+
+/* languageModel */
+"Language model" = "Modelo de lenguaje";
+
+/* languageModelHelp */
+"Which model does the polishing: Apple Intelligence, the model bundled with the app, or whichever is available." = "Qué modelo hace el pulido: Apple Intelligence, el modelo incluido en la app, o el que esté disponible.";
+
+/* willUse */
+"Will use" = "Se usará";
+
+/* willUseHelp */
+"The model a job would actually use right now, given what is installed on this Mac." = "El modelo que usaría una tarea ahora mismo, según lo que haya instalado en este Mac.";
+
+/* models */
+"Models" = "Modelos";
+
+/* appleIntelligence */
+"Apple Intelligence" = "Apple Intelligence";
+
+/* available */
+"Available" = "Disponible";
+
+/* unavailable */
+"Unavailable" = "No disponible";
+
+/* appleIntelligenceHelp */
+"Whether the system model is ready. It depends on your Mac and your Apple Intelligence settings, not on Vox Scripta." = "Si el modelo del sistema está listo. Depende de tu Mac y de tus ajustes de Apple Intelligence, no de Vox Scripta.";
+
+/* bundledModel */
+"Bundled model" = "Modelo incluido";
+
+/* notIncluded */
+"Not included in this build" = "No se incluye en esta versión";
+
+/* bundledModelHelp */
+"The model shipped inside the app. It works offline and needs no Apple Intelligence." = "El modelo que viaja dentro de la app. Funciona sin conexión y no necesita Apple Intelligence.";
+
+/* modelsFooter */
+"The bundled model ships inside the app, so polishing works even where Apple Intelligence is unavailable. Nothing is ever downloaded — Vox Scripta has no network access at all." = "El modelo incluido viaja dentro de la app, así que el pulido funciona incluso donde Apple Intelligence no está disponible. Nunca se descarga nada: Vox Scripta no tiene acceso a la red.";
+
+/* settingsPrivacy */
+"Privacy" = "Privacidad";
+
+/* storage */
+"Storage" = "Almacenamiento";
+
+/* copyOriginal */
+"Copy the original into the project" = "Copiar el original dentro del proyecto";
+
+/* copyOriginalHelp */
+"Keep a second copy of the recording inside the project, so it survives the original being moved. Your original is never touched either way." = "Guarda una segunda copia de la grabación dentro del proyecto, para que sobreviva si mueves el original. Tu original no se toca en ningún caso.";
+
+/* copyOriginalFooter */
+"Off by default, so a large recording is not duplicated. Vox Scripta never modifies or moves the original either way." = "Desactivado por omisión, para no duplicar una grabación grande. Vox Scripta nunca modifica ni mueve el original en ningún caso.";
+
+/* keepWorkingFiles */
+"Keep working files after transcribing" = "Conservar los archivos de trabajo tras transcribir";
+
+/* keepWorkingFilesHelp */
+"Keep the decoded working audio so re-running with different settings is fast. It costs disk space." = "Conserva el audio de trabajo ya decodificado para que volver a ejecutar con otros ajustes sea rápido. Ocupa espacio en disco.";
+
+/* keepWorkingFilesFooter */
+"Vox Scripta writes a working copy of the audio while it transcribes — about 1.4 GB for a six-hour recording. It is deleted when the job finishes; keep it only if you want to re-run with different settings quickly." = "Vox Scripta escribe una copia de trabajo del audio mientras transcribe: unos 1,4 GB para una grabación de seis horas. Se borra al terminar; consérvala solo si quieres repetir con otros ajustes rápidamente.";
+
+/* processedOnThisMac */
+"Audio is processed entirely on this Mac" = "El audio se procesa por completo en este Mac";
+
+/* processedHelp */
+"The app is built without the network entitlement, so macOS itself prevents it from connecting out." = "La app se compila sin el permiso de red, así que es el propio macOS el que le impide conectarse.";
+
+/* privacyFooter */
+"Vox Scripta ships without network access. It has no telemetry and no accounts, and cannot upload anything." = "Vox Scripta se distribuye sin acceso a la red. No tiene telemetría ni cuentas, y no puede subir nada.";
+
+/* showProjectsFolder */
+"Show Projects Folder" = "Mostrar la carpeta de proyectos";
+
+/* showProjectsFolderHelp */
+"Open the folder where Vox Scripta keeps its projects in Finder." = "Abre en el Finder la carpeta donde Vox Scripta guarda sus proyectos.";
