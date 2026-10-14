@@ -80,7 +80,7 @@ struct CleanEndToEndTests {
         #expect(!before.isEmpty)
 
         // Fillers the engine actually produced are gone.
-        let fillersAfter = after.filter { DisfluencyLexicon.isFiller($0) }
+        let fillersAfter = after.filter { DisfluencyLexicon.isFiller($0, in: .english) }
         #expect(fillersAfter.isEmpty, "fillers survived CLEAN: \(fillersAfter)")
         #expect(after.count < before.count, "CLEAN removed nothing from disfluent speech")
 

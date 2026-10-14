@@ -13,6 +13,13 @@ public struct CleanParameters: Hashable, Sendable, Codable {
     public var normalizeCapitalization: Bool
     /// Add a full stop before a long pause when one is missing.
     public var terminateSentences: Bool
+    /// Which language's lexicons CLEAN applies.
+    ///
+    /// Part of the parameters, and therefore part of the content hash, so
+    /// changing it re-runs CLEAN rather than leaving a transcript cleaned by
+    /// another language's rules.
+    public var language: TranscriptLanguage
+
     /// Longest gap between two identical words still treated as a stutter.
     ///
     /// A speaker who repeats a word deliberately leaves a longer gap than a
@@ -26,6 +33,7 @@ public struct CleanParameters: Hashable, Sendable, Codable {
         repairPunctuation: Bool = true,
         normalizeCapitalization: Bool = true,
         terminateSentences: Bool = true,
+        language: TranscriptLanguage = .english,
         maximumStutterGap: MediaTime = .milliseconds(300)
     ) {
         self.removeFillers = removeFillers
@@ -33,7 +41,25 @@ public struct CleanParameters: Hashable, Sendable, Codable {
         self.repairPunctuation = repairPunctuation
         self.normalizeCapitalization = normalizeCapitalization
         self.terminateSentences = terminateSentences
+        self.language = language
         self.maximumStutterGap = maximumStutterGap
+    }
+
+    /// Decoded leniently so a project written before `language` existed still
+    /// opens. The synthesized decoder would fail on the missing key and make
+    /// every earlier project unreadable — a mistake this codebase has already
+    /// made once, with the manifest.
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        removeFillers = try c.decodeIfPresent(Bool.self, forKey: .removeFillers) ?? true
+        collapseRepetitions = try c.decodeIfPresent(Bool.self, forKey: .collapseRepetitions) ?? true
+        repairPunctuation = try c.decodeIfPresent(Bool.self, forKey: .repairPunctuation) ?? true
+        normalizeCapitalization =
+            try c.decodeIfPresent(Bool.self, forKey: .normalizeCapitalization) ?? true
+        terminateSentences = try c.decodeIfPresent(Bool.self, forKey: .terminateSentences) ?? true
+        language = try c.decodeIfPresent(TranscriptLanguage.self, forKey: .language) ?? .english
+        maximumStutterGap =
+            try c.decodeIfPresent(MediaTime.self, forKey: .maximumStutterGap) ?? .milliseconds(300)
     }
 
     public static let `default` = CleanParameters()
@@ -157,8 +183,11 @@ public struct CleanProcessor: CleanProcessing {
         var out: [Word] = []
         out.reserveCapacity(words.count)
 
-        for word in words {
-            if parameters.removeFillers, DisfluencyLexicon.isFiller(word.text) {
+        for (index, word) in words.enumerated() {
+            let following = index + 1 < words.count ? words[index + 1].text : nil
+            if parameters.removeFillers,
+               DisfluencyLexicon.isFiller(word.text, in: parameters.language,
+                                          following: following) {
                 edits.append(CleanEdit(segmentID: segmentID, kind: .disfluencyRemoved,
                                        original: word.text, replacement: "",
                                        at: word.originalStart))
@@ -178,7 +207,8 @@ public struct CleanProcessor: CleanProcessing {
             }
 
             if parameters.collapseRepetitions, let previous = out.last,
-               Self.isStutter(previous, word, within: parameters.maximumStutterGap) {
+               Self.isStutter(previous, word, within: parameters.maximumStutterGap,
+                              language: parameters.language) {
                 edits.append(CleanEdit(segmentID: segmentID, kind: .repetitionCollapsed,
                                        original: "\(previous.text) \(word.text)",
                                        replacement: word.text, at: word.originalStart))
@@ -201,10 +231,12 @@ public struct CleanProcessor: CleanProcessing {
     }
 
     /// Whether `second` is a stumble over `first` rather than a deliberate repeat.
-    static func isStutter(_ first: Word, _ second: Word, within maximumGap: MediaTime) -> Bool {
+    static func isStutter(_ first: Word, _ second: Word, within maximumGap: MediaTime,
+                          language: TranscriptLanguage) -> Bool {
         let a = DisfluencyLexicon.normalize(first.text)
         let b = DisfluencyLexicon.normalize(second.text)
-        guard !a.isEmpty, a == b, DisfluencyLexicon.mayCollapseRepetition(of: a) else { return false }
+        guard !a.isEmpty, a == b,
+              DisfluencyLexicon.mayCollapseRepetition(of: a, in: language) else { return false }
 
         let gap = second.originalStart - first.originalEnd
         // Timings can be absent or degenerate; fall back to the token rule alone
