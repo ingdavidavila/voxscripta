@@ -126,10 +126,15 @@ public enum EntityExtraction {
     }
 
     /// Lemmatized content words, for overlap scoring.
-    public static func contentWords(in text: String) -> Set<String> {
+    public static func contentWords(in text: String,
+                                    language: TranscriptLanguage = .english) -> Set<String> {
         guard !text.isEmpty else { return [] }
         let tagger = NLTagger(tagSchemes: [.lemma])
         tagger.string = text
+        // Told rather than guessed. A short Spanish sentence is routinely
+        // detected as Portuguese or Italian, and the wrong lemmatizer turns
+        // real content words into unknowns.
+        tagger.setLanguage(nlLanguage(for: language), range: text.startIndex..<text.endIndex)
 
         var out: Set<String> = []
         tagger.enumerateTags(
@@ -140,9 +145,19 @@ public enum EntityExtraction {
             // surface form so a rare proper noun still counts as content.
             let lemma = tag?.rawValue ?? String(text[range])
             let key = SemanticLexicons.normalize(lemma)
-            if !key.isEmpty, !SemanticLexicons.stopWords.contains(key) { out.insert(key) }
+            if !key.isEmpty, !SemanticLexicons.stopWords(for: language).contains(key) {
+                out.insert(key)
+            }
             return true
         }
         return out
+    }
+
+    /// Maps to the tagger's language tag.
+    static func nlLanguage(for language: TranscriptLanguage) -> NLLanguage {
+        switch language {
+        case .english: .english
+        case .spanish: .spanish
+        }
     }
 }

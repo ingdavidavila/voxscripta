@@ -90,19 +90,40 @@ public struct PolishParameters: Hashable, Sendable, Codable {
     public var promptVersion: String
     /// Retry a rejected window once with stricter instructions.
     public var retryOnRejection: Bool
+    /// Which language's lexicons the validator applies.
+    ///
+    /// Part of the parameters, so it is part of the content hash and a change
+    /// re-runs POLISH rather than leaving text validated against another
+    /// language's negation list.
+    public var language: TranscriptLanguage
 
     public init(
         windowSize: Int = 1,
         contextSentences: Int = 2,
         thresholds: ValidationThresholds = .default,
         promptVersion: String = PolishPrompt.version,
-        retryOnRejection: Bool = true
+        retryOnRejection: Bool = true,
+        language: TranscriptLanguage = .english
     ) {
         self.windowSize = Swift.max(1, windowSize)
         self.contextSentences = Swift.max(0, contextSentences)
         self.thresholds = thresholds
         self.promptVersion = promptVersion
         self.retryOnRejection = retryOnRejection
+        self.language = language
+    }
+
+    /// Lenient, so projects written before `language` existed still open.
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        windowSize = try c.decodeIfPresent(Int.self, forKey: .windowSize) ?? 1
+        contextSentences = try c.decodeIfPresent(Int.self, forKey: .contextSentences) ?? 2
+        thresholds =
+            try c.decodeIfPresent(ValidationThresholds.self, forKey: .thresholds) ?? .default
+        promptVersion =
+            try c.decodeIfPresent(String.self, forKey: .promptVersion) ?? PolishPrompt.version
+        retryOnRejection = try c.decodeIfPresent(Bool.self, forKey: .retryOnRejection) ?? true
+        language = try c.decodeIfPresent(TranscriptLanguage.self, forKey: .language) ?? .english
     }
 
     public static let `default` = PolishParameters()
@@ -232,7 +253,8 @@ public struct PolishProcessor: PolishProcessing {
                 sentences: originals, context: context,
                 instructions: PolishPrompt.instructions)
             let report = try validator.validate(
-                original: originals, revised: revised, thresholds: parameters.thresholds)
+                original: originals, revised: revised,
+                language: parameters.language, thresholds: parameters.thresholds)
             if report.passed {
                 return WindowOutcome(sentences: revised, report: report, disposition: .accepted)
             }
@@ -247,7 +269,8 @@ public struct PolishProcessor: PolishProcessing {
                 sentences: originals, context: context,
                 instructions: PolishPrompt.retryInstructions(violations: report.failureReasons))
             let retryReport = try validator.validate(
-                original: originals, revised: retried, thresholds: parameters.thresholds)
+                original: originals, revised: retried,
+                language: parameters.language, thresholds: parameters.thresholds)
             if retryReport.passed {
                 return WindowOutcome(sentences: retried, report: retryReport,
                                      disposition: .acceptedAfterRetry)

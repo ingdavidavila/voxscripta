@@ -117,6 +117,7 @@ public protocol Validating: Sendable {
     func validate(
         original: [String],
         revised: [String],
+        language: TranscriptLanguage,
         thresholds: ValidationThresholds
     ) throws -> ValidationReport
 }
@@ -139,6 +140,7 @@ public struct ValidationGauntlet: Validating {
     public func validate(
         original: [String],
         revised: [String],
+        language: TranscriptLanguage = .english,
         thresholds: ValidationThresholds = .default
     ) throws -> ValidationReport {
         var results: [CheckResult] = []
@@ -179,22 +181,23 @@ public struct ValidationGauntlet: Validating {
 
         // ── 4. Polarity ─────────────────────────────────────────────────────
         results.append(lexiconBalance(
-            check: .polarity, lexicon: SemanticLexicons.negations,
+            check: .polarity, lexicon: SemanticLexicons.negations(for: language),
             original: original, revised: revised,
             perWindow: thresholds.perWindowPolarity, noun: "negation"))
 
         // ── 5. Modality ─────────────────────────────────────────────────────
         results.append(lexiconBalance(
-            check: .modality, lexicon: SemanticLexicons.hedges,
+            check: .modality, lexicon: SemanticLexicons.hedges(for: language),
             original: original, revised: revised,
             perWindow: thresholds.perWindowPolarity, noun: "hedge"))
 
         // ── 6. Semantic similarity ──────────────────────────────────────────
         results.append(semanticCheck(original: original, revised: revised,
-                                     thresholds: thresholds))
+                                     language: language, thresholds: thresholds))
 
         // ── 7. Extent bounds ────────────────────────────────────────────────
         results.append(extentCheck(originalText: originalText, revisedText: revisedText,
+                                   language: language,
                                    thresholds: thresholds))
 
         return ValidationReport(results: results)
@@ -260,14 +263,15 @@ public struct ValidationGauntlet: Validating {
 
     /// Per-sentence embedding distance against the threshold.
     private func semanticCheck(
-        original: [String], revised: [String], thresholds: ValidationThresholds
+        original: [String], revised: [String],
+        language: TranscriptLanguage, thresholds: ValidationThresholds
     ) -> CheckResult {
         var worst = 0.0
         var worstIndex = 0
         var measured = false
 
         for (index, pair) in zip(original, revised).enumerated() {
-            guard let d = similarity.distance(pair.0, pair.1) else { continue }
+            guard let d = similarity.distance(pair.0, pair.1, in: language) else { continue }
             measured = true
             if d > worst { worst = d; worstIndex = index }
         }
@@ -292,7 +296,8 @@ public struct ValidationGauntlet: Validating {
     /// This is what catches summarization: a faithful readability pass keeps
     /// roughly the same length and nearly all the same content words.
     private func extentCheck(
-        originalText: String, revisedText: String, thresholds: ValidationThresholds
+        originalText: String, revisedText: String,
+        language: TranscriptLanguage, thresholds: ValidationThresholds
     ) -> CheckResult {
         let before = TextTokenizer.tokens(originalText)
         let after = TextTokenizer.tokens(revisedText)
@@ -310,8 +315,8 @@ public struct ValidationGauntlet: Validating {
                 measurement: ratio)
         }
 
-        let contentBefore = EntityExtraction.contentWords(in: originalText)
-        let contentAfter = EntityExtraction.contentWords(in: revisedText)
+        let contentBefore = EntityExtraction.contentWords(in: originalText, language: language)
+        let contentAfter = EntityExtraction.contentWords(in: revisedText, language: language)
         guard !contentBefore.isEmpty else {
             return CheckResult(check: .extentBounds, passed: true, measurement: ratio)
         }

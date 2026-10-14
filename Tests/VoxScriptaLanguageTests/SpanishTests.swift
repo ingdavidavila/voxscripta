@@ -136,3 +136,79 @@ struct SpanishTests {
         #expect((distance ?? 0) > threshold)
     }
 }
+
+@Suite("Spanish semantic lexicons")
+struct SpanishLexiconTests {
+
+    @Test("Spanish negation is recognised, accented or not")
+    func negations() {
+        let lexicon = SemanticLexicons.negations(for: .spanish)
+        for word in ["no", "nunca", "jamás", "jamas", "nada", "nadie",
+                     "ningún", "ningun", "tampoco", "sin", "ni"] {
+            #expect(lexicon.contains(word), "\(word) negates")
+        }
+    }
+
+    @Test("Double negation is counted, not reasoned about")
+    func doubleNegation() {
+        // "no vimos nada" is one negation in meaning and two tokens. The check
+        // compares totals on each side, so a rewrite that drops either token
+        // changes the count and gets caught — which is the behaviour we want
+        // without teaching it Spanish grammar.
+        let lexicon = SemanticLexicons.negations(for: .spanish)
+        let original = SemanticLexicons.count(
+            TextTokenizer.tokens("No vimos nada en el informe."), in: lexicon)
+        let flipped = SemanticLexicons.count(
+            TextTokenizer.tokens("Vimos algo en el informe."), in: lexicon)
+        #expect(original == 2)
+        #expect(flipped == 0)
+        #expect(original != flipped, "a dropped negation must change the count")
+    }
+
+    @Test("Negations are not also stop words")
+    func negationsAreNotDiscounted() {
+        // A negation discounted as a function word would vanish from content
+        // overlap, which is how "no" gets lost.
+        let stops = SemanticLexicons.stopWords(for: .spanish)
+        for word in SemanticLexicons.negations(for: .spanish) {
+            #expect(!stops.contains(word), "\(word) negates and must not be a stop word")
+        }
+    }
+
+    @Test("Spanish hedges are recognised")
+    func hedges() {
+        let lexicon = SemanticLexicons.hedges(for: .spanish)
+        for word in ["quizá", "quizas", "probablemente", "podría", "parece", "creo"] {
+            #expect(lexicon.contains(word), "\(word) hedges")
+        }
+    }
+
+    @Test("English and Spanish lexicons stay separate")
+    func noLeakage() {
+        #expect(!SemanticLexicons.negations(for: .english).contains("nunca"))
+        #expect(!SemanticLexicons.negations(for: .spanish).contains("never"))
+        #expect(!SemanticLexicons.stopWords(for: .english).contains("el"))
+    }
+
+    @Test("The gauntlet catches a Spanish meaning inversion without the embedding")
+    func gauntletCatchesSpanishInversion() throws {
+        // The whole point of the Spanish negation list. The semantic check is
+        // blind here, so this must be caught lexically or not at all.
+        let report = try ValidationGauntlet().validate(
+            original: ["Aprobamos el presupuesto el lunes."],
+            revised: ["No aprobamos el presupuesto el lunes."],
+            language: .spanish)
+        #expect(!report.passed, "a flipped Spanish sentence must be rejected")
+        #expect(report.failureReasons.contains { $0.localizedCaseInsensitiveContains("negation") },
+                "rejection should name the polarity check: \(report.failureReasons)")
+    }
+
+    @Test("A faithful Spanish rewrite still passes")
+    func gauntletAcceptsSpanishParaphrase() throws {
+        let report = try ValidationGauntlet().validate(
+            original: ["aprobamos el presupuesto el lunes"],
+            revised: ["Aprobamos el presupuesto el lunes."],
+            language: .spanish)
+        #expect(report.passed, "capitalisation is what POLISH fixes: \(report.failureReasons)")
+    }
+}

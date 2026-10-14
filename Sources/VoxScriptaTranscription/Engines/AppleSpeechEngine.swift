@@ -41,6 +41,15 @@ public actor AppleSpeechEngine: TranscriptionEngine {
 
     // MARK: - Preparation
 
+    /// Every locale this engine can transcribe, as BCP-47 identifiers.
+    ///
+    /// Asked of the system rather than listed, because which locales exist is
+    /// not a compile-time fact — it varies by OS version and by what the user
+    /// has installed.
+    public static func supportedLocaleIdentifiers() async -> Set<String> {
+        Set(await SpeechTranscriber.supportedLocales.map { $0.identifier(.bcp47) })
+    }
+
     public func prepare(locale localeIdentifier: String) async throws {
         let locale = Locale(identifier: localeIdentifier)
 

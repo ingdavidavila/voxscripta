@@ -59,12 +59,33 @@ struct SettingsView: View {
             Form {
                 Section("Transcription") {
                     Picker("Language", selection: $model.settings.locale) {
-                        Text("English (US)").tag("en-US")
-                        Text("English (UK)").tag("en-GB")
-                        Text("English (Australia)").tag("en-AU")
+                        ForEach(model.availableLocales) { option in
+                            Text(option.displayName).tag(option.identifier)
+                        }
                     }
                     .help("The language spoken in the recording. Getting this wrong "
                           + "costs accuracy more than any other setting.")
+                    .task { await model.loadAvailableLocales() }
+
+                    if model.settings.transcriptLanguage == nil {
+                        // Says what will happen rather than hiding the locale.
+                        // Transcription works; the text stages do not, because
+                        // applying one language's filler list to another
+                        // deletes real words.
+                        Label("Verbatim only in this language. Clean and Polished "
+                              + "need lexicons VoxScripta does not have yet.",
+                              systemImage: "exclamationmark.triangle")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else if model.settings.transcriptLanguage == .spanish {
+                        Label("Polished is unavailable in Spanish. The check that "
+                              + "catches a reversed meaning does not work in "
+                              + "Spanish, so the pass is withheld rather than run "
+                              + "unguarded.",
+                              systemImage: "exclamationmark.shield")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                     LabeledContent("Segments at once") {
                         Stepper(value: $model.settings.concurrency, in: 1...8) {
                             Text("\(model.settings.concurrency)").monospacedDigit()
@@ -96,6 +117,7 @@ struct SettingsView: View {
                 }
                 Section("Polished") {
                     Toggle("Create a polished transcript", isOn: $model.settings.polishEnabled)
+                        .disabled(!model.settings.polishSupported)
                         .help("Add a third transcript, rewritten sentence by sentence "
                               + "for readability. This is the only stage that uses a "
                               + "language model, and it runs on this Mac.")

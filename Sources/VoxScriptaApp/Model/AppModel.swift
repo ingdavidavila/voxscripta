@@ -227,7 +227,10 @@ final class AppModel {
         options.clean = settings.cleanParameters
         options.keepIntermediates = settings.keepIntermediateFiles
         options.polishBackend = settings.polishBackend
-        options.polish = settings.polishEnabled ? settings.polishParameters : nil
+        // Both conditions, because the setting is the user's preference and
+        // polishSupported is whether we can honour it safely.
+        options.polish = (settings.polishEnabled && settings.polishSupported)
+            ? settings.polishParameters : nil
 
         // Progress arrives from background tasks far faster than a person can
         // read it. The relay coalesces to 10 Hz so the main actor spends its time
@@ -433,6 +436,63 @@ final class AppModel {
             return "unavailable — polish will be skipped"
         }
         return resolved.describedAs
+    }
+
+    // ── Languages ───────────────────────────────────────────────────────────
+
+    /// Locales the app offers, loaded once from the engine.
+    ///
+    /// Asked of the engine rather than hardcoded. The previous list named three
+    /// English variants and was wrong twice over: it omitted locales the engine
+    /// supports, and it would have gone stale the moment the OS added one.
+    private(set) var availableLocales: [LocaleOption] = []
+
+    struct LocaleOption: Identifiable, Hashable, Sendable {
+        let identifier: String
+        let displayName: String
+        /// False when the engine can transcribe this locale but the text
+        /// stages have no lexicons for it, so Clean and Polished are
+        /// unavailable and only Verbatim is produced.
+        let hasTextSupport: Bool
+        var id: String { identifier }
+    }
+
+    /// Fills `availableLocales` with the intersection of what the engine
+    /// supports and what the app is willing to offer.
+    func loadAvailableLocales() async {
+        let supported = await AppleSpeechEngine.supportedLocaleIdentifiers()
+        let offered = TranscriptLanguage.allCases.flatMap(\.offeredLocales)
+
+        var options = offered.filter(supported.contains).map { identifier in
+            LocaleOption(
+                identifier: identifier,
+                displayName: Self.describe(identifier),
+                hasTextSupport: TranscriptLanguage(localeIdentifier: identifier) != nil)
+        }
+        // Keep whatever the project was built with selectable even if the OS
+        // has since dropped it, so an existing project still opens.
+        if !options.contains(where: { $0.identifier == settings.locale }) {
+            options.append(LocaleOption(identifier: settings.locale,
+                                        displayName: Self.describe(settings.locale),
+                                        hasTextSupport: settings.transcriptLanguage != nil))
+        }
+        availableLocales = options
+    }
+
+    /// "Spanish (Mexico)", in the user's own language.
+    private static func describe(_ identifier: String) -> String {
+        let current = Locale.current
+        let locale = Locale(identifier: identifier)
+        guard let code = locale.language.languageCode?.identifier,
+              let language = current.localizedString(forLanguageCode: code) else {
+            return identifier
+        }
+        let name = language.prefix(1).uppercased() + language.dropFirst()
+        guard let region = locale.region?.identifier,
+              let regionName = current.localizedString(forRegionCode: region) else {
+            return name
+        }
+        return "\(name) (\(regionName))"
     }
 
     // ── Export ──────────────────────────────────────────────────────────────

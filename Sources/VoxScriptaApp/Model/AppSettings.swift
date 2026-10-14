@@ -58,14 +58,42 @@ struct AppSettings: Codable, Sendable, Equatable {
         return p
     }
 
+    /// The language the text stages work in, derived from the transcription
+    /// locale.
+    ///
+    /// `nil` when the chosen locale has no lexicons. The engine will still
+    /// transcribe it — the text stages decline rather than apply English rules
+    /// to something that is not English.
+    var transcriptLanguage: TranscriptLanguage? {
+        TranscriptLanguage(localeIdentifier: locale)
+    }
+
     var cleanParameters: CleanParameters {
         var p = CleanParameters.default
+        p.language = transcriptLanguage ?? .english
         p.removeFillers = removeFillers
         p.collapseRepetitions = collapseRepetitions
         return p
     }
 
-    var polishParameters: PolishParameters { .default }
+    /// Whether POLISH may run in the selected language.
+    ///
+    /// Gated on whether the semantic-distance check can detect a reversed
+    /// meaning, not on a list of languages, so a language added later is
+    /// treated correctly without anyone remembering this rule. In Spanish that
+    /// check catches no negation at all, leaving the lexical polarity list as
+    /// the sole defence — too thin for a stage whose failure mode is a fluent
+    /// sentence that says the opposite of what was said.
+    var polishSupported: Bool {
+        guard let language = transcriptLanguage else { return false }
+        return SemanticSimilarity.catchesNegation(in: language)
+    }
+
+    var polishParameters: PolishParameters {
+        var p = PolishParameters.default
+        p.language = transcriptLanguage ?? .english
+        return p
+    }
 
     // MARK: - Persistence
 
