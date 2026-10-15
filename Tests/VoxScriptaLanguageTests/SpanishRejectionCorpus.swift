@@ -94,6 +94,17 @@ enum SpanishRejectionCorpus {
         .init(original: "El equipo entregó el proyecto a tiempo y sin incidencias.",
               revised: "Bien.",
               mustReject: true, note: "meaning discarded"),
+
+        // ── Orthography, found by running real audio ────────────────────────
+        // Not hypothetical. The model returned both of these for the test
+        // recording, and every other check passed them: same lemma, same
+        // content words, negligible distance, simply misspelled.
+        .init(original: "Buenos días a todos.",
+              revised: "Buenos dias a todos.",
+              mustReject: true, note: "accent stripped"),
+        .init(original: "Tengo que repetir el análisis.",
+              revised: "Tengo que repetir el analisis.",
+              mustReject: true, note: "accent stripped"),
     ]
 
     /// Rewrites a polish pass should be allowed to make. Rejecting these
@@ -129,6 +140,9 @@ enum SpanishRejectionCorpus {
         .init(original: "no hay ningún problema con la entrega",
               revised: "No hay ningún problema con la entrega.",
               mustReject: false, note: "both negations preserved"),
+        .init(original: "buenos dias a todos",
+              revised: "Buenos días a todos.",
+              mustReject: false, note: "accent added, which is a repair"),
     ]
 
     static var all: [Case] { corruptions + legitimate }
@@ -161,6 +175,24 @@ struct SpanishRejectionCorpusTests {
             blocked.append("\(item.note): \(report.failureReasons)")
         }
         #expect(blocked.isEmpty, "legitimate rewrites the gauntlet blocked: \(blocked)")
+    }
+
+    @Test("A verb mood change is not yet caught — a known gap")
+    func moodChangeEscapes() throws {
+        // Found in the same run. "Quizá terminemos" is subjunctive and
+        // "Quizá terminaremos" is future indicative: the hedge survives, so
+        // modality passes; the lemma is shared, so the content check passes.
+        // Detecting it needs morphology the gauntlet does not have.
+        //
+        // The shift is small — both remain hedged by "quizá" — so the stage
+        // stays enabled, but this is recorded rather than left unsaid. If this
+        // test starts failing, the gap has been closed and it should become a
+        // corruption case.
+        let report = try ValidationGauntlet().validate(
+            original: ["Quizá terminemos antes del viernes."],
+            revised: ["Quizá terminaremos antes del viernes."],
+            language: .spanish)
+        #expect(report.passed, "mood change is now caught — move this to the corruptions")
     }
 
     @Test("Negation is caught lexically, with the embedding contributing nothing")

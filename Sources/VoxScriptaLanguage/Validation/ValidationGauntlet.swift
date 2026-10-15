@@ -25,6 +25,16 @@ public enum ValidationCheck: String, Sendable, Codable, CaseIterable {
     /// Length ratio and content-word overlap must stay in bounds, which is what
     /// catches summarization.
     case extentBounds
+    /// A word must not lose its diacritics.
+    ///
+    /// Found by running real Spanish audio through the pipeline: the model
+    /// returned "Buenos dias" for "Buenos días" and "el analisis" for "el
+    /// análisis". Every other check passed it — the lemma is the same, the
+    /// content words are the same, the distance is tiny — and the output was
+    /// simply misspelled. In Spanish an accent is orthography, and in a few
+    /// pairs it is meaning: "él" is he and "el" is the, "sí" is yes and "si"
+    /// is if.
+    case orthography
 }
 
 /// One check's outcome.
@@ -245,7 +255,10 @@ public struct ValidationGauntlet: Validating {
         results.append(semanticCheck(original: original, revised: revised,
                                      language: language, thresholds: thresholds))
 
-        // ── 7. Extent bounds ────────────────────────────────────────────────
+        // ── 7. Orthography ──────────────────────────────────────────────────
+        results.append(orthographyCheck(original: original, revised: revised))
+
+        // ── 8. Extent bounds ────────────────────────────────────────────────
         results.append(extentCheck(originalText: originalText, revisedText: revisedText,
                                    language: language,
                                    thresholds: thresholds))
@@ -345,6 +358,45 @@ public struct ValidationGauntlet: Validating {
     ///
     /// This is what catches summarization: a faithful readability pass keeps
     /// roughly the same length and nearly all the same content words.
+    /// Refuses a revision that strips diacritics from a word it otherwise kept.
+    ///
+    /// Compared on the folded form so only the accents differ: if "días" and
+    /// "dias" both fold to "dias" and the original carried the accent while
+    /// the revision does not, the word was damaged rather than rewritten. A
+    /// genuinely different word folds differently and is left to the other
+    /// checks.
+    private func orthographyCheck(original: [String], revised: [String]) -> CheckResult {
+        var damaged: [String] = []
+
+        for (before, after) in zip(original, revised) {
+            var accented: [String: String] = [:]
+            for word in TextTokenizer.tokens(before) {
+                let folded = Self.fold(word)
+                if folded != word { accented[folded] = word }
+            }
+            guard !accented.isEmpty else { continue }
+
+            for word in TextTokenizer.tokens(after) {
+                // Only an unaccented spelling of a word the original accented.
+                guard word == Self.fold(word), let source = accented[word] else { continue }
+                damaged.append("\(source) → \(word)")
+            }
+        }
+
+        guard damaged.isEmpty else {
+            return CheckResult(
+                check: .orthography, passed: false,
+                detail: "accents removed: \(damaged.joined(separator: ", "))",
+                measurement: Double(damaged.count))
+        }
+        return CheckResult(check: .orthography, passed: true)
+    }
+
+    /// Lower-cased with diacritics removed.
+    private static func fold(_ word: String) -> String {
+        word.folding(options: [.diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+    }
+
     private func extentCheck(
         originalText: String, revisedText: String,
         language: TranscriptLanguage, thresholds: ValidationThresholds

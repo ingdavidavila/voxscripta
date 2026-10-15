@@ -6,14 +6,21 @@ import VoxScriptaCore
 @Suite("Validation gauntlet contract")
 struct ValidationContractTests {
 
-    @Test("All seven documented checks exist")
+    @Test("All eight checks exist")
     func checkCoverage() {
-        // §14's gauntlet. Adding or removing a check is a deliberate act that has
-        // to update this test, which is the point.
-        #expect(ValidationCheck.allCases.count == 7)
+        // §14's gauntlet, plus one. Adding or removing a check is a deliberate
+        // act that has to update this test, which is the point — and it caught
+        // orthography being added, which is how it should feel.
+        //
+        // Orthography is not in §14. It was added after running real Spanish
+        // audio, where the model returned "Buenos dias" for "Buenos días" and
+        // every other check passed it: same lemma, same content words,
+        // negligible distance, simply misspelled.
+        #expect(ValidationCheck.allCases.count == 8)
         let expected: Set<ValidationCheck> = [
             .cardinality, .numericConservation, .namedEntityConservation,
             .polarity, .modality, .semanticSimilarity, .extentBounds,
+            .orthography,
         ]
         #expect(Set(ValidationCheck.allCases) == expected)
     }

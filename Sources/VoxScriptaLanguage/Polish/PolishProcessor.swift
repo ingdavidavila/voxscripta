@@ -1,4 +1,5 @@
 import Foundation
+import NaturalLanguage
 import VoxScriptaCore
 
 /// Whether a polished window was accepted, and how.
@@ -161,10 +162,19 @@ public struct PolishProcessor: PolishProcessing {
         host: any LanguageModelHosting,
         progress: @escaping @Sendable (Double) -> Void = { _ in }
     ) async throws -> PolishResult {
-        // Segments carry timing and identity, so they are the unit of work. From
-        // this engine they arrive roughly sentence-sized, which is what §14 asks
-        // for, and using them directly keeps the mapping back to audio exact.
-        let units = clean.segments.enumerated().filter { !$0.element.text.isEmpty }
+        // Segments carry timing and identity, so they anchor the work. They do
+        // not reliably arrive one sentence at a time, though, and that
+        // assumption used to be load-bearing: measured on the same script,
+        // Apple's transcriber returns nine segments in English and one in
+        // Spanish. A 75-word segment handed to the model as a single unit
+        // defeats the whole reason windowSize is 1 — merging and shifting
+        // become possible again, and a rejection costs the paragraph rather
+        // than the sentence.
+        //
+        // So a segment holding more than one sentence is split for polishing
+        // and rejoined afterwards. A segment already holding one is untouched,
+        // which keeps English byte-identical to before.
+        let units = Self.polishUnits(in: clean.segments, language: parameters.language)
         guard !units.isEmpty else {
             return PolishResult(transcript: clean, sentences: [])
         }
@@ -177,7 +187,7 @@ public struct PolishProcessor: PolishProcessing {
             try Task.checkCancellation()
             progress(Double(windowIndex) / Double(windowCount))
 
-            let originals = window.map(\.element.text)
+            let originals = window.map(\.text)
             let context = Self.context(around: window, in: units,
                                        count: parameters.contextSentences)
 
@@ -188,10 +198,13 @@ public struct PolishProcessor: PolishProcessing {
             for (offset, unit) in window.enumerated() {
                 let revised = outcome.sentences.indices.contains(offset)
                     ? outcome.sentences[offset]
-                    : unit.element.text
-                polishedText[unit.element.id] = revised
+                    : unit.text
+                // Sentences of the same segment are rejoined in order.
+                let existing = polishedText[unit.segmentID] ?? ""
+                let separator = existing.isEmpty ? "" : " "
+                polishedText[unit.segmentID] = existing + separator + revised
                 records.append(PolishedSentence(
-                    segmentID: unit.element.id, original: unit.element.text,
+                    segmentID: unit.segmentID, original: unit.text,
                     revised: revised, report: outcome.report,
                     disposition: outcome.disposition))
             }
@@ -292,9 +305,45 @@ public struct PolishProcessor: PolishProcessing {
     }
 
     /// Read-only sentences either side of a window.
+    /// One sentence of one segment: the unit POLISH actually rewrites.
+    struct PolishUnit: Sendable {
+        let offset: Int
+        let segmentID: SegmentID
+        let text: String
+    }
+
+    /// Splits segments into sentences, leaving single-sentence segments alone.
+    ///
+    /// `NLTokenizer` is told the language rather than left to detect it. A
+    /// short Spanish sentence is routinely detected as Portuguese, and the
+    /// wrong tokenizer splits in the wrong places.
+    static func polishUnits(in segments: [TranscriptSegment],
+                            language: TranscriptLanguage) -> [PolishUnit] {
+        var units: [PolishUnit] = []
+        for segment in segments where !segment.text.isEmpty {
+            for sentence in sentences(of: segment.text, language: language) {
+                units.append(PolishUnit(offset: units.count,
+                                        segmentID: segment.id,
+                                        text: sentence))
+            }
+        }
+        return units
+    }
+
+    static func sentences(of text: String, language: TranscriptLanguage) -> [String] {
+        let tokenizer = NLTokenizer(unit: .sentence)
+        tokenizer.string = text
+        tokenizer.setLanguage(EntityExtraction.nlLanguage(for: language))
+        let found = tokenizer.tokens(for: text.startIndex..<text.endIndex)
+            .map { text[$0].trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        // A tokenizer that finds nothing must not silently drop the segment.
+        return found.isEmpty ? [text] : found
+    }
+
     private static func context(
-        around window: [(offset: Int, element: TranscriptSegment)],
-        in units: [(offset: Int, element: TranscriptSegment)],
+        around window: [PolishUnit],
+        in units: [PolishUnit],
         count: Int
     ) -> PolishContext {
         guard count > 0, let first = window.first, let last = window.last else {
@@ -304,9 +353,10 @@ public struct PolishProcessor: PolishProcessing {
         guard let start = positions.firstIndex(of: first.offset),
               let end = positions.firstIndex(of: last.offset) else { return PolishContext() }
 
-        let before = units[Swift.max(0, start - count)..<start].map(\.element.text)
-        let after = units[Swift.min(end + 1, units.count)
-                          ..< Swift.min(end + 1 + count, units.count)].map(\.element.text)
+        let before = units[Swift.max(0, start - count)..<start].map(\.text)
+        let lower = Swift.min(end + 1, units.count)
+        let upper = Swift.min(end + 1 + count, units.count)
+        let after = units[lower..<upper].map(\.text)
         return PolishContext(preceding: Array(before), following: Array(after))
     }
 }

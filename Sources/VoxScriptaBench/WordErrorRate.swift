@@ -39,9 +39,15 @@ public enum WordErrorRate {
     /// perfectly correct transcription that writes "500" where the speaker said
     /// "five hundred" is not counted as three errors. Notation differences are
     /// removed; content differences are not.
-    public static func measure(reference: String, hypothesis: String) -> WERResult {
-        measure(reference: TextTokenizer.comparableTokens(reference),
-                hypothesis: TextTokenizer.comparableTokens(hypothesis))
+    public static func measure(reference: String, hypothesis: String,
+                               language: TranscriptLanguage = .english) -> WERResult {
+        // The language matters here as much as anywhere: under English rules
+        // "quinientas" does not fold to 500, so a correct Spanish
+        // transcription scores as errors for writing the number the way the
+        // engine writes it — the exact mistake canonicalization exists to
+        // prevent.
+        measure(reference: TextTokenizer.comparableTokens(reference, in: language),
+                hypothesis: TextTokenizer.comparableTokens(hypothesis, in: language))
     }
 
     public static func measure(reference: [String], hypothesis: [String]) -> WERResult {

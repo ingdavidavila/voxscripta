@@ -341,7 +341,10 @@ struct CLI {
         }
         let reference = try String(contentsOf: URL(filePath: opts.positional[0]), encoding: .utf8)
         let hypothesis = try String(contentsOf: URL(filePath: opts.positional[1]), encoding: .utf8)
-        let result = WordErrorRate.measure(reference: reference, hypothesis: hypothesis)
+        let language = opts.value("locale").flatMap(TranscriptLanguage.init(localeIdentifier:))
+            ?? .english
+        let result = WordErrorRate.measure(reference: reference, hypothesis: hypothesis,
+                                           language: language)
 
         if opts.flag("json") {
             let encoder = JSONEncoder()
