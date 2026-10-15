@@ -92,6 +92,9 @@ struct AppSettings: Codable, Sendable, Equatable {
     var polishParameters: PolishParameters {
         var p = PolishParameters.default
         p.language = transcriptLanguage ?? .english
+        // The prompt differs by language, and the version it is recorded under
+        // has to differ with it or two incomparable runs share a provenance.
+        p.promptVersion = PolishPrompt.version(for: p.language)
         return p
     }
 

@@ -164,8 +164,8 @@ public struct ValidationGauntlet: Validating {
         // ── 2. Numeric conservation ─────────────────────────────────────────
         results.append(conservation(
             check: .numericConservation,
-            before: EntityExtraction.numbers(in: originalText),
-            after: EntityExtraction.numbers(in: revisedText),
+            before: EntityExtraction.numbers(in: originalText, language: language),
+            after: EntityExtraction.numbers(in: revisedText, language: language),
             noun: "number"))
 
         // ── 3. Named-entity conservation ────────────────────────────────────

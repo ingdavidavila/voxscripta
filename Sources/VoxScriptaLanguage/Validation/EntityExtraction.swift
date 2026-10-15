@@ -116,9 +116,10 @@ public enum EntityExtraction {
     /// Strict equality on this set is what catches §14's example: "approximately
     /// 1,000" is *plausible* where "500" was said, which is precisely why a fuzzy
     /// comparison would let it through.
-    public static func numbers(in text: String) -> [String: Int] {
+    public static func numbers(in text: String,
+                               language: TranscriptLanguage = .english) -> [String: Int] {
         var counts: [String: Int] = [:]
-        for token in TextTokenizer.comparableTokens(text)
+        for token in TextTokenizer.comparableTokens(text, in: language)
         where token.allSatisfy(\.isNumber) && !token.isEmpty {
             counts[token, default: 0] += 1
         }

@@ -212,3 +212,60 @@ struct SpanishLexiconTests {
         #expect(report.passed, "capitalisation is what POLISH fixes: \(report.failureReasons)")
     }
 }
+
+@Suite("Spanish polish prompt")
+struct SpanishPromptTests {
+
+    @Test("The Spanish prompt is written in Spanish")
+    func promptIsSpanish() {
+        let prompt = PolishPrompt.instructions(for: .spanish)
+        // Asking in English and expecting Spanish back invites the model to
+        // drift into English on a hard sentence.
+        #expect(prompt.contains("Reescribes frases"))
+        #expect(prompt.contains("Responde siempre en español"))
+        #expect(!prompt.contains("You must never"))
+    }
+
+    @Test("It names the hazards that exist only in Spanish")
+    func spanishSpecificProhibitions() {
+        let prompt = PolishPrompt.instructions(for: .spanish)
+        // Double negation is the dangerous one: "no vimos nada" negates once,
+        // and the semantic check cannot catch a model that "fixes" it.
+        #expect(prompt.contains("doble negación"))
+        #expect(prompt.contains("no vimos nada"))
+        // Register, mood and regional vocabulary.
+        #expect(prompt.contains("usted"))
+        #expect(prompt.contains("subjuntivo"))
+        #expect(prompt.contains("computadora"))
+    }
+
+    @Test("Each language's prompt carries its own version")
+    func versionsDiffer() {
+        #expect(PolishPrompt.version(for: .english) == "polish-v1")
+        #expect(PolishPrompt.version(for: .spanish) == "polish-es-v1")
+        // English keeps its original string: the version is part of the content
+        // hash, so renaming it would re-run POLISH on every existing project to
+        // produce byte-identical output.
+        #expect(PolishPrompt.version(for: .english) == PolishPrompt.version)
+    }
+
+    @Test("A retry quotes the violations in the right language")
+    func retryLanguage() {
+        let spanish = PolishPrompt.retryInstructions(violations: ["negación perdida"],
+                                                     language: .spanish)
+        #expect(spanish.contains("Tu intento anterior se rechazó"))
+        #expect(spanish.contains("negación perdida"))
+
+        let english = PolishPrompt.retryInstructions(violations: ["lost a negation"])
+        #expect(english.contains("Your previous attempt was rejected"))
+    }
+
+    @Test("Settings record the prompt version matching the language")
+    func parametersCarryVersion() {
+        var parameters = PolishParameters.default
+        parameters.language = .spanish
+        #expect(parameters.language == .spanish)
+        // The app sets the version alongside; the default stays English.
+        #expect(PolishPrompt.version(for: parameters.language) == "polish-es-v1")
+    }
+}
