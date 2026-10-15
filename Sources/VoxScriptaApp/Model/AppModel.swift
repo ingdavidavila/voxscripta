@@ -333,8 +333,8 @@ final class AppModel {
         // Deleting a project out from under a running job would leave the
         // runner writing into a directory that is on its way to the Trash.
         if isRunning, openProject?.manifest.projectID == summary.id {
-            errorMessage = "“\(summary.displayName)” is still being transcribed. "
-                + "Stop it first, then delete it."
+            let name = summary.displayName
+            errorMessage = String(localized: "“\(name)” is still being transcribed. Stop it first, then delete it.")
             return
         }
         Task { [weak self] in
@@ -358,16 +358,19 @@ final class AppModel {
         guard let (_, plan) = pendingDeletion else { return "" }
         let size = ByteCountFormatter.string(fromByteCount: plan.bytesFreed, countStyle: .file)
 
+        // One literal per case rather than concatenated fragments: Foundation
+        // builds the lookup key from the literal, so a string assembled with +
+        // is never translated. The path goes on its own line via a second
+        // interpolation so translators do not have to preserve an escape.
+        let newline = "\n\n"
         if let kept = plan.originalKept {
-            return "The transcripts and working files move to the Trash, freeing \(size).\n\n"
-                + "Your recording stays where it is:\n\(kept.path)"
+            let path = kept.path
+            return String(localized: "The transcripts and working files move to the Trash, freeing \(size).\(newline)Your recording stays where it is:\n\(path)")
         }
         if plan.removesAudioCopy {
-            return "This project holds its own copy of the audio, so the copy goes to the "
-                + "Trash along with the transcripts, freeing \(size).\n\n"
-                + "Any recording you imported from elsewhere is untouched."
+            return String(localized: "This project holds its own copy of the audio, so the copy goes to the Trash along with the transcripts, freeing \(size).\(newline)Any recording you imported from elsewhere is untouched.")
         }
-        return "The transcripts and working files move to the Trash, freeing \(size)."
+        return String(localized: "The transcripts and working files move to the Trash, freeing \(size).")
     }
 
     /// Moves the confirmed project to the Trash.
@@ -408,7 +411,10 @@ final class AppModel {
         NSPasteboard.general.setString(text, forType: .string)
 
         let words = transcript.wordCount
-        copyConfirmation = words == 1 ? "Copied 1 word" : "Copied \(words) words"
+        let count = words.formatted()
+        copyConfirmation = words == 1
+            ? String(localized: "Copied 1 word")
+            : String(localized: "Copied \(count) words")
         Task { [weak self] in
             try? await Task.sleep(for: .seconds(2))
             self?.copyConfirmation = nil

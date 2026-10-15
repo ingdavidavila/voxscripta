@@ -349,3 +349,61 @@
 
 /* showProjectsFolderHelp */
 "Open the folder where Vox Scripta keeps its projects in Finder." = "Abre en el Finder la carpeta donde Vox Scripta guarda sus proyectos.";
+
+/* ── Errors (VoxScriptaCore) ───────────────────────────────── */
+
+"The audio file could not be found at %@." = "No se encontró el archivo de audio en %@.";
+
+"The audio file at %@ has changed since it was imported." = "El archivo de audio en %@ ha cambiado desde que se importó.";
+
+"This audio format is not supported: %@." = "Este formato de audio no es compatible: %@.";
+
+"“%@” has no audio track, so there is nothing to transcribe." = "“%@” no tiene pista de audio, así que no hay nada que transcribir.";
+
+"macOS cannot read .%@ files. Convert it to .mp4, .m4a or .wav first — a stream copy is enough, and costs no quality." = "macOS no puede leer archivos .%@. Conviértelo antes a .mp4, .m4a o .wav: basta con copiar el flujo, y no se pierde calidad.";
+
+"The audio could not be decoded: %@." = "No se pudo decodificar el audio: %@.";
+
+"Audio analysis failed during %@: %@." = "El análisis del audio falló durante %@: %@.";
+
+"No speech was detected in this recording." = "No se detectó habla en esta grabación.";
+
+"The %@ engine is unavailable: %@." = "El motor %@ no está disponible: %@.";
+
+"The %@ engine does not support %@." = "El motor %@ no admite %@.";
+
+"Chunk %@ could not be transcribed: %@." = "No se pudo transcribir el fragmento %@: %@.";
+
+"A required model asset is missing: %@." = "Falta un recurso necesario del modelo: %@.";
+
+"The language model %@ is unavailable: %@." = "El modelo de lenguaje %@ no está disponible: %@.";
+
+"Input of %@ tokens exceeds the %@-token limit." = "La entrada de %@ tokens supera el límite de %@.";
+
+"Polished output failed validation: %@." = "El texto pulido no pasó la validación: %@.";
+
+"The project file is damaged: %@." = "El archivo del proyecto está dañado: %@.";
+
+"This project was made by a newer version (schema %@, this app supports %@)." = "Este proyecto se creó con una versión más reciente (esquema %@; esta app admite %@).";
+
+"Needs %@ of free space; %@ available." = "Necesita %@ de espacio libre; hay %@ disponibles.";
+
+"Could not read or write %@: %@." = "No se pudo leer ni escribir %@: %@.";
+
+"Processing was cancelled." = "Se canceló el proceso.";
+
+"Not implemented yet: %@." = "Aún no implementado: %@.";
+
+/* ── Library and dialogs ───────────────────────────────────── */
+
+"“%@” is still being transcribed. Stop it first, then delete it." = "“%@” se está transcribiendo todavía. Deténlo primero y luego elimínalo.";
+
+"The transcripts and working files move to the Trash, freeing %@.%@Your recording stays where it is:\n%@" = "Las transcripciones y los archivos de trabajo van a la Papelera y se liberan %@.%@Tu grabación se queda donde está:\n%@";
+
+"This project holds its own copy of the audio, so the copy goes to the Trash along with the transcripts, freeing %@.%@Any recording you imported from elsewhere is untouched." = "Este proyecto guarda su propia copia del audio, así que la copia va a la Papelera junto con las transcripciones y se liberan %@.%@Cualquier grabación que importaras desde otro sitio queda intacta.";
+
+"The transcripts and working files move to the Trash, freeing %@." = "Las transcripciones y los archivos de trabajo van a la Papelera y se liberan %@.";
+
+"Copied 1 word" = "1 palabra copiada";
+
+"Copied %@ words" = "%@ palabras copiadas";

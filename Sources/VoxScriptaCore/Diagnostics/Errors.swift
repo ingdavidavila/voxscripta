@@ -81,33 +81,69 @@ public enum VoxScriptaError: Error, Sendable, Equatable {
 }
 
 extension VoxScriptaError: LocalizedError {
+    /// Localized through `Bundle.main`, which is the app bundle at runtime.
+    ///
+    /// `String(localized:)` turns each interpolation into a format specifier
+    /// when it builds the lookup key, so every value is converted to a `String`
+    /// first and every specifier is therefore `%@`. Numbers go through
+    /// `formatted()` on the way, which also gets them the right thousands
+    /// separator for the reader's locale — "1.000" in Spanish, "1,000" in
+    /// English.
+    ///
+    /// The CLI has no translations in its bundle and falls back to English,
+    /// which is correct: a terminal is not localized by this app.
+    /// Joins reasons for display, kept out of the interpolation on purpose.
+    private static func list(_ reasons: [String]) -> String {
+        reasons.joined(separator: "; ")
+    }
+
     public var errorDescription: String? {
         switch self {
-        case .sourceUnavailable(let p): "The audio file could not be found at \(p)."
-        case .sourceChanged(let p): "The audio file at \(p) has changed since it was imported."
-        case .unsupportedFormat(let d): "This audio format is not supported: \(d)."
-        case .noAudioTrack(let p):
-            "“\(URL(filePath: p).lastPathComponent)” has no audio track, so there is "
-                + "nothing to transcribe."
-        case .unsupportedContainer(let e):
-            "macOS cannot read .\(e) files. Convert it to .mp4, .m4a or .wav first — "
-                + "a stream copy is enough, and costs no quality."
-        case .decodingFailed(let r): "The audio could not be decoded: \(r)."
-        case .analysisFailed(let s, let r): "Audio analysis failed during \(s): \(r)."
-        case .noSpeechDetected: "No speech was detected in this recording."
-        case .engineUnavailable(let e, let r): "The \(e) engine is unavailable: \(r)."
-        case .localeUnsupported(let e, let l): "The \(e) engine does not support \(l)."
-        case .transcriptionFailed(let c, let r): "Chunk \(c.short) could not be transcribed: \(r)."
-        case .modelAssetMissing(let d): "A required model asset is missing: \(d)."
-        case .modelUnavailable(let m, let r): "The language model \(m) is unavailable: \(r)."
-        case .contextWindowExceeded(let t, let l): "Input of \(t) tokens exceeds the \(l)-token limit."
-        case .validationRejected(let r): "Polished output failed validation: \(r.joined(separator: "; "))."
-        case .projectCorrupt(let r): "The project file is damaged: \(r)."
-        case .schemaTooNew(let f, let s): "This project was made by a newer version (schema \(f), this app supports \(s))."
-        case .insufficientDiskSpace(let n, let a): "Needs \(n) bytes of free space; \(a) available."
-        case .ioFailure(let p, let r): "Could not read or write \(p): \(r)."
-        case .cancelled: "Processing was cancelled."
-        case .notImplemented(let what): "Not implemented yet: \(what)."
+        case .sourceUnavailable(let path):
+            String(localized: "The audio file could not be found at \(path).")
+        case .sourceChanged(let path):
+            String(localized: "The audio file at \(path) has changed since it was imported.")
+        case .unsupportedFormat(let detail):
+            String(localized: "This audio format is not supported: \(detail).")
+        case .noAudioTrack(let path):
+            String(localized: "“\(URL(filePath: path).lastPathComponent)” has no audio track, so there is nothing to transcribe.")
+        case .unsupportedContainer(let fileExtension):
+            String(localized: "macOS cannot read .\(fileExtension) files. Convert it to .mp4, .m4a or .wav first — a stream copy is enough, and costs no quality.")
+        case .decodingFailed(let reason):
+            String(localized: "The audio could not be decoded: \(reason).")
+        case .analysisFailed(let stage, let reason):
+            String(localized: "Audio analysis failed during \(stage): \(reason).")
+        case .noSpeechDetected:
+            String(localized: "No speech was detected in this recording.")
+        case .engineUnavailable(let engine, let reason):
+            String(localized: "The \(String(describing: engine)) engine is unavailable: \(reason).")
+        case .localeUnsupported(let engine, let locale):
+            String(localized: "The \(String(describing: engine)) engine does not support \(locale).")
+        case .transcriptionFailed(let chunk, let reason):
+            String(localized: "Chunk \(chunk.short) could not be transcribed: \(reason).")
+        case .modelAssetMissing(let detail):
+            String(localized: "A required model asset is missing: \(detail).")
+        case .modelUnavailable(let model, let reason):
+            String(localized: "The language model \(String(describing: model)) is unavailable: \(reason).")
+        case .contextWindowExceeded(let tokens, let limit):
+            String(localized: "Input of \(tokens.formatted()) tokens exceeds the \(limit.formatted())-token limit.")
+        case .validationRejected(let reasons):
+            // Joined outside the interpolation: a nested string literal inside
+            // one hides the whole call from the key extractor, and the string
+            // then ships untranslated looking deliberate.
+            String(localized: "Polished output failed validation: \(Self.list(reasons)).")
+        case .projectCorrupt(let reason):
+            String(localized: "The project file is damaged: \(reason).")
+        case .schemaTooNew(let found, let supported):
+            String(localized: "This project was made by a newer version (schema \(found.formatted()), this app supports \(supported.formatted())).")
+        case .insufficientDiskSpace(let needed, let available):
+            String(localized: "Needs \(needed.formatted(.byteCount(style: .file))) of free space; \(available.formatted(.byteCount(style: .file))) available.")
+        case .ioFailure(let path, let reason):
+            String(localized: "Could not read or write \(path): \(reason).")
+        case .cancelled:
+            String(localized: "Processing was cancelled.")
+        case .notImplemented(let what):
+            String(localized: "Not implemented yet: \(what).")
         }
     }
 }

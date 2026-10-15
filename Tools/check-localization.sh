@@ -7,7 +7,13 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-TABLE="$ROOT/Sources/VoxScriptaApp/Strings.swift"
+# Every file that can produce a translatable key: the interface table plus
+# anything calling String(localized:). Discovered rather than listed, so a new
+# call site cannot quietly escape the check.
+SOURCES=("$ROOT/Sources/VoxScriptaApp/Strings.swift")
+while IFS= read -r file; do
+    [ "$file" = "${SOURCES[0]}" ] || SOURCES+=("$file")
+done < <(grep -rl 'String(localized: "' "$ROOT/Sources" | sort)
 STATUS=0
 
 for lproj in "$ROOT"/Resources/Localization/*.lproj; do
@@ -23,9 +29,9 @@ for lproj in "$ROOT"/Resources/Localization/*.lproj; do
             printf "  %-10s missing: %s\n" "$language" "$name"
             missing=$((missing + 1))
         fi
-    done < <(python3 "$ROOT/Tools/extract-strings.py" "$TABLE")
+    done < <(python3 "$ROOT/Tools/extract-strings.py" "${SOURCES[@]}")
 
-    total="$(python3 "$ROOT/Tools/extract-strings.py" "$TABLE" | wc -l | tr -d ' ')"
+    total="$(python3 "$ROOT/Tools/extract-strings.py" "${SOURCES[@]}" | wc -l | tr -d ' ')"
     if [ "$missing" -eq 0 ]; then
         printf "  %-10s %s strings, complete\n" "$language" "$total"
     else
