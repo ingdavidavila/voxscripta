@@ -78,15 +78,11 @@ struct AppSettings: Codable, Sendable, Equatable {
 
     /// Whether POLISH may run in the selected language.
     ///
-    /// Gated on whether the semantic-distance check can detect a reversed
-    /// meaning, not on a list of languages, so a language added later is
-    /// treated correctly without anyone remembering this rule. In Spanish that
-    /// check catches no negation at all, leaving the lexical polarity list as
-    /// the sole defence — too thin for a stage whose failure mode is a fluent
-    /// sentence that says the opposite of what was said.
+    /// Delegated to `PolishReadiness`, which states the evidence for each
+    /// language rather than keeping a list someone has to remember to update.
     var polishSupported: Bool {
         guard let language = transcriptLanguage else { return false }
-        return SemanticSimilarity.catchesNegation(in: language)
+        return PolishReadiness.isValidated(language)
     }
 
     var polishParameters: PolishParameters {

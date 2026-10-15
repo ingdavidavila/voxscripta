@@ -237,7 +237,7 @@
 "Verbatim only in this language. Clean and Polished need lexicons Vox Scripta does not have yet." = "En este idioma solo hay versión literal. Limpia y Pulida necesitan léxicos que Vox Scripta aún no tiene.";
 
 /* polishUnavailableNotice */
-"Polished is unavailable in Spanish. The check that catches a reversed meaning does not work in Spanish, so the pass is withheld rather than run unguarded." = "La versión pulida no está disponible en español. La comprobación que detecta un significado invertido no funciona en español, así que el pulido se retiene en lugar de ejecutarse sin protección.";
+"Polished is unavailable in this language. The checks that catch a reversed meaning have not been proven here, so the pass is withheld rather than run unguarded." = "La versión pulida no está disponible en este idioma. Las comprobaciones que detectan un significado invertido no se han verificado aquí, así que el pulido se retiene en lugar de ejecutarse sin protección.";
 
 /* segmentsAtOnce */
 "Segments at once" = "Segmentos a la vez";
@@ -407,3 +407,6 @@
 "Copied 1 word" = "1 palabra copiada";
 
 "Copied %@ words" = "%@ palabras copiadas";
+
+/* polishSingleDefenceNotice */
+"In Spanish, a reversed meaning is caught by word lists alone — the similarity check that backs them up in English does not detect negation in Spanish. Polished output is still validated before you see it." = "En español, un significado invertido se detecta solo con listas de palabras: la comprobación de similitud que las respalda en inglés no detecta la negación en español. El texto pulido se valida igualmente antes de que lo veas.";

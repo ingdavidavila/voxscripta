@@ -1,5 +1,6 @@
 import SwiftUI
 import VoxScriptaCore
+import VoxScriptaLanguage
 import VoxScriptaPipeline
 
 /// Advanced settings (§29), deliberately out of the main workflow.
@@ -70,8 +71,15 @@ struct SettingsView: View {
                         Label(Strings.verbatimOnlyNotice, systemImage: "exclamationmark.triangle")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                    } else if model.settings.transcriptLanguage == .spanish {
+                    } else if !model.settings.polishSupported {
                         Label(Strings.polishUnavailableNotice, systemImage: "exclamationmark.shield")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else if model.settings.transcriptLanguage
+                                .map({ !SemanticSimilarity.catchesNegation(in: $0) }) == true {
+                        // Running, but on one defence rather than two. Said
+                        // plainly rather than left for the reader to discover.
+                        Label(Strings.polishSingleDefenceNotice, systemImage: "info.circle")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

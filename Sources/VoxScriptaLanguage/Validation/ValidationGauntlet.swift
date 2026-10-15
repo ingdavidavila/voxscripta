@@ -58,6 +58,56 @@ public struct ValidationReport: Hashable, Sendable, Codable {
 }
 
 /// Thresholds for the measurement-based checks.
+/// Which languages POLISH is allowed to run in, and on what evidence.
+///
+/// Not a list of languages someone remembered to add. A language qualifies
+/// only when meaning-changing rewrites are demonstrably caught, and the two
+/// languages qualify by different routes.
+///
+/// English has two independent defences against a reversed meaning: the
+/// lexical polarity count and the semantic-distance check, which caught five
+/// of five measured negations.
+///
+/// Spanish has one. The Spanish sentence embedding scores a negation closer to
+/// its original than a paraphrase is — 0.335 mean against a 0.473 paraphrase —
+/// so no threshold separates them and the distance check is blind to the most
+/// dangerous edit available. It still catches invention and wholesale
+/// replacement, but polarity rests entirely on the lexical count. That is why
+/// Spanish required `SpanishRejectionCorpus` before being admitted: eighteen
+/// corruptions, every one refused by the check intended to refuse it, against
+/// ten legitimate rewrites none of which was blocked.
+///
+/// The honest limit of that evidence is that the corpus and the lexicon were
+/// written by the same hand, so it demonstrates the defence works on the
+/// failures we thought of. The structural guard below is what covers the rest:
+/// a language with no negation lexicon cannot be admitted at all, whatever
+/// this table says.
+public enum PolishReadiness {
+
+    public static func isValidated(_ language: TranscriptLanguage) -> Bool {
+        // A language whose polarity lexicon is empty has no defence to measure,
+        // so it is refused regardless of what follows.
+        guard !SemanticLexicons.negations(for: language).isEmpty else { return false }
+
+        switch language {
+        case .english:
+            // Two defences, the embedding among them.
+            return SemanticSimilarity.catchesNegation(in: .english)
+        case .spanish:
+            // One defence, measured. See SpanishRejectionCorpus.
+            return true
+        }
+    }
+
+    /// Why POLISH is withheld, for the interface to show. `nil` when it runs.
+    public static func withheldReason(for language: TranscriptLanguage?) -> String? {
+        guard let language else {
+            return "noLexicons"
+        }
+        return isValidated(language) ? nil : "notValidated"
+    }
+}
+
 public struct ValidationThresholds: Hashable, Sendable, Codable {
     /// Largest `NLEmbedding` distance still treated as the same meaning.
     ///

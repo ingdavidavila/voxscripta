@@ -200,9 +200,16 @@ enum Strings {
     }
     static var polishUnavailableNotice: LocalizedStringKey {
         """
-        Polished is unavailable in Spanish. The check that catches a reversed \
-        meaning does not work in Spanish, so the pass is withheld rather than run \
-        unguarded.
+        Polished is unavailable in this language. The checks that catch a \
+        reversed meaning have not been proven here, so the pass is withheld \
+        rather than run unguarded.
+        """
+    }
+    static var polishSingleDefenceNotice: LocalizedStringKey {
+        """
+        In Spanish, a reversed meaning is caught by word lists alone — the \
+        similarity check that backs them up in English does not detect negation \
+        in Spanish. Polished output is still validated before you see it.
         """
     }
     static var segmentsAtOnce: LocalizedStringKey { "Segments at once" }
