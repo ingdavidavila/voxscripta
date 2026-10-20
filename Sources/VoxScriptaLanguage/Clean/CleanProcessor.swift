@@ -233,6 +233,13 @@ public struct CleanProcessor: CleanProcessing {
     /// Whether `second` is a stumble over `first` rather than a deliberate repeat.
     static func isStutter(_ first: Word, _ second: Word, within maximumGap: MediaTime,
                           language: TranscriptLanguage) -> Bool {
+        // A repeat across a sentence boundary is not a stumble. `normalize`
+        // strips punctuation before comparing, which made the full stop in
+        // "platero. Platero" invisible and collapsed the first word of the
+        // following sentence. Found on real audio; it costs a real word every
+        // time a sentence ends on the word the next one begins with.
+        guard !Self.endsSentence(first.text) else { return false }
+
         let a = DisfluencyLexicon.normalize(first.text)
         let b = DisfluencyLexicon.normalize(second.text)
         guard !a.isEmpty, a == b,

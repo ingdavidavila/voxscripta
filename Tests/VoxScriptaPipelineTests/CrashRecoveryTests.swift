@@ -151,8 +151,10 @@ struct CrashRecoveryTests {
         let first = tmp.url.appending(path: "first.txt")
         let second = tmp.url.appending(path: "second.txt")
 
+        let firstStarted = ContinuousClock.now
         #expect(try CLI.run(["run", audio.path, "--project", project.path,
                              "--out", first.path] + baseArguments) == 0)
+        let firstElapsed = ContinuousClock.now - firstStarted
 
         let started = ContinuousClock.now
         #expect(try CLI.run(["run", "--project", project.path,
@@ -162,9 +164,14 @@ struct CrashRecoveryTests {
         let firstText = try String(contentsOf: first, encoding: .utf8)
         let secondText = try String(contentsOf: second, encoding: .utf8)
         #expect(firstText == secondText)
-        // Reading a finished transcript back should be near-instant, not a
-        // second pass over the audio.
-        #expect(elapsed < .seconds(3), "a completed project re-ran work: \(elapsed)")
+        // Compared against the first run rather than against a fixed budget.
+        // The invariant is that reopening does not repeat the work, and a
+        // wall-clock ceiling measures the machine's load as much as the code's
+        // behaviour — it failed at 8s on a busy machine while still being an
+        // order of magnitude faster than a real pass. Both runs here see the
+        // same load, so the ratio does not.
+        #expect(elapsed * 4 < firstElapsed,
+                "a completed project re-ran work: reopen \(elapsed), original \(firstElapsed)")
     }
 
     @Test("Changing a silence parameter reuses the decode but redoes the rest")
