@@ -57,19 +57,28 @@ public struct TranscriptionOptions: Hashable, Sendable {
     ///   ``Provenance``.
     public var concurrency: Int
     public var maxAttemptsPerChunk: Int
+    /// Work out the language from the audio instead of trusting `locale`.
+    ///
+    /// On by default, because the alternative failed silently: a recording in
+    /// a language the app was not set to produced an empty transcript that
+    /// looked like a finished one. Restricted to models already installed, so
+    /// detection never triggers a download.
+    public var detectLanguage: Bool
 
     public init(
         locale: String = "en-US",
         requestWordTimestamps: Bool = true,
         translate: Bool = false,
         concurrency: Int = 4,
-        maxAttemptsPerChunk: Int = 3
+        maxAttemptsPerChunk: Int = 3,
+        detectLanguage: Bool = true
     ) {
         self.locale = locale
         self.requestWordTimestamps = requestWordTimestamps
         self.translate = translate
         self.concurrency = Swift.max(1, concurrency)
         self.maxAttemptsPerChunk = Swift.max(1, maxAttemptsPerChunk)
+        self.detectLanguage = detectLanguage
     }
 
     public static let `default` = TranscriptionOptions()

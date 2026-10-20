@@ -9,6 +9,28 @@ set -euo pipefail
 
 CONFIG="${1:-debug}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+# The version comes from the source rather than being repeated here. Two copies
+# of a version number drift, and this one is stamped into every transcript's
+# provenance, where being wrong misattributes the work.
+VERSION="$(sed -n 's/.*static let version = "\(.*\)".*/\1/p' \
+    "$ROOT/Sources/VoxScriptaCore/VoxScripta.swift")"
+[ -n "$VERSION" ] || { echo "could not read the version from VoxScripta.swift" >&2; exit 1; }
+# Monotonic build number: how many commits exist.
+BUILD="$(git -C "$ROOT" rev-list --count HEAD 2>/dev/null || echo 1)"
+# Checked before the build rather than during it. Since Swift 6.4 made the
+# Xcode build system the default, SwiftPM compiles mlx-swift's .metal sources
+# itself, so a missing toolchain fails several minutes in with a wall of
+# compiler invocations instead of the one line that says what to do. The
+# toolchain is also dropped by every Xcode update, so this is not a rare case —
+# it has happened twice in this project.
+if ! xcrun -sdk macosx metal --version >/dev/null 2>&1; then
+    echo "The Metal toolchain is missing, which an Xcode update will do." >&2
+    echo "Reinstall it and run this again:" >&2
+    echo "    xcodebuild -downloadComponent MetalToolchain" >&2
+    exit 1
+fi
+
 BIN="$(swift build --package-path "$ROOT" -c "$CONFIG" --show-bin-path)"
 APP="$ROOT/build/VoxScripta.app"
 
@@ -73,8 +95,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleDevelopmentRegion</key><string>en</string>
     <key>CFBundleLocalizations</key>
     <array><string>en</string><string>es</string></array>
-    <key>CFBundleShortVersionString</key><string>0.1.0</string>
-    <key>CFBundleVersion</key><string>1</string>
+    <key>CFBundleShortVersionString</key><string>$VERSION</string>
+    <key>CFBundleVersion</key><string>$BUILD</string>
     <key>LSMinimumSystemVersion</key><string>26.0</string>
     <key>NSHighResolutionCapable</key><true/>
     <key>NSHumanReadableCopyright</key><string>Local-first transcription. Your audio never leaves this Mac.</string>

@@ -55,6 +55,8 @@ struct SettingsView: View {
 
             Form {
                 Section(Strings.settingsTranscription) {
+                    Toggle(Strings.detectLanguage, isOn: $model.settings.detectLanguage)
+                        .help(Strings.detectLanguageHelp)
                     Picker(Strings.language, selection: $model.settings.locale) {
                         ForEach(model.availableLocales) { option in
                             Text(option.displayName).tag(option.identifier)

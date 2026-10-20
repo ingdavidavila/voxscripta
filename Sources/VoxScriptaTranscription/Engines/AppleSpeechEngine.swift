@@ -41,6 +41,17 @@ public actor AppleSpeechEngine: TranscriptionEngine {
 
     // MARK: - Preparation
 
+    /// Locales whose models are already on this Mac.
+    ///
+    /// The language probe is restricted to these. Probing a locale that is
+    /// merely *supported* would make the OS download a speech model as a side
+    /// effect of opening a file, which is not a thing an app should do while
+    /// someone waits — and not a thing this app should do at all without
+    /// being asked.
+    public static func installedLocaleIdentifiers() async -> Set<String> {
+        Set(await SpeechTranscriber.installedLocales.map { $0.identifier(.bcp47) })
+    }
+
     /// Every locale this engine can transcribe, as BCP-47 identifiers.
     ///
     /// Asked of the system rather than listed, because which locales exist is

@@ -20,6 +20,12 @@ public enum VoxScriptaError: Error, Sendable, Equatable {
     /// so the error names the extension rather than a codec.
     case unsupportedContainer(fileExtension: String)
     case decodingFailed(reason: String)
+    /// Speech was detected and the engine recognised no words in it.
+    ///
+    /// Almost always the wrong transcription language: the engine does not
+    /// fail, it simply finds nothing, and the empty result is otherwise
+    /// indistinguishable from success.
+    case noWordsRecognized(locale: String)
 
     // ── Analysis ────────────────────────────────────────────────────────────
     case analysisFailed(stage: String, reason: String)
@@ -59,7 +65,7 @@ public enum VoxScriptaError: Error, Sendable, Equatable {
         case .transcriptionFailed, .ioFailure, .engineUnavailable, .modelUnavailable:
             return true
         case .sourceUnavailable, .sourceChanged, .unsupportedFormat, .decodingFailed,
-             .noAudioTrack, .unsupportedContainer,
+             .noAudioTrack, .unsupportedContainer, .noWordsRecognized,
              .analysisFailed, .noSpeechDetected, .localeUnsupported, .modelAssetMissing,
              .contextWindowExceeded, .validationRejected, .projectCorrupt, .schemaTooNew,
              .insufficientDiskSpace, .cancelled, .notImplemented:
@@ -71,7 +77,7 @@ public enum VoxScriptaError: Error, Sendable, Equatable {
     public var isFatalToJob: Bool {
         switch self {
         case .sourceUnavailable, .sourceChanged, .unsupportedFormat, .noAudioTrack,
-             .unsupportedContainer, .projectCorrupt,
+             .unsupportedContainer, .noWordsRecognized, .projectCorrupt,
              .schemaTooNew, .insufficientDiskSpace:
             return true
         default:
@@ -111,6 +117,8 @@ extension VoxScriptaError: LocalizedError {
             String(localized: "macOS cannot read .\(fileExtension) files. Convert it to .mp4, .m4a or .wav first — a stream copy is enough, and costs no quality.")
         case .decodingFailed(let reason):
             String(localized: "The audio could not be decoded: \(reason).")
+        case .noWordsRecognized(let locale):
+            String(localized: "No words were recognised. This recording was transcribed as \(locale) — if it is in another language, change it in Settings and import the file again.")
         case .analysisFailed(let stage, let reason):
             String(localized: "Audio analysis failed during \(stage): \(reason).")
         case .noSpeechDetected:

@@ -194,9 +194,28 @@ public struct ResumePlanner: Sendable {
     /// Deliberately looks only at `Output/` and the recorded hashes, never at
     /// `Derived/`. Those two directories differ in kind: one is the result, the
     /// other is scratch work that exists to be thrown away.
+    /// Whether a written transcript contains any actual words.
+    ///
+    /// Punctuation alone does not count: the failure this guards against
+    /// produced fifty-three characters of commas.
+    static func hasWords(at url: URL) -> Bool {
+        guard let data = try? Data(contentsOf: url),
+              let text = String(data: data, encoding: .utf8) else { return false }
+        return text.contains { $0.isLetter || $0.isNumber }
+    }
+
     private func isComplete(_ project: Project, inputs: StageInputs) async throws -> Bool {
         let fm = FileManager.default
         let package = project.package
+
+        // A transcript with no words in it is not a completed project, it is
+        // a failed one that happened to write a file. Treating it as complete
+        // is how a recording transcribed in the wrong language became
+        // permanent: every reopen returned the same empty result, and
+        // re-importing the file reopened the same project rather than trying
+        // again. Re-running costs a few seconds and can now detect the
+        // language or fail with a reason.
+        guard Self.hasWords(at: package.textURL(for: .verbatim)) else { return false }
 
         guard fm.fileExists(atPath: package.transcriptURL.path),
               try await project.store.stageHash(.merge) == inputs.hash(for: .merge),

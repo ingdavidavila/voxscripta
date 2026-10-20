@@ -20,6 +20,8 @@ struct AppSettings: Codable, Sendable, Equatable {
 
     // Transcription
     var locale: String = "en-US"
+    /// Work the language out from the audio rather than trusting `locale`.
+    var detectLanguage: Bool = true
     var concurrency: Int = TranscriptionOptions.default.concurrency
 
     // Language

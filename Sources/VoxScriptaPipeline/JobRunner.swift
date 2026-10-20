@@ -96,12 +96,35 @@ public struct JobRunner: Sendable {
         self.engineFactory = engineFactory
     }
 
+    /// Languages worth probing: one locale per language the text stages
+    /// support, restricted to models already on the machine, plus whatever the
+    /// user actually chose.
+    ///
+    /// One per language rather than per locale — nine English variants would
+    /// cost nine probes to learn the same thing. The user's own choice is
+    /// always included even if its model is not installed yet, because asking
+    /// for it is consent to fetch it.
+    static func probeCandidates(for requested: String) async -> [String] {
+        let installed = await AppleSpeechEngine.installedLocaleIdentifiers()
+        var candidates: [String] = [requested]
+        for language in TranscriptLanguage.allCases {
+            let already = candidates.contains {
+                TranscriptLanguage(localeIdentifier: $0) == language
+            }
+            guard !already,
+                  let match = language.offeredLocales.first(where: installed.contains)
+            else { continue }
+            candidates.append(match)
+        }
+        return candidates
+    }
+
     public func run(
         project: Project,
         options: JobOptions = JobOptions(),
         progress: @escaping @Sendable (JobProgressReport) -> Void = { _ in }
     ) async throws -> Transcript {
-        let options = resolved(options, for: project)
+        var options = resolved(options, for: project)
         let package = project.package
         let (sourceURL, release) = try project.resolveSource()
         defer { release() }
@@ -235,6 +258,55 @@ public struct JobRunner: Sendable {
             chunkPlan = try AtomicFile.readJSON(ChunkPlan.self, from: package.chunkPlanURL)
         }
 
+        // ── Language ────────────────────────────────────────────────────────
+        // Settled before transcription rather than checked after it. Getting
+        // this wrong does not produce a bad transcript, it produces an empty
+        // one, and the cost of being sure is a fraction of a second: a
+        // twenty-second sample across the installed languages, at 120× real
+        // time.
+        //
+        // Only runs when the project has not already fixed a language. A
+        // reopened project keeps the locale it was built with, because the
+        // locale is part of the content hash and re-detecting could silently
+        // invalidate completed work.
+        if options.transcription.detectLanguage, project.manifest.detectedLocale == nil {
+            let candidates = await Self.probeCandidates(for: options.transcription.locale)
+            if candidates.count > 1 {
+                try await advance(project, .transcribing, progress, 0.12, "Detecting language")
+                let outcome = await LanguageProbe.detect(
+                    in: package.canonicalAudioURL,
+                    speech: silenceMap.speechRegions.map(\.range),
+                    candidates: candidates,
+                    options: options.transcription,
+                    makeEngine: engineFactory)
+
+                // The scores go into the progress line. A detection that
+                // picks the wrong language is worse than none, so what it saw
+                // has to be visible rather than buried.
+                let summary = outcome.scores
+                    .map { String(format: "%@ %dw×%.2f", $0.locale, $0.words, $0.confidence) }
+                    .joined(separator: ", ")
+
+                if let detected = outcome.locale {
+                    options.transcription.locale = detected
+                    try await project.recordDetectedLocale(detected)
+                    try await advance(project, .transcribing, progress, 0.13,
+                                      "Language: \(detected) (\(summary))")
+                } else {
+                    // Inconclusive. The user's own setting stands, and the
+                    // project is not marked as detected so a later run with
+                    // more models installed can try again.
+                    try await advance(project, .transcribing, progress, 0.13,
+                                      "Language undetermined (\(summary))")
+                }
+            }
+        }
+
+        // Frozen once the language is settled: everything below runs
+        // concurrently and must capture a value that cannot change under it.
+        let crashPoint = options.crashPoint
+        let transcription = options.transcription
+
         // ── Transcription ───────────────────────────────────────────────────
         try await advance(project, .transcribing, progress, 0.12, "Transcribing")
         let engine = engineFactory()
@@ -279,7 +351,7 @@ public struct JobRunner: Sendable {
                     try await project.store.commitChunkResult(record, resultData: data, to: url)
 
                     let n = await committedCount.increment()
-                    if let crash = options.crashPoint, crash.stage == .transcription,
+                    if let crash = crashPoint, crash.stage == .transcription,
                        let after = crash.afterChunks, n >= after {
                         Self.die("transcription after \(n) chunks")
                     }
@@ -302,13 +374,43 @@ public struct JobRunner: Sendable {
 
         // ── Merge ───────────────────────────────────────────────────────────
         try await advance(project, .merging, progress, 0.82, "Assembling transcript")
-        let transcript = try TranscriptMerger().merge(
+        var transcript = try TranscriptMerger().merge(
             chunks: results, plan: chunkPlan, silenceMap: silenceMap,
             provenance: Provenance(
                 engineID: engine.identifier,
                 silenceParameterHash: inputs.hash(for: .silence),
                 chunkParameterHash: inputs.hash(for: .chunking),
                 concurrency: options.transcription.concurrency))
+
+        // Before anything is written as a result, check it is one. A
+        // recording in the wrong language does not make the engine fail — it
+        // returns no words, and an empty transcript is otherwise
+        // indistinguishable from success. This is the only place that
+        // difference can still be seen.
+        if let finding = LanguageDetection.diagnose(
+            text: transcript.plainText(),
+            locale: options.transcription.locale,
+            speechDuration: silenceMap.speechDuration) {
+            switch finding {
+            case .noWordsRecognized(let locale, _):
+                throw VoxScriptaError.noWordsRecognized(locale: locale)
+            // Carried on the first segment rather than on the transcript:
+            // warnings are a segment field, and adding one to Transcript would
+            // change the persisted shape of every existing project. The
+            // finding describes the whole transcript, which is what the
+            // wording says.
+            case .tooFewWords(_, let words, let speechSeconds):
+                if !transcript.segments.isEmpty {
+                    transcript.segments[0].warnings.append(
+                        .fewWordsForSpeech(words: words, speechSeconds: Int(speechSeconds)))
+                }
+            case .languageMismatch(let locale, let detected, _):
+                if !transcript.segments.isEmpty {
+                    transcript.segments[0].warnings.append(
+                        .languageLooksWrong(transcribedAs: locale, detected: detected))
+                }
+            }
+        }
 
         try AtomicFile.writeJSON(transcript, to: package.transcriptURL)
         try AtomicFile.write(Data(transcript.plainText().utf8),

@@ -30,6 +30,13 @@ public enum SegmentWarning: Hashable, Sendable, Codable {
     case transcriptionGap
     /// Polished output failed validation and fell back to the clean text.
     case polishFellBack(reasons: [String])
+    /// The transcript does not read as the language it was transcribed as.
+    ///
+    /// Carried on the transcript rather than thrown, because the text is still
+    /// readable and the reader is better placed than the app to judge it.
+    case languageLooksWrong(transcribedAs: String, detected: String)
+    /// Far fewer words than the detected speech accounts for.
+    case fewWordsForSpeech(words: Int, speechSeconds: Int)
     /// Polished output was accepted only after a retry.
     case polishRetried
 }
@@ -162,12 +169,14 @@ public struct Transcript: Sendable, Codable {
     }
 
     /// Plain text with paragraph breaks derived from measured pauses.
+    /// The transcript as readable prose, broken into paragraphs.
+    ///
+    /// Breaks come from the pauses the speaker actually left, found in the
+    /// word timings, rather than from wherever the engine happened to end a
+    /// segment. See ``Paragraphs`` — a segment per sentence and a segment per
+    /// hundred words are both normal, and only one of them produces readable
+    /// text without this.
     public func plainText(using p: SilenceParameters = .default) -> String {
-        var out = ""
-        for (i, seg) in segments.enumerated() {
-            if i > 0 { out += seg.startsParagraph(using: p) ? "\n\n" : " " }
-            out += seg.text
-        }
-        return out
+        Paragraphs.split(self, using: p).joined(separator: "\n\n")
     }
 }

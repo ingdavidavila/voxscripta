@@ -186,6 +186,14 @@ enum Strings {
 
     static var settingsTranscription: LocalizedStringKey { "Transcription" }
     static var language: LocalizedStringKey { "Language" }
+    static var detectLanguage: LocalizedStringKey { "Detect the language from the audio" }
+    static var detectLanguageHelp: LocalizedStringKey {
+        """
+        Tries the languages installed on this Mac on a short sample and uses \
+        whichever the engine recognises confidently. The setting below is the \
+        fallback when it cannot tell. Nothing is downloaded.
+        """
+    }
     static var languageHelp: LocalizedStringKey {
         """
         The language spoken in the recording. Getting this wrong costs accuracy \

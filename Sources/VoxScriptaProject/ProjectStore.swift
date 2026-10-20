@@ -223,6 +223,18 @@ public struct Project: Sendable {
         self.store = store
     }
 
+    /// Records the locale the language probe settled on.
+    ///
+    /// Written to the manifest so a reopened project does not detect again:
+    /// the locale feeds the content hash, and a second detection that
+    /// disagreed would invalidate work that is already finished and correct.
+    public func recordDetectedLocale(_ locale: String) throws {
+        var updated = manifest
+        updated.detectedLocale = locale
+        updated.locale = locale
+        try AtomicFile.writeJSON(updated, to: package.manifestURL)
+    }
+
     /// Resolves the original audio to a readable URL.
     ///
     /// - Returns: The URL, plus a closure to call when finished, which releases

@@ -227,6 +227,10 @@ final class AppModel {
         options.clean = settings.cleanParameters
         options.keepIntermediates = settings.keepIntermediateFiles
         options.polishBackend = settings.polishBackend
+        // Detection is a preference rather than a project property: it changes
+        // what the locale becomes, and the locale itself still comes from the
+        // manifest so an existing project is never re-detected.
+        options.transcription.detectLanguage = settings.detectLanguage
         // Both conditions, because the setting is the user's preference and
         // polishSupported is whether we can honour it safely.
         options.polish = (settings.polishEnabled && settings.polishSupported)

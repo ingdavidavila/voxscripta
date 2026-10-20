@@ -85,6 +85,14 @@ public struct ProjectManifest: Sendable, Codable {
     public var engineID: EngineID
     /// Transcription locale, stored so reopening uses what the project was built with.
     public var locale: String
+    /// The locale the language probe settled on, once it has run.
+    ///
+    /// Separate from `locale`, which records what was asked for. Keeping both
+    /// means a reopened project does not re-detect — the locale is part of the
+    /// content hash, and a second detection that disagreed would invalidate
+    /// finished work — and it leaves a record of the app having overridden the
+    /// request, which the interface shows.
+    public var detectedLocale: String?
     /// Chunks transcribed at once when this project was built.
     ///
     /// Stored for the same reason as the silence and chunk parameters: it is part
@@ -104,6 +112,7 @@ public struct ProjectManifest: Sendable, Codable {
         chunkParameters: ChunkParameters = .default,
         engineID: EngineID = .appleSpeech,
         locale: String = "en-US",
+        detectedLocale: String? = nil,
         concurrency: Int = 4,
         createdAt: Date = Date(),
         modifiedAt: Date = Date()
@@ -115,6 +124,7 @@ public struct ProjectManifest: Sendable, Codable {
         self.chunkParameters = chunkParameters
         self.engineID = engineID
         self.locale = locale
+        self.detectedLocale = detectedLocale
         self.concurrency = concurrency
         self.createdAt = createdAt
         self.modifiedAt = modifiedAt

@@ -418,3 +418,12 @@
 "%@ minutes" = "%@ minutos";
 
 "%@ hours" = "%@ horas";
+
+/* noWordsRecognized */
+"No words were recognised. This recording was transcribed as %@ — if it is in another language, change it in Settings and import the file again." = "No se reconoció ninguna palabra. Esta grabación se transcribió como %@; si está en otro idioma, cámbialo en Ajustes y vuelve a importar el archivo.";
+
+/* ── Language detection ────────────────────────────────────── */
+
+"Detect the language from the audio" = "Detectar el idioma a partir del audio";
+
+"Tries the languages installed on this Mac on a short sample and uses whichever the engine recognises confidently. The setting below is the fallback when it cannot tell. Nothing is downloaded." = "Prueba los idiomas instalados en este Mac con una muestra corta y usa aquel que el motor reconozca con confianza. El ajuste de abajo es la alternativa cuando no puede determinarlo. No se descarga nada.";
