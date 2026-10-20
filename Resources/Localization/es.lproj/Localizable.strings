@@ -410,3 +410,11 @@
 
 /* polishSingleDefenceNotice */
 "In Spanish, a reversed meaning is caught by word lists alone — the similarity check that backs them up in English does not detect negation in Spanish. Polished output is still validated before you see it." = "En español, un significado invertido se detecta solo con listas de palabras: la comprobación de similitud que las respalda en inglés no detecta la negación en español. El texto pulido se valida igualmente antes de que lo veas.";
+
+/* ── Polish cost ───────────────────────────────────────────── */
+
+"Polishing will take about %@ — it makes one request to the language model for every sentence. Transcription finishes long before that, and you can read it while polishing continues." = "El pulido tardará unos %@: hace una petición al modelo de lenguaje por cada frase. La transcripción termina mucho antes, y puedes leerla mientras el pulido continúa.";
+
+"%@ minutes" = "%@ minutos";
+
+"%@ hours" = "%@ horas";

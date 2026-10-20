@@ -57,6 +57,16 @@ struct ProcessingView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            // Shown as soon as the duration is known rather than when polishing
+            // starts, so a long job can be stopped before it begins instead of
+            // being mistaken for a hang an hour in.
+            if let notice = model.polishTimeNotice {
+                Label(notice, systemImage: "clock")
+                    .font(.caption)
+                    .foregroundStyle(model.phase == .polishing ? .primary : .secondary)
+                    .padding(.top, 2)
+            }
         }
     }
 }

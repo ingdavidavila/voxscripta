@@ -444,6 +444,56 @@ final class AppModel {
         return resolved.describedAs
     }
 
+    // ── Polish cost ─────────────────────────────────────────────────────────
+
+    /// Seconds of polishing per second of recording.
+    ///
+    /// Measured, not guessed: seventeen minutes of Spanish took twenty-three
+    /// minutes to polish — 179 sentences at one model call each, about 7.8
+    /// seconds a sentence. Transcription runs at 120× real time, so polish is
+    /// slower than the recording by two orders of magnitude more than
+    /// everything else put together, and it is the only stage worth warning
+    /// about.
+    ///
+    /// One measurement, on one machine, with the bundled model. It is used to
+    /// set expectations, not to make a promise, which is why the interface
+    /// says "about".
+    static let polishSecondsPerSecondOfAudio = 1.4
+
+    /// How long polishing this project is expected to take, or `nil` when the
+    /// stage will not run.
+    var estimatedPolishDuration: Duration? {
+        guard settings.polishEnabled, settings.polishSupported,
+              let seconds = openProject?.manifest.source.duration.seconds, seconds > 0
+        else { return nil }
+        return .seconds(seconds * Self.polishSecondsPerSecondOfAudio)
+    }
+
+    /// A warning, when polishing will take long enough that silence would be
+    /// mistaken for a hang. `nil` when it is quick enough not to matter.
+    var polishTimeNotice: String? {
+        guard let estimate = estimatedPolishDuration,
+              estimate > .seconds(300) else { return nil }
+        let formatted = Self.approximate(estimate)
+        return String(localized: "Polishing will take about \(formatted) — it makes one request to the language model for every sentence. Transcription finishes long before that, and you can read it while polishing continues.")
+    }
+
+    /// Rounded to something a person would say out loud.
+    private static func approximate(_ duration: Duration) -> String {
+        // Every interpolated value is a String first, so the lookup key uses
+        // %@ rather than %lld and the catalogue stays predictable.
+        let minutes = Int((Double(duration.components.seconds) / 60).rounded())
+        if minutes < 90 {
+            let count = minutes.formatted()
+            return String(localized: "\(count) minutes")
+        }
+        let hours = (Double(minutes) / 60 * 2).rounded() / 2
+        let count = hours == hours.rounded()
+            ? Int(hours).formatted()
+            : hours.formatted(.number.precision(.fractionLength(1)))
+        return String(localized: "\(count) hours")
+    }
+
     // ── Languages ───────────────────────────────────────────────────────────
 
     /// Locales the app offers, loaded once from the engine.
