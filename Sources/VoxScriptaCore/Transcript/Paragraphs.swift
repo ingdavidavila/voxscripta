@@ -8,10 +8,11 @@ import Foundation
 /// transcriber returns nine segments in English and one in Spanish, and a
 /// hundred words arriving as one segment produced one unbroken wall of text.
 ///
-/// The pauses are still there — they are just inside the segment rather than
-/// between two of them — and word-level timings expose them. So the break
-/// points come from the words, and segment boundaries are merely one more
-/// place a pause can happen.
+/// The segment's `text` is always the source of the words. An earlier version
+/// rebuilt the text from `words` instead, which silently discarded everything
+/// CLEAN had done — the word array still held the fillers that the text no
+/// longer did. Timings are consulted only to decide *where* to break, never
+/// what to say.
 public enum Paragraphs {
 
     /// Length past which a paragraph is broken at the next sentence end,
@@ -29,82 +30,66 @@ public enum Paragraphs {
     /// mid-sentence to satisfy it.
     public static let maximumWords = 80
 
-    /// A pause this much longer than the threshold breaks a paragraph even
-    /// mid-sentence.
-    ///
-    /// Speech does not always end a sentence before a long silence — the
-    /// speaker is interrupted, or trails off and restarts. Four seconds of
-    /// nothing is a paragraph break whatever the punctuation says.
-    public static let emphaticPauseFactor = 2.5
-
     /// The transcript split into paragraphs, in order.
     public static func split(_ transcript: Transcript,
                              using parameters: SilenceParameters = .default) -> [String] {
         let threshold = parameters.paragraphPauseThreshold
-        let emphatic = threshold * emphaticPauseFactor
-
         var paragraphs: [String] = []
         var current: [String] = []
-        var wordsInParagraph = 0
+        var words = 0
 
         func flush() {
-            let text = current.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+            let text = current.joined(separator: " ")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
             if !text.isEmpty { paragraphs.append(text) }
             current = []
-            wordsInParagraph = 0
+            words = 0
         }
 
-        var previousEnd: MediaTime?
+        for (index, segment) in transcript.segments.enumerated() where !segment.text.isEmpty {
+            // A pause before this segment breaks, as it always did.
+            if index > 0, (segment.precedingGap ?? .zero) >= threshold { flush() }
 
-        for (index, segment) in transcript.segments.enumerated() {
-            guard !segment.text.isEmpty else { continue }
-
-            // A segment with no word timings cannot be split internally, so it
-            // is treated as one block and only its leading gap can break.
-            guard !segment.words.isEmpty else {
-                let gap = segment.precedingGap ?? .zero
-                if index > 0, gap >= threshold { flush() }
-                current.append(segment.text)
-                wordsInParagraph += TextTokenizer.tokens(segment.text).count
-                previousEnd = segment.originalEnd
-                continue
-            }
-
-            for word in segment.words {
-                let gap = previousEnd.map { word.originalStart - $0 } ?? .zero
-                let endsSentence = current.last.map(Self.closesSentence) ?? false
-
-                let breaks: Bool
-                if previousEnd == nil {
-                    breaks = false
-                } else if gap >= emphatic {
-                    // Long enough that the punctuation does not get a vote.
-                    breaks = true
-                } else if gap >= threshold, endsSentence {
-                    breaks = true
-                } else if wordsInParagraph >= maximumWords, endsSentence {
-                    breaks = true
-                } else {
-                    breaks = false
-                }
-
-                if breaks { flush() }
-                current.append(word.text)
-                wordsInParagraph += 1
-                previousEnd = word.originalEnd
+            for sentence in sentences(in: segment.text) {
+                let count = TextTokenizer.tokens(sentence).count
+                // Break before a sentence that would push the paragraph past
+                // the target, so the paragraph ends on a completed sentence.
+                if words >= maximumWords, !current.isEmpty { flush() }
+                current.append(sentence)
+                words += count
             }
         }
         flush()
         return paragraphs
     }
 
-    /// Whether a token ends a sentence.
+    /// Splits text at sentence terminators, keeping the terminator.
     ///
-    /// Spanish opens questions with `¿` and closes them with `?`, so only the
-    /// trailing mark counts; an opening mark is the start of a sentence, not
-    /// the end of one.
-    static func closesSentence(_ token: String) -> Bool {
-        guard let last = token.last(where: { !$0.isWhitespace }) else { return false }
-        return ".!?…".contains(last)
+    /// A terminator only ends a sentence when whitespace or the end of the
+    /// text follows it. That one condition handles the cases a naive split
+    /// gets wrong: an ellipsis is a run of full stops with no space between
+    /// them, so "Hello..." stays whole rather than becoming three fragments,
+    /// and a leading "...my name" is not a sentence boundary either.
+    ///
+    /// Deliberately simple beyond that. An abbreviation followed by a space
+    /// will be mistaken for a sentence end, which costs a paragraph break in
+    /// the wrong place; the alternative is a tokenizer whose language has to
+    /// be known here, and being wrong is only cosmetic.
+    static func sentences(in text: String) -> [String] {
+        var out: [String] = []
+        var current = ""
+        let characters = Array(text)
+        for (index, character) in characters.enumerated() {
+            current.append(character)
+            guard ".!?…".contains(character) else { continue }
+            let next = index + 1 < characters.count ? characters[index + 1] : nil
+            guard next == nil || next!.isWhitespace else { continue }
+            let trimmed = current.trimmingCharacters(in: .whitespaces)
+            if !trimmed.isEmpty { out.append(trimmed) }
+            current = ""
+        }
+        let tail = current.trimmingCharacters(in: .whitespaces)
+        if !tail.isEmpty { out.append(tail) }
+        return out.isEmpty ? [text] : out
     }
 }

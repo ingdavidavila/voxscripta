@@ -11,22 +11,9 @@ import Foundation
 @Suite("Paragraphs")
 struct ParagraphTests {
 
-    /// Builds a segment whose words run contiguously from `start`, with an
-    /// optional pause inserted before the word at `pauseBefore`.
-    private func segment(_ text: String, start: MediaTime = .zero,
-                         wordDuration: MediaTime = .milliseconds(300),
-                         pauseBefore: Int? = nil,
-                         pause: MediaTime = .seconds(2)) -> TranscriptSegment {
-        var words: [Word] = []
-        var cursor = start
-        for (index, token) in text.split(separator: " ").enumerated() {
-            if index == pauseBefore { cursor = cursor + pause }
-            words.append(Word(text: String(token), originalStart: cursor,
-                              originalEnd: cursor + wordDuration))
-            cursor = cursor + wordDuration
-        }
-        return TranscriptSegment(
-            originalStart: start, originalEnd: cursor, text: text, words: words)
+    private func segment(_ text: String, gap: MediaTime? = nil) -> TranscriptSegment {
+        TranscriptSegment(originalStart: .zero, originalEnd: .seconds(5),
+                          text: text, words: [], precedingGap: gap)
     }
 
     private func paragraphs(_ segments: [TranscriptSegment]) -> [String] {
@@ -34,64 +21,89 @@ struct ParagraphTests {
                                     provenance: Provenance()))
     }
 
-    @Test("A long pause after a sentence starts a new paragraph")
-    func pauseAfterSentence() {
-        let s = segment("One sentence ends here. And another begins now.", pauseBefore: 4)
-        let result = paragraphs([s])
+    @Test("The segment's text is the source, not its words")
+    func textWins() {
+        // CLEAN edits `text` and leaves `words` alone, so rebuilding the
+        // paragraph from the word array would reinstate every filler it had
+        // just removed. That regression is what this test exists for.
+        var s = segment("So we start Monday.")
+        s.words = [Word(text: "uh", originalStart: .zero, originalEnd: .milliseconds(200)),
+                   Word(text: "so", originalStart: .milliseconds(200),
+                        originalEnd: .milliseconds(400))]
+        #expect(paragraphs([s]) == ["So we start Monday."])
+    }
+
+    @Test("A long pause between segments starts a new paragraph")
+    func pauseBetweenSegments() {
+        let result = paragraphs([segment("First part."),
+                                 segment("Second part.", gap: .seconds(3))])
         #expect(result.count == 2)
-        #expect(result.first == "One sentence ends here.")
     }
 
-    @Test("A long pause mid-sentence does not break it")
-    func pauseMidSentence() {
-        // The speaker hesitated; the sentence is still one sentence.
-        let s = segment("One sentence that keeps going and going here.",
-                        pauseBefore: 4, pause: .milliseconds(1600))
-        #expect(paragraphs([s]).count == 1)
-    }
-
-    @Test("A very long pause breaks even mid-sentence")
-    func emphaticPause() {
-        // Four seconds of nothing is a paragraph break whatever the
-        // punctuation says — the speaker was interrupted or trailed off.
-        let s = segment("One sentence that keeps going and going here",
-                        pauseBefore: 4, pause: .seconds(5))
-        #expect(paragraphs([s]).count == 2)
+    @Test("A short gap between segments does not")
+    func shortGapJoins() {
+        let result = paragraphs([segment("First part."),
+                                 segment("Second part.", gap: .milliseconds(200))])
+        #expect(result == ["First part. Second part."])
     }
 
     @Test("Continuous speech is still broken, at a sentence end")
-    func wordCapBreaks() {
-        // The case that matters most: a real recording reported a gap of
-        // exactly zero after seven of its eight sentence endings, so nothing
-        // pause-driven can fire. Without a length rule this is one paragraph.
+    func lengthRuleBreaks() {
+        // The case that matters most: on a real recording the engine reported
+        // a gap of exactly zero after seven of its eight sentence endings, so
+        // nothing pause-driven can fire. Without a length rule this is one
+        // paragraph.
         let sentence = Array(repeating: "palabra", count: 29).joined(separator: " ") + " final."
-        let text = Array(repeating: sentence, count: 4).joined(separator: " ")
-        let result = paragraphs([segment(text)])
+        let result = paragraphs([segment(Array(repeating: sentence, count: 4)
+                                             .joined(separator: " "))])
         #expect(result.count > 1, "continuous speech must still be broken up")
-        // And never mid-sentence: every paragraph but the last ends a sentence.
-        for paragraph in result.dropLast() {
-            #expect(paragraph.hasSuffix("final."), "broke mid-sentence: \(paragraph.suffix(40))")
+        for paragraph in result {
+            #expect(paragraph.hasSuffix("final."), "broke mid-sentence: \(paragraph.suffix(30))")
         }
     }
 
     @Test("Nothing is lost or duplicated")
-    func wordsArePreserved() {
+    func wordsPreserved() {
         let sentence = Array(repeating: "palabra", count: 29).joined(separator: " ") + " final."
         let text = Array(repeating: sentence, count: 4).joined(separator: " ")
         let joined = paragraphs([segment(text)]).joined(separator: " ")
         #expect(joined.split(separator: " ").count == text.split(separator: " ").count)
     }
 
-    @Test("A segment without word timings is still emitted")
-    func segmentWithoutWords() {
-        // Some engines return no word-level timings. The text must survive.
-        let bare = TranscriptSegment(originalStart: .zero, originalEnd: .seconds(5),
-                                     text: "Sin marcas de tiempo.", words: [])
-        #expect(paragraphs([bare]) == ["Sin marcas de tiempo."])
+    @Test("A single short segment is one paragraph")
+    func shortSegment() {
+        #expect(paragraphs([segment("Sin marcas de tiempo.")]) == ["Sin marcas de tiempo."])
     }
 
     @Test("An empty transcript yields no paragraphs")
     func empty() {
         #expect(paragraphs([]).isEmpty)
+    }
+}
+
+@Suite("Sentence splitting")
+struct SentenceSplitTests {
+
+    @Test("An ellipsis is not three sentences")
+    func ellipsis() {
+        // A terminator only ends a sentence when whitespace follows it.
+        #expect(Paragraphs.sentences(in: "Hello...") == ["Hello..."])
+        #expect(Paragraphs.sentences(in: "...my name is David.") == ["...my name is David."])
+    }
+
+    @Test("Ordinary sentences split")
+    func ordinary() {
+        #expect(Paragraphs.sentences(in: "One. Two! Three?") == ["One.", "Two!", "Three?"])
+    }
+
+    @Test("Text with no terminator is one sentence")
+    func unterminated() {
+        #expect(Paragraphs.sentences(in: "no full stop here") == ["no full stop here"])
+    }
+
+    @Test("A decimal is not a sentence end")
+    func decimals() {
+        // No space after the point, so it does not split.
+        #expect(Paragraphs.sentences(in: "We sold 1.500 units.") == ["We sold 1.500 units."])
     }
 }

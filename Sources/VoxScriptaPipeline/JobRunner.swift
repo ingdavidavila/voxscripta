@@ -289,6 +289,9 @@ public struct JobRunner: Sendable {
 
                 if let detected = outcome.locale {
                     options.transcription.locale = detected
+                    // The text stages follow the detected language, not the
+                    // one the project was created with.
+                    options = Self.applyingLanguage(to: options)
                     try await project.recordDetectedLocale(detected)
                     try await advance(project, .transcribing, progress, 0.13,
                                       "Language: \(detected) (\(summary))")
@@ -489,7 +492,40 @@ public struct JobRunner: Sendable {
         var resolved = options
         resolved.transcription.locale = project.manifest.locale
         resolved.transcription.concurrency = project.manifest.concurrency
-        return resolved
+
+        // The text stages work in the language the audio was transcribed in,
+        // derived here rather than left to each caller. The app set it from
+        // its own settings and the CLI never set it at all, so every CLI run
+        // polished Spanish with English prompts and validated it against
+        // English lexicons — which is not a weakness of Spanish polish, it is
+        // not having run Spanish polish.
+        return Self.applyingLanguage(to: resolved)
+    }
+
+    /// Points the text stages at the language of `transcription.locale`.
+    ///
+    /// Applied twice: once from the manifest, and again after the language
+    /// probe, because the probe changes the locale and everything downstream
+    /// has to follow it. Deriving it only the first time meant a detected
+    /// Spanish recording was still polished with English prompts and
+    /// validated against English lexicons.
+    static func applyingLanguage(to options: JobOptions) -> JobOptions {
+        var options = options
+        guard let language = TranscriptLanguage(localeIdentifier: options.transcription.locale)
+        else {
+            // No lexicons for this language. Clean would apply another
+            // language's filler list and polish would validate against the
+            // wrong negations, so polish does not run.
+            options.polish = nil
+            return options
+        }
+        options.clean.language = language
+        options.polish?.language = language
+        options.polish?.promptVersion = PolishPrompt.version(for: language)
+        // A language whose defences have not been measured does not get a
+        // polish pass, whatever the caller asked for.
+        if !PolishReadiness.isValidated(language) { options.polish = nil }
+        return options
     }
 
     private func stageInputs(for project: Project, options: JobOptions) async throws -> StageInputs {

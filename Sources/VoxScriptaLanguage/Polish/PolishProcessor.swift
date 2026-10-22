@@ -264,7 +264,8 @@ public struct PolishProcessor: PolishProcessing {
         do {
             let revised = try await host.rewrite(
                 sentences: originals, context: context,
-                instructions: PolishPrompt.instructions(for: parameters.language))
+                instructions: PolishPrompt.instructions(for: parameters.language),
+                language: parameters.language)
             let report = try validator.validate(
                 original: originals, revised: revised,
                 language: parameters.language, thresholds: parameters.thresholds)
@@ -281,7 +282,8 @@ public struct PolishProcessor: PolishProcessing {
             let retried = try await host.rewrite(
                 sentences: originals, context: context,
                 instructions: PolishPrompt.retryInstructions(violations: report.failureReasons,
-                                                          language: parameters.language))
+                                                             language: parameters.language),
+                language: parameters.language)
             let retryReport = try validator.validate(
                 original: originals, revised: retried,
                 language: parameters.language, thresholds: parameters.thresholds)

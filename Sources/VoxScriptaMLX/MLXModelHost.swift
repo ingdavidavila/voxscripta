@@ -100,7 +100,8 @@ public actor MLXModelHost: LanguageModelHosting {
     public func rewrite(
         sentences: [String],
         context: PolishContext,
-        instructions: String
+        instructions: String,
+        language: TranscriptLanguage
     ) async throws -> [String] {
         guard !sentences.isEmpty else { return [] }
         if container == nil { try await load() }
@@ -124,7 +125,7 @@ public actor MLXModelHost: LanguageModelHosting {
 
             let raw: String
             do {
-                raw = try await session.respond(to: Self.prompt(for: sentence, context: context))
+                raw = try await session.respond(to: Self.prompt(for: sentence, context: context, language: language))
             } catch {
                 throw VoxScriptaError.modelUnavailable(
                     ModelID(backend: "mlx", identifier: modelDirectory.lastPathComponent),
@@ -137,25 +138,43 @@ public actor MLXModelHost: LanguageModelHosting {
 
     // MARK: - Prompting
 
-    static func prompt(for sentence: String, context: PolishContext) -> String {
+    /// Written in the language of the work, for the same reason the system
+    /// backend's prompt is: English scaffolding around Spanish content makes a
+    /// model answer in English, and a translated sentence fails every
+    /// validation check there is.
+    static func prompt(for sentence: String, context: PolishContext,
+                       language: TranscriptLanguage = .english) -> String {
         var parts: [String] = []
+        let english = language == .english
         if !context.preceding.isEmpty {
-            parts.append("Earlier context (do not rewrite, do not repeat):\n"
-                         + context.preceding.joined(separator: " "))
+            parts.append((english ? "Earlier context (do not rewrite, do not repeat):"
+                                  : "Contexto anterior (no lo reescribas, no lo repitas):")
+                         + "\n" + context.preceding.joined(separator: " "))
         }
         if !context.following.isEmpty {
-            parts.append("Later context (do not rewrite, do not repeat):\n"
-                         + context.following.joined(separator: " "))
+            parts.append((english ? "Later context (do not rewrite, do not repeat):"
+                                  : "Contexto posterior (no lo reescribas, no lo repitas):")
+                         + "\n" + context.following.joined(separator: " "))
         }
         // The output contract is stated last, because a small model weights the
         // end of a prompt heavily.
-        parts.append("""
-            Rewrite this one sentence:
-            \(sentence)
+        if english {
+            parts.append("""
+                Rewrite this one sentence:
+                \(sentence)
 
-            Reply with the rewritten sentence and nothing else. No preamble, no \
-            quotation marks, no explanation.
-            """)
+                Reply with the rewritten sentence and nothing else. No preamble, no \
+                quotation marks, no explanation.
+                """)
+        } else {
+            parts.append("""
+                Reescribe esta única frase, en español:
+                \(sentence)
+
+                Responde solo con la frase reescrita, en español. Sin preámbulo, sin \
+                comillas, sin explicación.
+                """)
+        }
         return parts.joined(separator: "\n\n")
     }
 

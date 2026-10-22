@@ -67,7 +67,8 @@ public protocol LanguageModelHosting: Sendable {
     func rewrite(
         sentences: [String],
         context: PolishContext,
-        instructions: String
+        instructions: String,
+        language: TranscriptLanguage
     ) async throws -> [String]
 
     func unload() async
@@ -83,12 +84,22 @@ public protocol LanguageModelHosting: Sendable {
 /// `minimumElements == maximumElements` the framework will not let the model
 /// return the wrong number at all, so the failure mode disappears rather than
 /// being caught downstream.
-func rewriteSchema(count: Int) throws -> GenerationSchema {
+func rewriteSchema(count: Int, language: TranscriptLanguage = .english) throws -> GenerationSchema {
+    // The description is part of what the model reads, so it is written in the
+    // language of the work. An English description sitting over Spanish
+    // content is one more vote for answering in English.
+    let description: String
+    switch language {
+    case .english:
+        description = "Exactly \(count) rewritten sentences, one per input sentence, in the same order."
+    case .spanish:
+        description = "Exactamente \(count) frases reescritas, una por cada frase de entrada, en el mismo orden, en español."
+    }
     let root = DynamicGenerationSchema(
         name: "RewrittenWindow",
         properties: [.init(
             name: "sentences",
-            description: "Exactly \(count) rewritten sentences, one per input sentence, in the same order.",
+            description: description,
             schema: DynamicGenerationSchema(
                 arrayOf: DynamicGenerationSchema(type: String.self),
                 minimumElements: count, maximumElements: count))])
@@ -154,7 +165,8 @@ public actor LanguageModelHost: LanguageModelHosting {
     public func rewrite(
         sentences: [String],
         context: PolishContext,
-        instructions: String
+        instructions: String,
+        language: TranscriptLanguage = .english
     ) async throws -> [String] {
         guard !sentences.isEmpty else { return [] }
         if case .failure(let error) = Self.availability() { throw error }
@@ -169,8 +181,8 @@ public actor LanguageModelHost: LanguageModelHosting {
 
         do {
             let response = try await session.respond(
-                to: Self.prompt(sentences: sentences, context: context),
-                schema: try rewriteSchema(count: sentences.count),
+                to: Self.prompt(sentences: sentences, context: context, language: language),
+                schema: try rewriteSchema(count: sentences.count, language: language),
                 options: options)
             return try response.content.value([String].self, forProperty: "sentences")
         } catch let error as LanguageModelSession.GenerationError {
@@ -188,21 +200,51 @@ public actor LanguageModelHost: LanguageModelHosting {
     /// be resolved, and are labelled explicitly as not-to-be-rewritten. Without
     /// them the model tends to expand pronouns into names it has to guess at,
     /// which the entity check then rejects.
-    static func prompt(sentences: [String], context: PolishContext) -> String {
+    /// Built in the language being worked in.
+    ///
+    /// These labels used to be English whatever the content was, and the
+    /// imperative sat immediately before the sentences — the strongest signal
+    /// in the whole prompt. Spanish instructions above it were not enough: the
+    /// model answered in English, every rewrite scored as unrelated text
+    /// (distances of 1.3 against a 0.72 threshold, zero content words
+    /// surviving), and the gauntlet correctly rejected nearly all of it. The
+    /// stage looked broken when it was being asked the wrong question.
+    static func prompt(sentences: [String], context: PolishContext,
+                       language: TranscriptLanguage = .english) -> String {
+        let labels = Labels(language)
         var parts: [String] = []
         if !context.preceding.isEmpty {
-            parts.append("CONTEXT BEFORE (do not rewrite, do not return):\n"
+            parts.append(labels.contextBefore + "\n"
                          + context.preceding.joined(separator: "\n"))
         }
-        parts.append("REWRITE THESE \(sentences.count) SENTENCE(S), returning exactly \(sentences.count):\n"
+        parts.append(labels.rewrite(sentences.count) + "\n"
                      + sentences.enumerated()
                         .map { "\($0.offset + 1). \($0.element)" }
                         .joined(separator: "\n"))
         if !context.following.isEmpty {
-            parts.append("CONTEXT AFTER (do not rewrite, do not return):\n"
+            parts.append(labels.contextAfter + "\n"
                          + context.following.joined(separator: "\n"))
         }
         return parts.joined(separator: "\n\n")
+    }
+
+    struct Labels {
+        let contextBefore: String
+        let contextAfter: String
+        let rewrite: (Int) -> String
+
+        init(_ language: TranscriptLanguage) {
+            switch language {
+            case .english:
+                contextBefore = "CONTEXT BEFORE (do not rewrite, do not return):"
+                contextAfter = "CONTEXT AFTER (do not rewrite, do not return):"
+                rewrite = { "REWRITE THESE \($0) SENTENCE(S), returning exactly \($0):" }
+            case .spanish:
+                contextBefore = "CONTEXTO ANTERIOR (no lo reescribas, no lo devuelvas):"
+                contextAfter = "CONTEXTO POSTERIOR (no lo reescribas, no lo devuelvas):"
+                rewrite = { "REESCRIBE ESTAS \($0) FRASES EN ESPAÑOL, devolviendo exactamente \($0):" }
+            }
+        }
     }
 
     /// Generous but bounded: polish should be about as long as its input.
