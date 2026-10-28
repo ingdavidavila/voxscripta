@@ -1,5 +1,9 @@
 import SwiftUI
+#if os(macOS)
 import AppKit
+#else
+import UIKit
+#endif
 import VoxScriptaCore
 import VoxScriptaLanguage
 import VoxScriptaExport
@@ -15,6 +19,9 @@ struct TranscriptWorkspace: View {
             picker
             Divider()
 
+            // A draggable split is a pointer idea. On a phone the review
+            // panel takes the whole screen instead of a sliver of it.
+            #if os(macOS)
             HSplitView {
                 TranscriptTextView(text: model.currentTranscript?.plainText() ?? "")
                     .frame(minWidth: 380)
@@ -24,6 +31,13 @@ struct TranscriptWorkspace: View {
                         .frame(minWidth: 280, idealWidth: 340, maxWidth: 460)
                 }
             }
+            #else
+            if model.showsValidationDetail {
+                ValidationPanel()
+            } else {
+                TranscriptTextView(text: model.currentTranscript?.plainText() ?? "")
+            }
+            #endif
         }
         .toolbar {
             ToolbarItemGroup(placement: .automatic) {
@@ -279,12 +293,19 @@ struct FlaggedSentenceRow: View {
     }
 }
 
-/// An `NSTextView` behind a SwiftUI face.
+/// A platform text view behind a SwiftUI face.
 ///
 /// SwiftUI's own text views do not scroll a six-hour transcript acceptably — on
-/// the order of 60,000 words across thousands of segments — and no configuration
-/// fixes it. TextKit 2 lays out only the visible viewport and brings real find,
-/// selection and accessibility with it.
+/// the order of 60,000 words across thousands of segments — and no
+/// configuration fixes it. TextKit 2 lays out only the visible viewport and
+/// brings real find, selection and accessibility with it.
+///
+/// Two implementations rather than one abstraction. `NSTextView` lives inside
+/// a scroll view that the caller owns, `UITextView` scrolls itself, and the
+/// bridging protocol differs down to the method names. Pretending otherwise
+/// would cost more than the duplication does — the configuration each one
+/// needs is six lines.
+#if os(macOS)
 struct TranscriptTextView: NSViewRepresentable {
     let text: String
 
@@ -312,3 +333,26 @@ struct TranscriptTextView: NSViewRepresentable {
         textView.scroll(.zero)
     }
 }
+#else
+struct TranscriptTextView: UIViewRepresentable {
+    let text: String
+
+    func makeUIView(context: Context) -> UITextView {
+        let textView = UITextView()
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.alwaysBounceVertical = true
+        textView.textContainerInset = UIEdgeInsets(top: 20, left: 16, bottom: 20, right: 16)
+        textView.font = .systemFont(ofSize: 17)
+        textView.backgroundColor = .systemBackground
+        textView.adjustsFontForContentSizeCategory = true
+        return textView
+    }
+
+    func updateUIView(_ textView: UITextView, context: Context) {
+        guard textView.text != text else { return }
+        textView.text = text
+        textView.setContentOffset(.zero, animated: false)
+    }
+}
+#endif

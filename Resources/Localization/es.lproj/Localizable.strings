@@ -427,3 +427,7 @@
 "Detect the language from the audio" = "Detectar el idioma a partir del audio";
 
 "Tries the languages installed on this Mac on a short sample and uses whichever the engine recognises confidently. The setting below is the fallback when it cannot tell. Nothing is downloaded." = "Prueba los idiomas instalados en este Mac con una muestra corta y usa aquel que el motor reconozca con confianza. El ajuste de abajo es la alternativa cuando no puede determinarlo. No se descarga nada.";
+
+/* settings sheet */
+"Settings" = "Ajustes";
+"Done" = "Listo";

@@ -199,7 +199,16 @@ public struct ProjectStore: Sendable {
         }
     }
 
+    /// A bookmark that survives the app relaunching, and the file moving.
+    ///
+    /// The two platforms spell security scope differently. macOS asks for it
+    /// explicitly with `.withSecurityScope`; on iOS that option does not
+    /// exist, because a bookmark to a file the user picked is already scoped —
+    /// `startAccessingSecurityScopedResource` works on a plain bookmark there.
+    /// Same guarantee, different spelling, so the difference is confined to
+    /// this one function and its counterpart in `resolveSource`.
     private static func makeBookmark(for url: URL) throws -> Data {
+        #if os(macOS)
         do {
             return try url.bookmarkData(options: [.withSecurityScope],
                                         includingResourceValuesForKeys: nil, relativeTo: nil)
@@ -208,6 +217,9 @@ public struct ProjectStore: Sendable {
             // bookmark still resolves and still tracks the file if it moves.
             return try url.bookmarkData(includingResourceValuesForKeys: nil, relativeTo: nil)
         }
+        #else
+        return try url.bookmarkData(includingResourceValuesForKeys: nil, relativeTo: nil)
+        #endif
     }
 }
 
@@ -250,7 +262,14 @@ public struct Project: Sendable {
 
         case .bookmark(let data):
             var stale = false
-            guard let url = try? URL(resolvingBookmarkData: data, options: [.withSecurityScope],
+            #if os(macOS)
+            let scopedOptions: URL.BookmarkResolutionOptions = [.withSecurityScope]
+            #else
+            // Not available on iOS, and not needed: a document bookmark there
+            // already carries scope.
+            let scopedOptions: URL.BookmarkResolutionOptions = []
+            #endif
+            guard let url = try? URL(resolvingBookmarkData: data, options: scopedOptions,
                                      relativeTo: nil, bookmarkDataIsStale: &stale) else {
                 guard let plain = try? URL(resolvingBookmarkData: data, options: [],
                                            relativeTo: nil, bookmarkDataIsStale: &stale),

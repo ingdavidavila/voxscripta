@@ -6,6 +6,9 @@ import VoxScriptaCore
 struct RootView: View {
     @Environment(AppModel.self) private var model
     @State private var isTargeted = false
+    /// iOS has no Settings scene and no app menu, so without this the
+    /// language picker — among everything else — would be unreachable.
+    @State private var isShowingSettings = false
 
     var body: some View {
         @Bindable var model = model
@@ -38,6 +41,18 @@ struct RootView: View {
                     .allowsHitTesting(false)
             }
         }
+        #if !os(macOS)
+        .sheet(isPresented: $isShowingSettings) {
+            NavigationStack {
+                SettingsView()
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button(Strings.done) { isShowingSettings = false }
+                        }
+                    }
+            }
+        }
+        #endif
         .alert(Strings.somethingWrong,
                isPresented: .constant(model.errorMessage != nil)) {
             Button(Strings.ok) { model.dismissError() }
@@ -75,6 +90,12 @@ struct RootView: View {
             }
             .disabled(model.isRunning)
             .help(Strings.openAudioHelp)
+
+            #if !os(macOS)
+            Button { isShowingSettings = true } label: {
+                Label(Strings.settings, systemImage: "gearshape")
+            }
+            #endif
         }
     }
 
@@ -135,13 +156,17 @@ struct LibrarySidebar: View {
         }
         .listStyle(.sidebar)
         // Delete key on the selection, as a Mac list is expected to behave.
-        // It belongs on the List, which is what actually holds focus.
+        // It belongs on the List, which is what actually holds focus. There
+        // is no key to press on a phone; the context menu carries the action
+        // there, and a swipe would be the idiomatic addition later.
+        #if os(macOS)
         .onDeleteCommand {
             guard let id = model.selectedProjectID,
                   let project = model.projects.first(where: { $0.id == id })
             else { return }
             model.requestDelete(project)
         }
+        #endif
         // Driven by selection rather than a tap gesture. A List with a selection
         // binding consumes taps for its own hit testing, so an `onTapGesture` on
         // the row never fires — and reacting to selection means arrow-key

@@ -1,4 +1,7 @@
 import SwiftUI
+#if os(macOS)
+import AppKit
+#endif
 import VoxScriptaCore
 import VoxScriptaLanguage
 import VoxScriptaPipeline
@@ -173,10 +176,12 @@ struct SettingsView: View {
                         .help(Strings.processedHelp)
                     Text(Strings.privacyFooter)
                         .font(.caption).foregroundStyle(.secondary)
+                    #if os(macOS)
                     Button(Strings.showProjectsFolder) {
                         NSWorkspace.shared.open(AppModel.libraryDirectory)
                     }
                     .help(Strings.showProjectsFolderHelp)
+                    #endif
                 }
             }
             .formStyle(.grouped)

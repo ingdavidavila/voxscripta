@@ -12,7 +12,10 @@ let strict: [SwiftSetting] = [
 
 let package = Package(
     name: "VoxScripta",
-    platforms: [.macOS("26.0")],
+    // iOS carries the same minimum as macOS because the app depends on
+    // SpeechAnalyzer and FoundationModels, both of which arrived in the 26
+    // releases. There is no older version this could run on.
+    platforms: [.macOS("26.0"), .iOS("26.0")],
     products: [
         .library(name: "VoxScriptaCore", targets: ["VoxScriptaCore"]),
         .library(name: "VoxScriptaCoreCxx", targets: ["VoxScriptaCoreCxx"]),

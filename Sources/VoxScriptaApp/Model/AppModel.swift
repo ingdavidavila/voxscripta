@@ -2,6 +2,11 @@ import Foundation
 import SwiftUI
 import UniformTypeIdentifiers
 import AVFoundation
+#if os(macOS)
+import AppKit
+#else
+import UIKit
+#endif
 import Observation
 import VoxScriptaCore
 import VoxScriptaDSP
@@ -130,13 +135,32 @@ final class AppModel {
         return [.audio] + movies
     }()
 
-    func presentImportPanel() {
-        let panel = NSOpenPanel()
-        panel.allowedContentTypes = Self.importableContentTypes
-        panel.allowsMultipleSelection = false
-        panel.message = "Choose a recording. Vox Scripta never modifies the original."
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        importAudio(at: url)
+    /// Drives the file importer in `RootView`.
+    ///
+    /// The panels used to be run imperatively from here with AppKit, which
+    /// worked and did not exist on iOS. SwiftUI's own importer is presented by
+    /// a view rather than called, so the model holds the flag and the view
+    /// holds the sheet — and the same code serves both platforms instead of
+    /// one being a port of the other.
+    var isImportingAudio = false
+
+    func presentImportPanel() { isImportingAudio = true }
+
+    /// Called by the importer when the user picks something.
+    func importPicked(_ result: Result<[URL], any Error>) {
+        isImportingAudio = false
+        switch result {
+        case .success(let urls):
+            guard let url = urls.first else { return }
+            // A URL from the picker is security-scoped and must be opened
+            // before it can be read; the project takes its own bookmark during
+            // import, so access is only needed for that moment.
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            importAudio(at: url)
+        case .failure(let error):
+            errorMessage = error.localizedDescription
+        }
     }
 
     /// Creates a project for `url` and starts processing.
@@ -411,8 +435,14 @@ final class AppModel {
     func copyTranscript() {
         guard let transcript = currentTranscript else { return }
         let text = transcript.plainText()
+        // The two platforms spell the clipboard differently and agree on
+        // nothing else about it.
+        #if os(macOS)
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+        #else
+        UIPasteboard.general.string = text
+        #endif
 
         let words = transcript.wordCount
         let count = words.formatted()
@@ -569,25 +599,39 @@ final class AppModel {
         return formats.contains(.plainText) ? .plainText : (formats.first ?? .plainText)
     }
 
-    /// Writes the visible transcript in `format`, asking where to put it.
+    /// The export waiting for the user to choose a destination.
+    private(set) var pendingExport: (document: ExportDocument, filename: String)?
+    var isExporting: Bool {
+        get { pendingExport != nil }
+        set { if !newValue { pendingExport = nil } }
+    }
+
+    /// Prepares the visible transcript in `format` and asks where to put it.
+    ///
+    /// The bytes are produced before the sheet opens rather than after it
+    /// closes, so a failure to render is reported immediately instead of
+    /// after the user has chosen a filename.
     func export(_ format: ExportFormat) {
         guard let transcript = currentTranscript, let project = openProject else { return }
         let base = URL(filePath: project.manifest.source.displayName)
             .deletingPathExtension().lastPathComponent
         let exporter = Exporters.make(format)
 
-        let panel = NSSavePanel()
-        panel.nameFieldStringValue = exporter.filename(base: base, variant: selectedVariant)
-        panel.canCreateDirectories = true
-        panel.message = "Export the \(selectedVariant.displayName.lowercased()) transcript."
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-
         do {
             var options = ExportOptions.default
             options.includeTimestamps = exportIncludesTimestamps
-            try exporter.export(transcript, options: options).write(to: url)
+            let data = try exporter.export(transcript, options: options)
+            pendingExport = (ExportDocument(data: data, contentType: .data),
+                             exporter.filename(base: base, variant: selectedVariant))
         } catch {
             errorMessage = (error as? VoxScriptaError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    func exportFinished(_ result: Result<URL, any Error>) {
+        pendingExport = nil
+        if case .failure(let error) = result {
+            errorMessage = error.localizedDescription
         }
     }
 
@@ -601,12 +645,43 @@ final class AppModel {
         let base = URL(filePath: project.manifest.source.displayName)
             .deletingPathExtension().lastPathComponent
 
-        let panel = NSSavePanel()
-        panel.nameFieldStringValue = "\(base) — silence removed.wav"
-        panel.canCreateDirectories = true
-        panel.message = "Save a copy with the detected silence removed. "
-            + "The original recording is not modified."
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        pendingFolderAction = .renderSilenceRemoved(base: base)
+    }
+
+    /// What a chosen folder is for.
+    ///
+    /// Both of these write several files or a file plus its sidecar, so they
+    /// ask for a folder rather than a filename — which is also the one file
+    /// dialog that behaves the same on both platforms.
+    enum FolderAction: Equatable {
+        case exportEveryVariant
+        case renderSilenceRemoved(base: String)
+    }
+
+    private(set) var pendingFolderAction: FolderAction?
+    var isChoosingFolder: Bool {
+        get { pendingFolderAction != nil }
+        set { if !newValue { pendingFolderAction = nil } }
+    }
+
+    func folderPicked(_ result: Result<[URL], any Error>) {
+        let action = pendingFolderAction
+        pendingFolderAction = nil
+        guard case .success(let urls) = result, let directory = urls.first else {
+            if case .failure(let error) = result { errorMessage = error.localizedDescription }
+            return
+        }
+        switch action {
+        case .exportEveryVariant: writeEveryVariant(into: directory)
+        case .renderSilenceRemoved(let base): renderSilenceRemoved(base: base, into: directory)
+        case nil: break
+        }
+    }
+
+    private func renderSilenceRemoved(base: String, into directory: URL) {
+        guard let project = openProject, let map = silenceMap else { return }
+        let scoped = directory.startAccessingSecurityScopedResource()
+        let url = directory.appending(path: "\(base) — silence removed.wav")
 
         isRendering = true
         Task { [weak self] in
@@ -625,20 +700,21 @@ final class AppModel {
                 errorMessage = (error as? VoxScriptaError)?.errorDescription
                     ?? error.localizedDescription
             }
+            if scoped { directory.stopAccessingSecurityScopedResource() }
             isRendering = false
         }
     }
 
     /// Writes every available format for every produced variant, into one folder.
     func exportAll() {
+        guard openProject != nil else { return }
+        pendingFolderAction = .exportEveryVariant
+    }
+
+    private func writeEveryVariant(into directory: URL) {
         guard let project = openProject else { return }
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.canCreateDirectories = true
-        panel.prompt = "Export Here"
-        panel.message = "Choose a folder. Every transcript variant will be written in every format."
-        guard panel.runModal() == .OK, let directory = panel.url else { return }
+        let scoped = directory.startAccessingSecurityScopedResource()
+        defer { if scoped { directory.stopAccessingSecurityScopedResource() } }
 
         let base = URL(filePath: project.manifest.source.displayName)
             .deletingPathExtension().lastPathComponent
@@ -654,14 +730,21 @@ final class AppModel {
                     try exporter.export(transcript, options: options).write(to: url)
                 }
             }
+            #if os(macOS)
             NSWorkspace.shared.open(directory)
+            #endif
         } catch {
             errorMessage = (error as? VoxScriptaError)?.errorDescription ?? error.localizedDescription
         }
     }
 
     func reveal(_ summary: ProjectSummary) {
+        // Revealing a file in a file manager is a desktop idea. iOS has no
+        // equivalent, and the control that calls this is hidden there rather
+        // than being wired to something that does nothing.
+        #if os(macOS)
         NSWorkspace.shared.activateFileViewerSelecting([summary.url])
+        #endif
     }
 }
 

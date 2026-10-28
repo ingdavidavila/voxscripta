@@ -144,6 +144,8 @@ enum Strings {
 
     // MARK: - Settings: audio
 
+    static var settings: LocalizedStringKey { "Settings" }
+    static var done: LocalizedStringKey { "Done" }
     static var settingsAudio: LocalizedStringKey { "Audio" }
     static var silenceDetection: LocalizedStringKey { "Silence detection" }
     static var thresholdAboveNoise: LocalizedStringKey { "Threshold above noise floor" }
