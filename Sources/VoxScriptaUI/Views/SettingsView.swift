@@ -7,10 +7,14 @@ import VoxScriptaLanguage
 import VoxScriptaPipeline
 
 /// Advanced settings (§29), deliberately out of the main workflow.
-struct SettingsView: View {
+public struct SettingsView: View {
+    /// Public so the app shells — this package's executable and the iOS
+    /// Xcode target — can construct it from outside the module.
+    public init() {}
+
     @Environment(AppModel.self) private var model
 
-    var body: some View {
+    public var body: some View {
         @Bindable var model = model
 
         TabView {

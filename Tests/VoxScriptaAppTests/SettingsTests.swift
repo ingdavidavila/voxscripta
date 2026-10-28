@@ -1,7 +1,7 @@
 import Testing
 import Foundation
 import VoxScriptaCore
-@testable import VoxScriptaApp
+@testable import VoxScriptaUI
 
 @Suite("App settings")
 struct AppSettingsTests {

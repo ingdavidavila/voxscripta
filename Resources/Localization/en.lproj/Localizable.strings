@@ -1,0 +1,2 @@
+/* English is the key language; this file exists so the bundle
+   declares en as a real localization rather than only a fallback. */

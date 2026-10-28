@@ -43,7 +43,7 @@ enum WorkspaceMode: Equatable {
 /// coalesced channel.
 @MainActor
 @Observable
-final class AppModel {
+public final class AppModel {
     // ── Library ─────────────────────────────────────────────────────────────
     private(set) var projects: [ProjectSummary] = []
     var selectedProjectID: ProjectID?
@@ -89,7 +89,7 @@ final class AppModel {
         return base.appending(path: "VoxScripta/Projects")
     }
 
-    init() {
+    public init() {
         refreshLibrary()
     }
 
@@ -144,7 +144,7 @@ final class AppModel {
     /// one being a port of the other.
     var isImportingAudio = false
 
-    func presentImportPanel() { isImportingAudio = true }
+    public func presentImportPanel() { isImportingAudio = true }
 
     /// Called by the importer when the user picks something.
     func importPicked(_ result: Result<[URL], any Error>) {

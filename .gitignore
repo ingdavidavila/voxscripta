@@ -39,3 +39,7 @@ android/app/build/
 android/.cxx/
 android/app/.cxx/
 *.iml
+
+# Xcode user state
+ios/**/xcuserdata/
+ios/**/*.xcworkspace/xcuserdata/

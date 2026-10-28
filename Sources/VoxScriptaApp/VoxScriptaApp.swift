@@ -1,5 +1,5 @@
 import SwiftUI
-import VoxScriptaCore
+import VoxScriptaUI
 
 @main
 struct VoxScriptaApp: App {

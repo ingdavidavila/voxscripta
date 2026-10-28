@@ -29,6 +29,10 @@ let package = Package(
         .library(name: "VoxScriptaPipeline", targets: ["VoxScriptaPipeline"]),
         .library(name: "VoxScriptaTestSupport", targets: ["VoxScriptaTestSupport"]),
         .executable(name: "VoxScriptaApp", targets: ["VoxScriptaApp"]),
+        // The interface as a library, so an Xcode app target can consume it.
+        // SwiftPM cannot produce an .app for iOS, so the iOS app is a thin
+        // shell around this; the macOS executable below is the same shell.
+        .library(name: "VoxScriptaUI", targets: ["VoxScriptaUI"]),
         .executable(name: "voxscripta-cli", targets: ["voxscripta-cli"]),
         .executable(name: "corpus-gen", targets: ["corpus-gen"]),
     ],
@@ -112,11 +116,18 @@ let package = Package(
         // ── Application ─────────────────────────────────────────────────────
         // A thin SwiftUI shell. All logic lives below it, so the app target holds
         // views, view models and nothing else.
-        .executableTarget(
-            name: "VoxScriptaApp",
+        .target(
+            name: "VoxScriptaUI",
             dependencies: ["VoxScriptaCore", "VoxScriptaDSP", "VoxScriptaTranscription",
                            "VoxScriptaLanguage", "VoxScriptaProject", "VoxScriptaPipeline",
                            "VoxScriptaExport"],
+            swiftSettings: strict),
+
+        // Nothing but @main. Everything it shows lives in VoxScriptaUI, which
+        // the iOS app target consumes the same way.
+        .executableTarget(
+            name: "VoxScriptaApp",
+            dependencies: ["VoxScriptaUI"],
             swiftSettings: strict),
 
         // ── Tools ───────────────────────────────────────────────────────────
@@ -150,8 +161,10 @@ let package = Package(
                     dependencies: ["VoxScriptaLanguage", "VoxScriptaTestSupport"], swiftSettings: strict),
         .testTarget(name: "VoxScriptaProjectTests",
                     dependencies: ["VoxScriptaProject", "VoxScriptaTestSupport"], swiftSettings: strict),
+        // Against the UI library rather than the executable: the executable
+        // is now only @main, and a test bundle cannot link one anyway.
         .testTarget(name: "VoxScriptaAppTests",
-                    dependencies: ["VoxScriptaApp", "VoxScriptaPipeline"], swiftSettings: strict),
+                    dependencies: ["VoxScriptaUI", "VoxScriptaPipeline"], swiftSettings: strict),
         .testTarget(name: "VoxScriptaPipelineTests",
                     dependencies: ["VoxScriptaPipeline", "VoxScriptaTestSupport"], swiftSettings: strict),
         // Holds the C++ port and the Swift original to the same answers.
