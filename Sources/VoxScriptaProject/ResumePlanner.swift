@@ -35,6 +35,19 @@ public struct StageInputs: Sendable {
     /// Recorded because engine output is deterministic at a fixed concurrency but
     /// not across values, so resuming at a different setting can shift a word.
     public let concurrency: Int
+    /// What CLEAN was asked to do.
+    ///
+    /// Absent until now, which meant the clean stage was reused whatever its
+    /// settings said: turning filler removal off, or switching the language
+    /// its lexicons come from, left the old output in place. The hash is what
+    /// makes a setting mean anything.
+    public let cleanDescription: String
+    /// What POLISH was asked to do, including which prompt produced it.
+    ///
+    /// The prompt version exists precisely so a transcript records which
+    /// wording made it, and it was not in the hash — so a changed prompt
+    /// reused the output of the old one.
+    public let polishDescription: String
 
     public init(
         sourceContentHash: String,
@@ -43,7 +56,9 @@ public struct StageInputs: Sendable {
         chunkParameters: ChunkParameters,
         engineID: EngineID,
         locale: String,
-        concurrency: Int
+        concurrency: Int,
+        cleanDescription: String = "",
+        polishDescription: String = ""
     ) {
         self.sourceContentHash = sourceContentHash
         self.frameGeometryDescription = frameGeometryDescription
@@ -52,6 +67,8 @@ public struct StageInputs: Sendable {
         self.engineID = engineID
         self.locale = locale
         self.concurrency = concurrency
+        self.cleanDescription = cleanDescription
+        self.polishDescription = polishDescription
     }
 
     /// The hash a stage must match to be considered still valid.
@@ -74,9 +91,9 @@ public struct StageInputs: Sendable {
         case .merge:
             return ContentHash.string("merge|\(hash(for: .transcription))")
         case .clean:
-            return ContentHash.string("clean|\(hash(for: .merge))")
+            return ContentHash.string("clean|\(hash(for: .merge))|\(cleanDescription)")
         case .polish:
-            return ContentHash.string("polish|\(hash(for: .clean))")
+            return ContentHash.string("polish|\(hash(for: .clean))|\(polishDescription)")
         }
     }
 

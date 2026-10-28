@@ -140,7 +140,9 @@ public struct JobRunner: Sendable {
             // transcription hash, so taking them from ambient defaults would make
             // simply reopening a project re-transcribe it.
             locale: project.manifest.locale,
-            concurrency: project.manifest.concurrency)
+            concurrency: project.manifest.concurrency,
+            cleanDescription: Self.describe(options.clean),
+            polishDescription: Self.describe(options.polish))
 
         let plan = try await ResumePlanner().plan(for: project, inputs: inputs)
 
@@ -502,6 +504,27 @@ public struct JobRunner: Sendable {
         return Self.applyingLanguage(to: resolved)
     }
 
+    /// A stable textual form of the clean settings, for the stage hash.
+    ///
+    /// Written out by hand rather than taken from `hashValue`, which Swift
+    /// seeds per process and would therefore invalidate every stage on every
+    /// launch.
+    static func describe(_ p: CleanParameters) -> String {
+        "\(p.language.rawValue),\(p.removeFillers),\(p.collapseRepetitions),"
+            + "\(p.repairPunctuation),\(p.normalizeCapitalization),"
+            + "\(p.terminateSentences),\(p.maximumStutterGap.nanoseconds)"
+    }
+
+    static func describe(_ p: PolishParameters?) -> String {
+        guard let p else { return "none" }
+        let t = p.thresholds
+        return "\(p.language.rawValue),\(p.promptVersion),\(p.windowSize),"
+            + "\(p.contextSentences),\(p.retryOnRejection),"
+            + "\(t.maximumSemanticDistance),\(t.minimumLengthRatio),"
+            + "\(t.maximumLengthRatio),\(t.minimumContentWordOverlap),"
+            + "\(t.maximumContentWordInjection),\(t.perWindowPolarity)"
+    }
+
     /// Points the text stages at the language of `transcription.locale`.
     ///
     /// Applied twice: once from the manifest, and again after the language
@@ -540,7 +563,9 @@ public struct JobRunner: Sendable {
             // transcription hash, so taking them from ambient defaults would make
             // simply reopening a project re-transcribe it.
             locale: project.manifest.locale,
-            concurrency: project.manifest.concurrency)
+            concurrency: project.manifest.concurrency,
+            cleanDescription: Self.describe(options.clean),
+            polishDescription: Self.describe(options.polish))
     }
 
     /// Reads a produced variant back from a completed project.
