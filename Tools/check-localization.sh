@@ -10,7 +10,12 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # Every file that can produce a translatable key: the interface table plus
 # anything calling String(localized:). Discovered rather than listed, so a new
 # call site cannot quietly escape the check.
-SOURCES=("$ROOT/Sources/VoxScriptaApp/Strings.swift")
+# Found rather than named: the table moved from VoxScriptaApp to
+# VoxScriptaUI when the interface became a library, and a hardcoded path
+# failed the app build instead of saying so.
+TABLE="$(find "$ROOT/Sources" -name Strings.swift | head -1)"
+[ -n "$TABLE" ] || { echo "no Strings.swift under Sources" >&2; exit 1; }
+SOURCES=("$TABLE")
 while IFS= read -r file; do
     [ "$file" = "${SOURCES[0]}" ] || SOURCES+=("$file")
 done < <(grep -rl 'String(localized: "' "$ROOT/Sources" | sort)
@@ -20,6 +25,15 @@ for lproj in "$ROOT"/Resources/Localization/*.lproj; do
     language="$(basename "$lproj" .lproj)"
     strings="$lproj/Localizable.strings"
     [ -f "$strings" ] || continue
+
+    # English is the development language and the keys are English text, so
+    # en.lproj is deliberately empty — it exists only so the bundle declares
+    # English as a real localization rather than a fallback. Checking it would
+    # report every string as missing, which is how this was first noticed.
+    if [ "$language" = "en" ]; then
+        printf "  %-10s development language, no entries needed\n" "$language"
+        continue
+    fi
 
     missing=0
     while IFS=$'\t' read -r name english; do
