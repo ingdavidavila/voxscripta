@@ -1,0 +1,10 @@
+/* Vox Scripta — permission prompts.
+ *
+ * The system shows these, not the app, so they cannot be routed through
+ * Strings.swift. English is the development language and these values match
+ * the Info.plist exactly; the file exists so en.lproj is a real localization
+ * rather than a fallback, and so the Spanish file has something to match.
+ */
+
+/* NSMicrophoneUsageDescription */
+"NSMicrophoneUsageDescription" = "Vox Scripta records audio so it can transcribe it. Recordings are saved on this device and are never uploaded.";

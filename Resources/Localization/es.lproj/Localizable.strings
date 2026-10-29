@@ -5,14 +5,8 @@
  * fails the build if this file and Strings.swift drift apart.
  */
 
-/* dropRecording */
-"Drop a recording" = "Suelta una grabación";
-
-/* dropSubtitle */
+/* startSubtitle */
 "Interviews, meetings, lectures — any length." = "Entrevistas, reuniones, clases — de cualquier duración.";
-
-/* chooseAudio */
-"Choose Audio…" = "Elegir audio…";
 
 /* chooseAudioHelp */
 "Pick an audio file to transcribe. Vox Scripta reads it and never writes to it." = "Elige un archivo de audio para transcribir. Vox Scripta lo lee y nunca escribe en él.";
@@ -48,7 +42,7 @@
 "No recordings yet" = "Aún no hay grabaciones";
 
 /* noRecordingsDetail */
-"Drop an audio file to begin." = "Suelta un archivo de audio para empezar.";
+"Record something, or open a file." = "Graba algo o abre un archivo.";
 
 /* showInFinder */
 "Show in Finder" = "Mostrar en el Finder";
@@ -431,3 +425,96 @@
 /* settings sheet */
 "Settings" = "Ajustes";
 "Done" = "Listo";
+
+/* ── Recording ───────────────────────────────────────────────────── */
+
+/* startHere */
+"Record, or open a file" = "Graba o abre un archivo";
+
+/* chooseAudio */
+"Choose File…" = "Elegir archivo…";
+
+/* neverLeavesDevice */
+"Your audio never leaves this device" = "Tu audio nunca sale de este dispositivo";
+
+/* onThisDevice */
+"On this device" = "En este dispositivo";
+
+/* privacyBadgeHelpDevice */
+"Vox Scripta processes audio entirely on this device. It ships without network access and cannot upload anything." = "Vox Scripta procesa el audio íntegramente en este dispositivo. Se distribuye sin acceso a la red y no puede subir nada.";
+
+/* record */
+"Record" = "Grabar";
+
+/* recordHelp */
+"Record from the microphone. The recording is saved as a file and transcribed when you stop." = "Graba desde el micrófono. La grabación se guarda como archivo y se transcribe al detenerla.";
+
+/* recordingInProgress */
+"Recording…" = "Grabando…";
+
+/* recordingPaused */
+"Paused" = "En pausa";
+
+/* pauseRecording */
+"Pause" = "Pausar";
+
+/* pauseRecordingHelp */
+"Pause the microphone. Resuming continues the same recording." = "Pausa el micrófono. Al reanudar continúa la misma grabación.";
+
+/* resumeRecording */
+"Resume" = "Reanudar";
+
+/* resumeRecordingHelp */
+"Continue this recording." = "Continúa esta grabación.";
+
+/* finishRecording */
+"Stop and Transcribe" = "Detener y transcribir";
+
+/* finishRecordingHelp */
+"Stop recording, keep the audio file, and start transcribing it." = "Detiene la grabación, conserva el archivo de audio y empieza a transcribirlo.";
+
+/* discardRecording */
+"Discard" = "Descartar";
+
+/* discardRecordingHelp */
+"Delete this recording without transcribing it." = "Elimina esta grabación sin transcribirla.";
+
+/* discardRecordingTitle */
+"Discard this recording?" = "¿Descartar esta grabación?";
+
+/* discardRecordingMessage */
+"The audio will be deleted and nothing will be transcribed. This cannot be undone." = "El audio se eliminará y no se transcribirá nada. Esto no se puede deshacer.";
+
+/* keepRecording */
+"Keep Recording" = "Seguir grabando";
+
+/* microphoneNeeded */
+"Microphone access is off" = "El acceso al micrófono está desactivado";
+
+/* openSystemSettings */
+"Open Settings" = "Abrir Ajustes";
+
+/* openSystemSettingsHelp */
+"Open the system settings page where microphone access is granted." = "Abre la página de ajustes del sistema donde se concede el acceso al micrófono.";
+
+/* VoxScriptaError.microphoneDenied */
+"Vox Scripta does not have permission to use the microphone. Grant it in Settings, then try recording again." = "Vox Scripta no tiene permiso para usar el micrófono. Concédelo en Ajustes y vuelve a intentar grabar.";
+
+/* VoxScriptaError.recordingFailed */
+"The recording could not be started: %@." = "No se pudo iniciar la grabación: %@.";
+
+/* AppModel, recording too short */
+"That recording was too short to transcribe." = "Esa grabación fue demasiado corta para transcribirla.";
+
+/* AudioRecorder, default file name */
+"Recording" = "Grabación";
+
+/* AudioRecorder, busy microphone */
+"the microphone is in use by something else" = "el micrófono lo está usando otra aplicación";
+
+/* recordingStarting */
+"Opening the microphone…" = "Abriendo el micrófono…";
+
+/* AudioRecorder, start deadline */
+"the microphone did not start" = "el micrófono no se inició";
+

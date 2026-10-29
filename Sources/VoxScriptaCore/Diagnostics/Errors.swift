@@ -27,6 +27,15 @@ public enum VoxScriptaError: Error, Sendable, Equatable {
     /// indistinguishable from success.
     case noWordsRecognized(locale: String)
 
+    // ── Recording ───────────────────────────────────────────────────────────
+    /// The microphone was refused, so there is nothing to record from.
+    ///
+    /// Separate from ``recordingFailed`` because the remedy is different: this
+    /// one is fixed in system settings, not by trying again.
+    case microphoneDenied
+    /// Capture could not start, or stopped unexpectedly.
+    case recordingFailed(reason: String)
+
     // ── Analysis ────────────────────────────────────────────────────────────
     case analysisFailed(stage: String, reason: String)
     /// The detector found no speech at all. Not a crash — a result the UI must explain.
@@ -67,6 +76,7 @@ public enum VoxScriptaError: Error, Sendable, Equatable {
         case .sourceUnavailable, .sourceChanged, .unsupportedFormat, .decodingFailed,
              .noAudioTrack, .unsupportedContainer, .noWordsRecognized,
              .analysisFailed, .noSpeechDetected, .localeUnsupported, .modelAssetMissing,
+             .microphoneDenied, .recordingFailed,
              .contextWindowExceeded, .validationRejected, .projectCorrupt, .schemaTooNew,
              .insufficientDiskSpace, .cancelled, .notImplemented:
             return false
@@ -119,6 +129,10 @@ extension VoxScriptaError: LocalizedError {
             String(localized: "The audio could not be decoded: \(reason).")
         case .noWordsRecognized(let locale):
             String(localized: "No words were recognised. This recording was transcribed as \(locale) — if it is in another language, change it in Settings and import the file again.")
+        case .microphoneDenied:
+            String(localized: "Vox Scripta does not have permission to use the microphone. Grant it in Settings, then try recording again.")
+        case .recordingFailed(let reason):
+            String(localized: "The recording could not be started: \(reason).")
         case .analysisFailed(let stage, let reason):
             String(localized: "Audio analysis failed during \(stage): \(reason).")
         case .noSpeechDetected:

@@ -54,4 +54,22 @@ for lproj in "$ROOT"/Resources/Localization/*.lproj; do
     fi
 done
 
+# Permission prompts live in InfoPlist.strings, which the system reads and
+# Strings.swift cannot reach. Same failure mode — an untranslated prompt looks
+# deliberate — so the same comparison, against en.lproj as the reference.
+REFERENCE="$ROOT/Resources/Localization/en.lproj/InfoPlist.strings"
+if [ -f "$REFERENCE" ]; then
+    for lproj in "$ROOT"/Resources/Localization/*.lproj; do
+        language="$(basename "$lproj" .lproj)"
+        [ "$language" = "en" ] && continue
+        translated="$lproj/InfoPlist.strings"
+        while read -r key; do
+            if [ ! -f "$translated" ] || ! grep -Fq "\"$key\" = " "$translated"; then
+                printf "  %-10s missing Info.plist prompt: %s\n" "$language" "$key"
+                STATUS=1
+            fi
+        done < <(grep -o '^"[A-Za-z]*" = ' "$REFERENCE" | tr -d '"' | sed 's/ = //')
+    done
+fi
+
 exit $STATUS

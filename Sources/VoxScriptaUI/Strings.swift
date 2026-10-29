@@ -23,14 +23,65 @@ enum Strings {
 
     // MARK: - Import
 
-    static let dropRecording: LocalizedStringKey = "Drop a recording"
-    static let dropSubtitle: LocalizedStringKey = "Interviews, meetings, lectures — any length."
-    static let chooseAudio: LocalizedStringKey = "Choose Audio…"
+    /// The empty state's headline.
+    ///
+    /// It used to read "Drop a recording", which is a Mac instruction: there
+    /// is nothing to drag from on a phone, and the audio a person wants
+    /// transcribed is usually either in Files or still unrecorded. Both routes
+    /// are named instead of one being assumed.
+    static let startHere: LocalizedStringKey = "Record, or open a file"
+    static let startSubtitle: LocalizedStringKey = "Interviews, meetings, lectures — any length."
+    static let chooseAudio: LocalizedStringKey = "Choose File…"
     static let chooseAudioHelp: LocalizedStringKey = """
         Pick an audio file to transcribe. Vox Scripta reads it and never writes to it.
         """
-    static let neverLeaves: LocalizedStringKey = "Your audio never leaves this Mac"
+    static let neverLeavesMac: LocalizedStringKey = "Your audio never leaves this Mac"
+    static let neverLeavesDevice: LocalizedStringKey = "Your audio never leaves this device"
+    /// A function rather than a computed property on purpose: the string
+    /// extractor reads `static let` declarations and would take only the first
+    /// literal out of a branching property, silently dropping the other
+    /// platform's wording from translation.
+    static func neverLeaves() -> LocalizedStringKey {
+        #if os(macOS)
+        neverLeavesMac
+        #else
+        neverLeavesDevice
+        #endif
+    }
     static let originalUnmodified: LocalizedStringKey = "The original file is never modified."
+
+    // MARK: - Recording
+
+    static let record: LocalizedStringKey = "Record"
+    static let recordHelp: LocalizedStringKey = """
+        Record from the microphone. The recording is saved as a file and \
+        transcribed when you stop.
+        """
+    static let recordingStarting: LocalizedStringKey = "Opening the microphone…"
+    static let recordingInProgress: LocalizedStringKey = "Recording…"
+    static let recordingPaused: LocalizedStringKey = "Paused"
+    static let pauseRecording: LocalizedStringKey = "Pause"
+    static let pauseRecordingHelp: LocalizedStringKey = """
+        Pause the microphone. Resuming continues the same recording.
+        """
+    static let resumeRecording: LocalizedStringKey = "Resume"
+    static let resumeRecordingHelp: LocalizedStringKey = "Continue this recording."
+    static let finishRecording: LocalizedStringKey = "Stop and Transcribe"
+    static let finishRecordingHelp: LocalizedStringKey = """
+        Stop recording, keep the audio file, and start transcribing it.
+        """
+    static let discardRecording: LocalizedStringKey = "Discard"
+    static let discardRecordingHelp: LocalizedStringKey = "Delete this recording without transcribing it."
+    static let discardRecordingTitle: LocalizedStringKey = "Discard this recording?"
+    static let discardRecordingMessage: LocalizedStringKey = """
+        The audio will be deleted and nothing will be transcribed. This cannot be undone.
+        """
+    static let keepRecording: LocalizedStringKey = "Keep Recording"
+    static let microphoneNeeded: LocalizedStringKey = "Microphone access is off"
+    static let openSystemSettings: LocalizedStringKey = "Open Settings"
+    static let openSystemSettingsHelp: LocalizedStringKey = """
+        Open the system settings page where microphone access is granted.
+        """
 
     // MARK: - Library and toolbar
 
@@ -43,13 +94,32 @@ enum Strings {
         Stop processing. Finished work is kept and can be resumed.
         """
     static let onThisMac: LocalizedStringKey = "On this Mac"
-    static let privacyBadgeHelp: LocalizedStringKey = """
+    static let onThisDevice: LocalizedStringKey = "On this device"
+    static func onThisMachine() -> LocalizedStringKey {
+        #if os(macOS)
+        onThisMac
+        #else
+        onThisDevice
+        #endif
+    }
+    static let privacyBadgeHelpMac: LocalizedStringKey = """
         Vox Scripta processes audio entirely on this Mac. It ships without network \
         access and cannot upload anything.
         """
+    static let privacyBadgeHelpDevice: LocalizedStringKey = """
+        Vox Scripta processes audio entirely on this device. It ships without network \
+        access and cannot upload anything.
+        """
+    static func privacyBadgeHelp() -> LocalizedStringKey {
+        #if os(macOS)
+        privacyBadgeHelpMac
+        #else
+        privacyBadgeHelpDevice
+        #endif
+    }
     static let recordings: LocalizedStringKey = "Recordings"
     static let noRecordings: LocalizedStringKey = "No recordings yet"
-    static let noRecordingsDetail: LocalizedStringKey = "Drop an audio file to begin."
+    static let noRecordingsDetail: LocalizedStringKey = "Record something, or open a file."
     static let showInFinder: LocalizedStringKey = "Show in Finder"
     static let showInFinderHelp: LocalizedStringKey = "Reveal this recording's project folder."
     static let deleteEllipsis: LocalizedStringKey = "Delete…"

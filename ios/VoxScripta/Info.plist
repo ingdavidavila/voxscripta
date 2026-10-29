@@ -19,6 +19,13 @@
       makes — and there is no network key here for the same reason the Mac
       bundle has no network entitlement.
     -->
+    <!--
+      The microphone, for recordings made in the app. Nothing else is
+      requested: there is no camera key, no location key, and still no network
+      key — a recording is written to this device and transcribed on it.
+    -->
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Vox Scripta records audio so it can transcribe it. Recordings are saved on this device and are never uploaded.</string>
     <key>UIFileSharingEnabled</key><true/>
     <key>LSSupportsOpeningDocumentsInPlace</key><true/>
     <key>UISupportedInterfaceOrientations</key>

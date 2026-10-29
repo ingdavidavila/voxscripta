@@ -99,6 +99,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleVersion</key><string>$BUILD</string>
     <key>LSMinimumSystemVersion</key><string>26.0</string>
     <key>NSHighResolutionCapable</key><true/>
+    <key>NSMicrophoneUsageDescription</key><string>Vox Scripta records audio so it can transcribe it. Recordings are saved on this device and are never uploaded.</string>
     <key>NSHumanReadableCopyright</key><string>Local-first transcription. Your audio never leaves this Mac.</string>
 </dict>
 </plist>
@@ -112,6 +113,10 @@ cat > "$ROOT/build/VoxScripta.entitlements" <<ENT
 <dict>
     <key>com.apple.security.app-sandbox</key><false/>
     <key>com.apple.security.files.user-selected.read-only</key><true/>
+    <!-- Recording in the app needs the microphone, and the hardened runtime
+         denies it without this. It grants input only: there is still no
+         network, no camera, and no address book. -->
+    <key>com.apple.security.device.audio-input</key><true/>
 </dict>
 </plist>
 ENT

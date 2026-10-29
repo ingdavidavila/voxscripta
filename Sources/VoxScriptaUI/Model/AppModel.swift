@@ -205,6 +205,113 @@ public final class AppModel {
         }
     }
 
+    // ── Recording ───────────────────────────────────────────────────────────
+
+    /// The microphone, when one is open.
+    ///
+    /// Observable in its own right, so a view reading `model.recorder.elapsed`
+    /// is updated by the recorder's ticker without this type forwarding
+    /// anything.
+    let recorder = AudioRecorder()
+
+    /// Whether the settings sheet is up.
+    ///
+    /// On the model rather than the view because the button that opens it and
+    /// the sheet that it opens are no longer in the same view: iOS hangs the
+    /// toolbar off the sidebar and the sheet off the root.
+    var isShowingSettings = false
+
+    /// Whether the recording screen is up.
+    ///
+    /// Held separately from the recorder's own state so the screen can be
+    /// presented for the instant before capture begins, and torn down in one
+    /// place when it ends.
+    var isShowingRecorder = false
+
+    /// Set when the microphone has been refused, to offer the way to fix it.
+    var isMicrophoneDenied = false
+
+    /// Opens the microphone, asking for permission first if it has never been asked.
+    ///
+    /// The permission prompt is the reason this is not simply `recorder.start()`:
+    /// the system sheet is asynchronous, and starting before the user answers
+    /// records nothing.
+    func beginRecording() {
+        errorMessage = nil
+        switch AudioRecorder.permission {
+        case .granted:
+            startRecording()
+        case .denied:
+            isMicrophoneDenied = true
+        case .undetermined:
+            Task { [weak self] in
+                let granted = await AudioRecorder.requestPermission()
+                guard let self else { return }
+                if granted { self.startRecording() } else { self.isMicrophoneDenied = true }
+            }
+        }
+    }
+
+    /// Shows the recording screen, then opens the microphone behind it.
+    ///
+    /// In that order on purpose. Opening the microphone is not instant, and
+    /// presenting only once it succeeds means the button does nothing visible
+    /// for as long as the audio route takes — which, when the route is
+    /// broken, is forever.
+    private func startRecording() {
+        isShowingRecorder = true
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await recorder.start()
+            } catch {
+                isShowingRecorder = false
+                fail(error)
+            }
+        }
+    }
+
+    /// Stops the microphone and sends the recording through the ordinary import.
+    ///
+    /// The file keeps its place on disk and is referenced, not consumed: from
+    /// here on it is an original like any other, and §5 applies to it in full.
+    func finishRecording() {
+        let url = recorder.finish()
+        isShowingRecorder = false
+        guard let url else {
+            errorMessage = String(localized: "That recording was too short to transcribe.")
+            return
+        }
+        importAudio(at: url)
+    }
+
+    /// Stops the microphone and deletes what was captured.
+    ///
+    /// Called only from a confirmation the user answered, and only while the
+    /// recording has not yet become a project.
+    func discardRecording() {
+        recorder.discard()
+        isShowingRecorder = false
+    }
+
+    /// Opens the system page where microphone access is granted.
+    ///
+    /// There is nothing this app can do about a refused microphone except
+    /// point at the switch, so it points precisely rather than describing a
+    /// path through a settings app.
+    func openMicrophoneSettings() {
+        isMicrophoneDenied = false
+        #if os(macOS)
+        let url = URL(string:
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")
+        if let url { NSWorkspace.shared.open(url) }
+        #else
+        if let url = URL(string: UIApplication.openSettingsURLString) {
+            UIApplication.shared.open(url)
+        }
+        #endif
+    }
+
     /// Opens a project unless it is already the one on screen.
     ///
     /// Selection changes fire when a job opens a project too, so without this
