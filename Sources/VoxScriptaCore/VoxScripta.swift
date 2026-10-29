@@ -9,7 +9,7 @@ public enum VoxScripta {
     ///
     /// Tools/make-app-bundle.sh reads this constant rather than repeating the
     /// number, and fails the build if it cannot parse it.
-    public static let version = "0.2.0"
+    public static let version = "0.3.0"
 
     /// On-disk project schema version. Bumped whenever the project package layout
     /// changes; `schemaTooNew` is raised when a project exceeds this.
