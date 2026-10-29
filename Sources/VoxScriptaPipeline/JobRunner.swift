@@ -512,7 +512,11 @@ public struct JobRunner: Sendable {
     static func describe(_ p: CleanParameters) -> String {
         "\(p.language.rawValue),\(p.removeFillers),\(p.collapseRepetitions),"
             + "\(p.repairPunctuation),\(p.normalizeCapitalization),"
-            + "\(p.terminateSentences),\(p.maximumStutterGap.nanoseconds)"
+            + "\(p.terminateSentences),\(p.maximumStutterGap.nanoseconds),"
+            // Every field, so that changing any of them re-runs the stage.
+            // A parameter left out here is a setting that appears to do
+            // nothing, which this file has already shipped once.
+            + "\(p.confidenceFloor.map { String($0) } ?? "none")"
     }
 
     static func describe(_ p: PolishParameters?) -> String {

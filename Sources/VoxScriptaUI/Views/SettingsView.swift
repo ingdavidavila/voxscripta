@@ -113,6 +113,8 @@ public struct SettingsView: View {
                         .help(Strings.removeFillersHelp)
                     Toggle(Strings.collapseStutters, isOn: $model.settings.collapseRepetitions)
                         .help(Strings.collapseStuttersHelp)
+                    Toggle(Strings.dropLowConfidence, isOn: $model.settings.dropLowConfidence)
+                        .help(Strings.dropLowConfidenceHelp)
                     Text(Strings.cleanFooter)
                         .font(.caption).foregroundStyle(.secondary)
                 }

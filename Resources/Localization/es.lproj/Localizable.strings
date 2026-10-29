@@ -255,7 +255,7 @@
 "Turn “the the the point” into “the point”. Only exact repeats are collapsed." = "Convierte “el el el punto” en “el punto”. Solo se unen repeticiones idénticas.";
 
 /* cleanFooter */
-"Clean uses fixed rules. No language model is involved, and it can only delete filler words — never rewrite what was said." = "La versión limpia usa reglas fijas. No interviene ningún modelo de lenguaje y solo puede borrar muletillas, nunca reescribir lo que se dijo.";
+"Clean uses fixed rules. No language model is involved: it deletes filler words and sentences the engine was unsure of, and never rewrites what was said." = "La versión limpia usa reglas fijas. No interviene ningún modelo de lenguaje: borra muletillas y frases de las que el motor no estaba seguro, y nunca reescribe lo que se dijo.";
 
 /* createPolished */
 "Create a polished transcript" = "Crear una transcripción pulida";
@@ -517,4 +517,10 @@
 
 /* AudioRecorder, start deadline */
 "the microphone did not start" = "el micrófono no se inició";
+
+/* dropLowConfidence */
+"Drop unsure sentences" = "Descartar frases dudosas";
+
+/* dropLowConfidenceHelp */
+"Leave out sentences the engine was unsure of. Near-silence makes it invent words rather than return none, so a recording that opens with a quiet room opens with things nobody said. Whatever is dropped stays in the verbatim transcript and is listed in the edit log." = "Omite las frases de las que el motor no estaba seguro. Con casi silencio el motor inventa texto en vez de no devolver nada, así que una grabación que empieza con una sala en silencio empieza con palabras que nadie dijo. Las frases descartadas se registran en el historial de cambios y se conservan en la transcripción literal.";
 

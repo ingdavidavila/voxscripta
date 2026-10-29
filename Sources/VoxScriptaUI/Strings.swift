@@ -322,10 +322,20 @@ enum Strings {
         Turn “the the the point” into “the point”. Only exact repeats are collapsed.
         """
     }
+    static var dropLowConfidence: LocalizedStringKey { "Drop unsure sentences" }
+    static var dropLowConfidenceHelp: LocalizedStringKey {
+        """
+        Leave out sentences the engine was unsure of. Near-silence makes it \
+        invent words rather than return none, so a recording that opens with a \
+        quiet room opens with things nobody said. Whatever is dropped stays in \
+        the verbatim transcript and is listed in the edit log.
+        """
+    }
     static var cleanFooter: LocalizedStringKey {
         """
-        Clean uses fixed rules. No language model is involved, and it can only \
-        delete filler words — never rewrite what was said.
+        Clean uses fixed rules. No language model is involved: it deletes \
+        filler words and sentences the engine was unsure of, and never \
+        rewrites what was said.
         """
     }
     static var createPolished: LocalizedStringKey { "Create a polished transcript" }

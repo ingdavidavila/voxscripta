@@ -27,6 +27,12 @@ struct AppSettings: Codable, Sendable, Equatable {
     // Language
     var removeFillers: Bool = true
     var collapseRepetitions: Bool = true
+    /// Drop sentences the engine was unsure of.
+    ///
+    /// On by default. Asked to transcribe near-silence the engine invents
+    /// text rather than returning none, and recording in the app means every
+    /// transcript now begins with a few seconds of an empty room.
+    var dropLowConfidence: Bool = true
     var polishEnabled: Bool = true
     /// Which language model polishes.
     ///
@@ -75,6 +81,7 @@ struct AppSettings: Codable, Sendable, Equatable {
         p.language = transcriptLanguage ?? .english
         p.removeFillers = removeFillers
         p.collapseRepetitions = collapseRepetitions
+        p.confidenceFloor = dropLowConfidence ? CleanParameters.defaultConfidenceFloor : nil
         return p
     }
 
