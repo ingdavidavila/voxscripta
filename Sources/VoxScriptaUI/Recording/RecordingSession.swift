@@ -49,6 +49,9 @@ final class RecordingSession: NSObject, AVCaptureAudioDataOutputSampleBufferDele
     private let firstBuffer = DispatchSemaphore(value: 0)
     private var hasSignalled = false
 
+    /// Held for the life of the recording, to keep the system awake.
+    private var activity: (any NSObjectProtocol)?
+
     private let lock = NSLock()
     private var _elapsed: TimeInterval = 0
     /// Decibels full scale. Starts at the floor, not at zero: zero is *full
@@ -56,6 +59,13 @@ final class RecordingSession: NSObject, AVCaptureAudioDataOutputSampleBufferDele
     private var _level: Double = -160
     private var _isPaused = false
     private var _failure: String?
+    /// Set while something outside the app has taken the microphone.
+    ///
+    /// Distinct from ``_isPaused``, which is the user's own doing. The two
+    /// behave the same way in the file — the timeline skips the gap — but
+    /// only one of them needs explaining on screen, because a clock that
+    /// stops on its own looks like a bug.
+    private var _interruption: String?
 
     /// Timeline bookkeeping, touched only on ``queue``.
     private var firstSample: CMTime?
@@ -74,6 +84,9 @@ final class RecordingSession: NSObject, AVCaptureAudioDataOutputSampleBufferDele
     /// Set when the writer failed mid-recording, so the UI can say so instead
     /// of showing a clock that has quietly stopped.
     var failure: String? { lock.withLock { _failure } }
+
+    /// Why recording is on hold, when something other than the user paused it.
+    var interruption: String? { lock.withLock { _interruption } }
 
     // MARK: - Transport
 
@@ -124,9 +137,29 @@ final class RecordingSession: NSObject, AVCaptureAudioDataOutputSampleBufferDele
             throw VoxScriptaError.recordingFailed(reason: error.localizedDescription)
         }
 
-        NotificationCenter.default.addObserver(
-            self, selector: #selector(sessionFailed(_:)),
-            name: .AVCaptureSessionRuntimeError, object: session)
+        let centre = NotificationCenter.default
+        centre.addObserver(self, selector: #selector(sessionFailed(_:)),
+                           name: .AVCaptureSessionRuntimeError, object: session)
+        // The capture session's own interruptions: another app taking the
+        // device, or the system taking it back.
+        centre.addObserver(self, selector: #selector(captureInterrupted(_:)),
+                           name: .AVCaptureSessionWasInterrupted, object: session)
+        centre.addObserver(self, selector: #selector(captureResumed(_:)),
+                           name: .AVCaptureSessionInterruptionEnded, object: session)
+        #if os(iOS) || os(visionOS)
+        // And the one that matters most on a phone: a call. Without this a
+        // two-hour lecture ends the moment someone rings.
+        centre.addObserver(self, selector: #selector(audioInterrupted(_:)),
+                           name: AVAudioSession.interruptionNotification,
+                           object: AVAudioSession.sharedInstance())
+        #endif
+
+        // Recording is user-initiated work that must not be napped or slept
+        // through. On the Mac this is what stops the machine idling out from
+        // under a long recording.
+        activity = ProcessInfo.processInfo.beginActivity(
+            options: [.userInitiated, .idleSystemSleepDisabled],
+            reason: "Recording audio")
 
         session.startRunning()
         guard session.isRunning else {
@@ -199,7 +232,13 @@ final class RecordingSession: NSObject, AVCaptureAudioDataOutputSampleBufferDele
 
     deinit { NotificationCenter.default.removeObserver(self) }
 
+    private func endActivity() {
+        if let activity { ProcessInfo.processInfo.endActivity(activity) }
+        activity = nil
+    }
+
     private func deactivateAudioSession() {
+        endActivity()
         #if os(iOS) || os(visionOS)
         try? AVAudioSession.sharedInstance().setActive(
             false, options: .notifyOthersOnDeactivation)
@@ -270,6 +309,70 @@ final class RecordingSession: NSObject, AVCaptureAudioDataOutputSampleBufferDele
 
     private func fail(_ reason: String) {
         lock.withLock { if _failure == nil { _failure = reason } }
+    }
+
+    @objc private func captureInterrupted(_ note: Notification) {
+        // The system says why. Reporting the actual reason matters because
+        // the remedies differ: ending a call is the user's to do, while the
+        // app being backgrounded is not something they need to act on.
+        var reason = String(localized: "the system paused the microphone")
+        // The reason key exists only where interruptions have reasons; macOS
+        // posts the notification without one.
+        #if os(iOS) || os(visionOS)
+        let raw = note.userInfo?[AVCaptureSessionInterruptionReasonKey] as? Int
+        if raw.flatMap(AVCaptureSession.InterruptionReason.init(rawValue:))
+            == .audioDeviceInUseByAnotherClient {
+            reason = String(localized: "another app is using the microphone")
+        }
+        #endif
+        beginInterruption(reason)
+    }
+
+    @objc private func captureResumed(_ note: Notification) {
+        endInterruption()
+    }
+
+    #if os(iOS) || os(visionOS)
+    @objc private func audioInterrupted(_ note: Notification) {
+        let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt ?? 0
+        switch AVAudioSession.InterruptionType(rawValue: raw) {
+        case .began:
+            beginInterruption(String(localized: "a call or another app took the microphone"))
+        case .ended:
+            // The system says whether it is our turn again. If it is not,
+            // the recording stays on hold rather than quietly capturing
+            // nothing, and the screen keeps saying so.
+            let options = note.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
+            guard AVAudioSession.InterruptionOptions(rawValue: options).contains(.shouldResume)
+            else { return }
+            try? AVAudioSession.sharedInstance().setActive(true)
+            if !session.isRunning { session.startRunning() }
+            endInterruption()
+        default:
+            break
+        }
+    }
+    #endif
+
+    /// Holds the recording without ending it, and says why.
+    ///
+    /// The same mechanism as a user pause, so the written timeline simply
+    /// skips the gap and the file contains no silence that was never
+    /// recorded.
+    private func beginInterruption(_ reason: String) {
+        lock.withLock {
+            guard _interruption == nil else { return }
+            _interruption = reason
+            _isPaused = true
+        }
+    }
+
+    private func endInterruption() {
+        lock.withLock {
+            guard _interruption != nil else { return }
+            _interruption = nil
+            _isPaused = false
+        }
     }
 
     /// The writer, configured so an unfinished file is still a readable one.

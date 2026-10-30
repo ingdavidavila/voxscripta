@@ -64,6 +64,12 @@ public final class AudioRecorder {
     /// Where the current recording is being written, while one is running.
     private(set) public var fileURL: URL?
 
+    /// Why recording is on hold, when the user did not pause it.
+    ///
+    /// The clock stops when no audio arrives, and a clock that stops on its
+    /// own looks like a bug rather than a phone call.
+    private(set) public var interruption: String?
+
     /// Set when the writer failed part-way through.
     ///
     /// The recording is not discarded when this happens: what reached the
@@ -196,6 +202,7 @@ public final class AudioRecorder {
         elapsed = 0
         levels = []
         writeFailure = nil
+        interruption = nil
 
         // Unstructured on purpose. A task group awaits every one of its
         // children before it exits, so a group cannot put a deadline on work
@@ -392,6 +399,7 @@ public final class AudioRecorder {
                     self.writeFailure = failure
                     return
                 }
+                self.interruption = session.interruption
                 let now = session.elapsed
                 if Int(now) != Int(self.elapsed) { self.elapsed = now }
                 self.append(level: Self.normalize(Float(session.level)))

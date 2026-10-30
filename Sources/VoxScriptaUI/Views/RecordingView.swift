@@ -35,6 +35,21 @@ struct RecordingView: View {
             // which looks exactly like a microphone that went quiet. What
             // reached the disk is still a readable recording, so this says so
             // and leaves Stop as the way to keep it.
+            // Something else has the microphone. Recording is held rather
+            // than ended, so this says so instead of leaving a frozen clock.
+            if let reason = recorder.interruption {
+                Label {
+                    VStack(spacing: 2) {
+                        Text(Strings.recordingInterrupted)
+                        Text(reason).font(.caption).foregroundStyle(.secondary)
+                    }
+                } icon: {
+                    Image(systemName: "pause.circle.fill").foregroundStyle(.orange)
+                }
+                .font(.callout)
+                .multilineTextAlignment(.center)
+            }
+
             if let failure = recorder.writeFailure {
                 Label {
                     VStack(spacing: 2) {

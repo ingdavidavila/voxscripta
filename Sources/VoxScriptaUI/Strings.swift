@@ -57,6 +57,9 @@ enum Strings {
         Record from the microphone. The recording is saved as a file and \
         transcribed when you stop.
         """
+    static let recordingInterrupted: LocalizedStringKey = """
+        On hold — recording continues by itself when the microphone is free.
+        """
     static let recordingWriteFailed: LocalizedStringKey = """
         Recording stopped early. What was captured up to this point is kept.
         """

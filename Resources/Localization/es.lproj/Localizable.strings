@@ -539,3 +539,15 @@
 /* RecordingSession, capture interrupted */
 "the microphone stopped unexpectedly" = "el micrófono se detuvo inesperadamente";
 
+/* recordingInterrupted */
+"On hold — recording continues by itself when the microphone is free." = "En espera: la grabación continuará sola cuando el micrófono esté libre.";
+
+/* RecordingSession, call interruption */
+"a call or another app took the microphone" = "una llamada u otra app tomó el micrófono";
+
+/* RecordingSession, another app has the device */
+"another app is using the microphone" = "otra app está usando el micrófono";
+
+/* RecordingSession, system-initiated interruption */
+"the system paused the microphone" = "el sistema pausó el micrófono";
+

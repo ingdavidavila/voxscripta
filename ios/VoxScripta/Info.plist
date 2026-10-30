@@ -24,6 +24,15 @@
       requested: there is no camera key, no location key, and still no network
       key — a recording is written to this device and transcribed on it.
     -->
+    <!--
+      Audio only, and only so a recording survives the screen locking or the
+      user switching apps mid-lecture. Without it iOS suspends the app and
+      the capture session stops, which for a two-hour recording means losing
+      everything after the moment of distraction. There is still no network
+      key, no location key and no camera key.
+    -->
+    <key>UIBackgroundModes</key>
+    <array><string>audio</string></array>
     <key>NSMicrophoneUsageDescription</key>
     <string>Vox Scripta records audio so it can transcribe it. Recordings are saved on this device and are never uploaded.</string>
     <key>UIFileSharingEnabled</key><true/>
