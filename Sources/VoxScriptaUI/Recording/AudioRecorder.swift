@@ -48,6 +48,10 @@ public final class AudioRecorder {
     ///
     /// Read from the recorder rather than counted here: a timer that ticks
     /// while the encoder stalls would show a length the file does not have.
+    ///
+    /// Published only when the whole second changes. The clock is the only
+    /// reader and it shows whole seconds, so assigning this on every meter
+    /// tick invalidated the view ten times for each visible change.
     private(set) public var elapsed: TimeInterval = 0
 
     /// Recent input levels, oldest first, each 0…1.
@@ -63,11 +67,13 @@ public final class AudioRecorder {
     /// How many level samples the meter keeps.
     private static let meterHistory = 48
 
-    /// Polling interval for the clock and the meter.
+    /// Polling interval for the meter.
     ///
-    /// Twenty a second: fast enough that the meter moves with the voice, slow
-    /// enough to be free next to an audio encoder.
-    private static let tick = Duration.milliseconds(50)
+    /// Ten a second. It was twenty, which redrew the whole recording screen
+    /// twice as often for a meter nobody can read any better at that rate.
+    /// A level meter exists to show that the microphone is hearing something,
+    /// and ten updates a second shows that just as well.
+    private static let tick = Duration.milliseconds(100)
 
     private var recorder: AVAudioRecorder?
     private var ticker: Task<Void, Never>?
@@ -401,7 +407,8 @@ public final class AudioRecorder {
                 try? await Task.sleep(for: Self.tick)
                 guard let self, let recorder = self.recorder, recorder.isRecording else { return }
                 recorder.updateMeters()
-                self.elapsed = recorder.currentTime
+                let now = recorder.currentTime
+                if Int(now) != Int(self.elapsed) { self.elapsed = now }
                 self.append(level: Self.normalize(recorder.averagePower(forChannel: 0)))
             }
         }
