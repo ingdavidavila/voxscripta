@@ -524,3 +524,12 @@
 /* dropLowConfidenceHelp */
 "Leave out sentences the engine was unsure of. Near-silence makes it invent words rather than return none, so a recording that opens with a quiet room opens with things nobody said. Whatever is dropped stays in the verbatim transcript and is listed in the edit log." = "Omite las frases de las que el motor no estaba seguro. Con casi silencio el motor inventa texto en vez de no devolver nada, así que una grabación que empieza con una sala en silencio empieza con palabras que nadie dijo. Las frases descartadas se registran en el historial de cambios y se conservan en la transcripción literal.";
 
+/* recordingWriteFailed */
+"Recording stopped early. What was captured up to this point is kept." = "La grabación se detuvo antes de tiempo. Se conserva lo capturado hasta este momento.";
+
+/* RecordingSession, no input device */
+"no microphone is available" = "no hay ningún micrófono disponible";
+
+/* RecordingSession, capture session would not configure */
+"the microphone could not be opened" = "no se pudo abrir el micrófono";
+

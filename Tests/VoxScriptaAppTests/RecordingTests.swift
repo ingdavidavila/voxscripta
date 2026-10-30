@@ -111,14 +111,32 @@ struct RecordingTests {
 
     // MARK: - Encoder settings
 
-    @Test("Recording is mono, so nothing is captured twice")
-    func encoderIsMono() {
-        let settings = AudioRecorder.encoderSettings
-        #expect(settings[AVNumberOfChannelsKey] as? Int == 1)
-        #expect(settings[AVFormatIDKey] as? Int == Int(kAudioFormatMPEG4AAC))
-        // Well above the 16 kHz the pipeline resamples to, so the recording is
-        // never the limiting factor in what gets recognised.
-        #expect((settings[AVSampleRateKey] as? Double ?? 0) >= 16_000)
+    @Test("The encoder takes the microphone's own rate and channel count")
+    func encoderFollowsTheSource() {
+        // Nothing is resampled or downmixed on the way in: whatever the device
+        // produces is what gets encoded, because asking the writer to convert
+        // is supported unevenly across the two platforms. The pipeline reduces
+        // it to 16 kHz mono later regardless.
+        let mono = RecordingSession.encoderSettings(sampleRate: 44_100, channels: 1)
+        #expect(mono[AVFormatIDKey] as? Int == Int(kAudioFormatMPEG4AAC))
+        #expect(mono[AVNumberOfChannelsKey] as? Int == 1)
+        #expect(mono[AVSampleRateKey] as? Double == 44_100)
+
+        let stereo = RecordingSession.encoderSettings(sampleRate: 48_000, channels: 2)
+        #expect(stereo[AVNumberOfChannelsKey] as? Int == 2)
+        #expect(stereo[AVSampleRateKey] as? Double == 48_000)
+        // More channels, more bits, so neither is starved.
+        #expect((stereo[AVEncoderBitRateKey] as? Int ?? 0)
+                > (mono[AVEncoderBitRateKey] as? Int ?? 0))
+    }
+
+    @Test("Absurd source formats are clamped rather than passed through")
+    func encoderClampsNonsense() {
+        let none = RecordingSession.encoderSettings(sampleRate: 0, channels: 0)
+        #expect((none[AVSampleRateKey] as? Double ?? 0) > 0)
+        #expect(none[AVNumberOfChannelsKey] as? Int == 1)
+        let many = RecordingSession.encoderSettings(sampleRate: 44_100, channels: 8)
+        #expect(many[AVNumberOfChannelsKey] as? Int == 2)
     }
 
     // MARK: - State
@@ -131,7 +149,6 @@ struct RecordingTests {
         #expect(recorder.fileURL == nil)
         #expect(recorder.elapsed == 0)
         #expect(recorder.levels.isEmpty)
-        // Nothing to stop, and asking must not produce a file.
-        #expect(recorder.finish() == nil)
+        #expect(recorder.writeFailure == nil)
     }
 }

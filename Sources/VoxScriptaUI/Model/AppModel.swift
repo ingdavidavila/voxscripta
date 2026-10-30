@@ -276,13 +276,20 @@ public final class AppModel {
     /// The file keeps its place on disk and is referenced, not consumed: from
     /// here on it is an original like any other, and §5 applies to it in full.
     func finishRecording() {
-        let url = recorder.finish()
+        // The screen closes at once. Finalizing the file takes a moment and
+        // there is nothing to watch while it happens — and if the app died
+        // during it the recording would still be readable, which is the point
+        // of writing it in fragments.
         isShowingRecorder = false
-        guard let url else {
-            errorMessage = String(localized: "That recording was too short to transcribe.")
-            return
+        Task { [weak self] in
+            guard let self else { return }
+            let url = await recorder.finish()
+            guard let url else {
+                errorMessage = String(localized: "That recording was too short to transcribe.")
+                return
+            }
+            importAudio(at: url)
         }
-        importAudio(at: url)
     }
 
     /// Stops the microphone and deletes what was captured.

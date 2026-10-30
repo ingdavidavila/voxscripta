@@ -31,6 +31,24 @@ struct RecordingView: View {
                 .contentTransition(.numericText())
                 .accessibilityLabel(Text(Self.clock(recorder.elapsed)))
 
+            // A writer that fails part-way stops the clock and says nothing,
+            // which looks exactly like a microphone that went quiet. What
+            // reached the disk is still a readable recording, so this says so
+            // and leaves Stop as the way to keep it.
+            if let failure = recorder.writeFailure {
+                Label {
+                    VStack(spacing: 2) {
+                        Text(Strings.recordingWriteFailed)
+                        Text(failure).font(.caption).foregroundStyle(.secondary)
+                    }
+                } icon: {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                }
+                .font(.callout)
+                .multilineTextAlignment(.center)
+            }
+
             LevelMeter(levels: recorder.levels, isLive: recorder.state == .recording)
                 .frame(height: 56)
                 .frame(maxWidth: 420)

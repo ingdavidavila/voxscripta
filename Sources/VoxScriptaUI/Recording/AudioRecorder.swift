@@ -64,6 +64,12 @@ public final class AudioRecorder {
     /// Where the current recording is being written, while one is running.
     private(set) public var fileURL: URL?
 
+    /// Set when the writer failed part-way through.
+    ///
+    /// The recording is not discarded when this happens: what reached the
+    /// disk is still a readable file, and it is the user's.
+    private(set) public var writeFailure: String?
+
     /// How many level samples the meter keeps.
     private static let meterHistory = 48
 
@@ -75,7 +81,7 @@ public final class AudioRecorder {
     /// and ten updates a second shows that just as well.
     private static let tick = Duration.milliseconds(100)
 
-    private var recorder: AVAudioRecorder?
+    private var session: RecordingSession?
     private var ticker: Task<Void, Never>?
 
     public init() {}
@@ -153,31 +159,14 @@ public final class AudioRecorder {
         return candidate
     }
 
-    /// AAC in an MPEG-4 container, mono, at a bit rate chosen for speech.
-    ///
-    /// Lossy, deliberately. The pipeline resamples everything to 16 kHz mono
-    /// before a transcriber ever sees it, so 64 kbit/s at 44.1 kHz is already
-    /// far more than the recognition uses, while an hour of linear PCM would
-    /// be 300 MB on a phone. The AAC encoder's 2112-sample priming delay is
-    /// already handled in the decoder, so this costs no alignment.
-    nonisolated static var encoderSettings: [String: Any] {
-        [
-            AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
-            AVSampleRateKey: 44_100.0,
-            AVNumberOfChannelsKey: 1,
-            AVEncoderBitRateKey: 64_000,
-            AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue,
-        ]
-    }
-
     // MARK: - Transport
 
     /// Begins writing a new recording.
     ///
-    /// Asynchronous because `AVAudioRecorder.record()` blocks until the audio
-    /// queue has the hardware, and that wait is not bounded. Run on the main
+    /// Asynchronous because opening a capture session blocks until the audio
+    /// hardware is available, and that wait is not bounded. Run on the main
     /// actor it freezes the interface: the first time this was tried on a
-    /// simulator whose input device would not open, `record()` never returned
+    /// simulator whose input device would not open, starting never returned
     /// and the app stopped drawing — the recording screen it was about to
     /// present never appeared, and the whole thing looked like a dead button.
     ///
@@ -206,14 +195,21 @@ public final class AudioRecorder {
         fileURL = url
         elapsed = 0
         levels = []
+        writeFailure = nil
 
         // Unstructured on purpose. A task group awaits every one of its
         // children before it exits, so a group cannot put a deadline on work
         // that may never return — and that is exactly what this is.
         let handoff = Handoff()
         Task.detached(priority: .userInitiated) {
-            do { handoff.deliver(.success(try Self.openMicrophone(writingTo: url))) }
-            catch { handoff.deliver(.failure(error)) }
+            let session = RecordingSession(url: url)
+            do {
+                try session.start()
+                handoff.deliver(.success(Box(session: session)))
+            } catch {
+                session.cancel()
+                handoff.deliver(.failure(error))
+            }
         }
         let deadline = Task {
             try await Task.sleep(for: Self.startDeadline)
@@ -226,10 +222,10 @@ public final class AudioRecorder {
             let box = try await handoff.wait()
             // Cancelled or discarded while the microphone was opening.
             guard state == .starting else {
-                box.recorder.stop()
+                box.session.cancel()
                 return
             }
-            recorder = box.recorder
+            session = box.session
             state = .recording
             startTicking()
         } catch {
@@ -270,7 +266,15 @@ public final class AudioRecorder {
             lock.lock()
             if finished {
                 lock.unlock()
-                if case .success(let box) = value { box.recorder.stop() }
+                // The microphone opened after the deadline gave up on it.
+                // Close it, and take the file with it: `start` has already
+                // reported a failure and deleted what it knew about, so
+                // leaving this one behind would put a recording the user
+                // never saw into their Files.
+                if case .success(let box) = value {
+                    box.session.cancel()
+                    try? FileManager.default.removeItem(at: box.session.url)
+                }
                 return
             }
             finished = true
@@ -295,75 +299,52 @@ public final class AudioRecorder {
         }
     }
 
-    /// Carries the recorder back from the detached task.
+    /// Carries the open session back from the detached task.
     ///
-    /// `AVAudioRecorder` is not `Sendable`. It is safe to move here because
-    /// exactly one task holds it until it is handed over, and from then on it
-    /// is only touched from the main actor — the audio queue's own thread is
-    /// the framework's business, not this code's.
+    /// `RecordingSession` is `@unchecked Sendable` and does its own locking,
+    /// so this exists only to name what is being handed over.
     fileprivate struct Box: @unchecked Sendable {
-        let recorder: AVAudioRecorder
-    }
-
-    /// The part that blocks. Runs nowhere near the main thread.
-    private nonisolated static func openMicrophone(writingTo url: URL) throws -> Box {
-        #if os(iOS) || os(visionOS)
-        // Without an active session the recorder starts and captures silence.
-        do {
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.record, mode: .default)
-            try session.setActive(true)
-        } catch {
-            throw VoxScriptaError.recordingFailed(reason: error.localizedDescription)
-        }
-        #endif
-
-        let recorder: AVAudioRecorder
-        do {
-            recorder = try AVAudioRecorder(url: url, settings: encoderSettings)
-        } catch {
-            throw VoxScriptaError.recordingFailed(reason: error.localizedDescription)
-        }
-        recorder.isMeteringEnabled = true
-        guard recorder.record() else {
-            throw VoxScriptaError.recordingFailed(
-                reason: String(localized: "the microphone is in use by something else"))
-        }
-        return Box(recorder: recorder)
+        let session: RecordingSession
     }
 
     public func pause() {
-        guard state == .recording, let recorder else { return }
-        recorder.pause()
+        guard state == .recording, let session else { return }
+        session.pause()
         state = .paused
-        // Leave the meter where it stopped rather than letting it decay to
-        // zero, which would read as "not hearing you" instead of "paused".
+        // The meter is left where it stopped rather than decaying to zero,
+        // which would read as "not hearing you" instead of "paused".
         ticker?.cancel()
         ticker = nil
-        elapsed = recorder.currentTime
+        elapsed = session.elapsed
     }
 
     public func resume() {
-        guard state == .paused, let recorder, recorder.record() else { return }
+        guard state == .paused, let session else { return }
+        session.resume()
         state = .recording
         startTicking()
     }
 
     /// Stops and keeps the file.
     ///
+    /// Asynchronous because finalizing the file is. The file is already
+    /// readable without it — that is the whole point of writing in fragments
+    /// — so this is tidying, not rescue.
+    ///
     /// - Returns: The finished recording, or `nil` if nothing was captured.
     @discardableResult
-    public func finish() -> URL? {
+    public func finish() async -> URL? {
         guard let url = fileURL else { return nil }
         // Stopped before the microphone ever opened: there is nothing to keep,
-        // and `start` sees the state change and closes the queue if it arrives.
-        guard let recorder else {
-            stopEverything()
+        // and `start` sees the state change and closes the session if one
+        // arrives afterwards.
+        guard let session else {
+            clear()
             try? FileManager.default.removeItem(at: url)
             return nil
         }
-        let length = recorder.currentTime
-        stopEverything()
+        let length = await session.finish()
+        clear()
         // A recording with no audio in it is not a file worth keeping, and
         // handing it to the importer would produce a project that fails at the
         // first stage. Nothing has been shown to the user yet, so removing it
@@ -382,22 +363,19 @@ public final class AudioRecorder {
     /// this is no longer the code that can remove it.
     public func discard() {
         let url = fileURL
-        stopEverything()
+        session?.cancel()
+        clear()
         if let url { try? FileManager.default.removeItem(at: url) }
     }
 
-    private func stopEverything() {
+    /// Returns to idle. Does not touch the file either way.
+    private func clear() {
         ticker?.cancel()
         ticker = nil
-        recorder?.stop()
-        recorder = nil
+        session = nil
         fileURL = nil
         state = .idle
         levels = []
-        #if os(iOS) || os(visionOS)
-        try? AVAudioSession.sharedInstance().setActive(false,
-                                                       options: .notifyOthersOnDeactivation)
-        #endif
     }
 
     private func startTicking() {
@@ -405,11 +383,18 @@ public final class AudioRecorder {
         ticker = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: Self.tick)
-                guard let self, let recorder = self.recorder, recorder.isRecording else { return }
-                recorder.updateMeters()
-                let now = recorder.currentTime
+                guard let self, let session = self.session else { return }
+                // A writer that failed mid-recording stops the clock without
+                // saying so, which looks exactly like a microphone that went
+                // quiet. Surfaced instead, so the recording can be stopped
+                // and whatever reached the disk kept.
+                if let failure = session.failure {
+                    self.writeFailure = failure
+                    return
+                }
+                let now = session.elapsed
                 if Int(now) != Int(self.elapsed) { self.elapsed = now }
-                self.append(level: Self.normalize(recorder.averagePower(forChannel: 0)))
+                self.append(level: Self.normalize(Float(session.level)))
             }
         }
     }
@@ -419,13 +404,14 @@ public final class AudioRecorder {
         if levels.count > Self.meterHistory { levels.removeFirst(levels.count - Self.meterHistory) }
     }
 
-    /// Turns the recorder's decibel reading into a bar height.
+    /// Turns a level in decibels full scale into a bar height.
     ///
-    /// `averagePower` runs from -160 dB to 0. Mapping that range linearly puts
-    /// every ordinary voice in the top tenth of the meter, so the floor is
-    /// -50 dB — quiet room, not digital silence — and the result is raised to
-    /// a power below one to open out the bottom of the scale, which is where
-    /// the difference between "quiet" and "nothing" actually lives.
+    /// The reading is the buffer's peak, measured from the samples
+    /// themselves, and runs from -160 dB to 0. Mapping that range linearly
+    /// puts every ordinary voice in the top tenth of the meter, so the floor
+    /// is -50 dB — a quiet room, not digital silence — and the result is
+    /// raised to a power below one to open out the bottom of the scale,
+    /// which is where the difference between "quiet" and "nothing" lives.
     static func normalize(_ decibels: Float) -> Double {
         let floorDB = -50.0
         let clamped = Swift.max(floorDB, Swift.min(0, Double(decibels)))
