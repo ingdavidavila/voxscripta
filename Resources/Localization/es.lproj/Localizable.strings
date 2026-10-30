@@ -533,3 +533,9 @@
 /* RecordingSession, capture session would not configure */
 "the microphone could not be opened" = "no se pudo abrir el micrófono";
 
+/* RecordingSession, session produced no audio */
+"no audio arrived from the microphone" = "no llegó audio desde el micrófono";
+
+/* RecordingSession, capture interrupted */
+"the microphone stopped unexpectedly" = "el micrófono se detuvo inesperadamente";
+

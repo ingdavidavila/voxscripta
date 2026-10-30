@@ -74,11 +74,13 @@ public struct RootView: View {
             RecordingView()
                 .frame(minWidth: 380, minHeight: 360)
         }
-        #else
-        .fullScreenCover(isPresented: $model.isShowingRecorder) {
-            RecordingView()
-        }
         #endif
+        // On iOS the recording screen is not presented at all — see
+        // `LibrarySidebar`, which shows it in place of the library. A sheet
+        // and then a `fullScreenCover` attached here both failed to appear
+        // on a phone while the alerts beside them worked, and a Record button
+        // that silently does nothing is worse than a screen without a
+        // dimmed backdrop.
         .alert(Strings.microphoneNeeded, isPresented: $model.isMicrophoneDenied) {
             Button(Strings.openSystemSettings) { model.openMicrophoneSettings() }
                 .help(Strings.openSystemSettingsHelp)
@@ -203,10 +205,15 @@ struct LibrarySidebar: View {
         // import screen, so an empty list only has to say it is empty.
         list
         #else
-        // One column, which makes this the first screen. An empty list with
-        // nothing to tap is a dead end, so the import screen takes its place
-        // until there is something to list.
-        if model.projects.isEmpty {
+        // One column, which makes this the first screen, so everything that
+        // would be presented over it is shown *as* it instead.
+        if model.isShowingRecorder {
+            RecordingView()
+                .navigationTitle(Strings.recordingInProgress)
+                .navigationBarBackButtonHidden(true)
+        } else if model.projects.isEmpty {
+            // An empty list with nothing to tap is a dead end, so the import
+            // screen takes its place until there is something to list.
             ImportView()
                 .navigationTitle(Strings.recordings)
                 .toolbar { RootToolbar() }

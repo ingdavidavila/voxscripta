@@ -44,6 +44,11 @@ final class RecordingSession: NSObject, AVCaptureAudioDataOutputSampleBufferDele
     private var writer: AVAssetWriter?
     private var input: AVAssetWriterInput?
 
+    /// Signalled once, by whichever comes first: the first sample buffer, or
+    /// the session reporting that it failed.
+    private let firstBuffer = DispatchSemaphore(value: 0)
+    private var hasSignalled = false
+
     private let lock = NSLock()
     private var _elapsed: TimeInterval = 0
     /// Decibels full scale. Starts at the floor, not at zero: zero is *full
@@ -119,11 +124,44 @@ final class RecordingSession: NSObject, AVCaptureAudioDataOutputSampleBufferDele
             throw VoxScriptaError.recordingFailed(reason: error.localizedDescription)
         }
 
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(sessionFailed(_:)),
+            name: .AVCaptureSessionRuntimeError, object: session)
+
         session.startRunning()
         guard session.isRunning else {
             throw VoxScriptaError.recordingFailed(
                 reason: String(localized: "the microphone did not start"))
         }
+
+        // A running session is not a working one. On a simulator with no
+        // usable input the session starts, posts a runtime error a moment
+        // later, and delivers nothing — and the app sat there claiming to
+        // record silence. So "started" means the first buffer has arrived,
+        // which is the only evidence that matters.
+        guard firstBuffer.wait(timeout: .now() + Self.firstBufferTimeout) == .success else {
+            throw VoxScriptaError.recordingFailed(
+                reason: failure ?? String(localized: "no audio arrived from the microphone"))
+        }
+    }
+
+    /// How long to wait for the first buffer before giving up on the device.
+    ///
+    /// Shorter than the caller's own deadline, so the reason reported is this
+    /// one — which says what actually happened — rather than a generic
+    /// timeout.
+    static let firstBufferTimeout = DispatchTimeInterval.seconds(6)
+
+    /// The capture session failing after it started.
+    ///
+    /// Not a theoretical case: it is how an interruption arrives on a phone —
+    /// a call, another app taking the microphone, a route change — and
+    /// without observing it the clock keeps counting over nothing.
+    @objc private func sessionFailed(_ note: Notification) {
+        let error = note.userInfo?[AVCaptureSessionErrorKey] as? NSError
+        fail(error?.localizedDescription
+             ?? String(localized: "the microphone stopped unexpectedly"))
+        firstBuffer.signal()
     }
 
     func pause() { lock.withLock { _isPaused = true } }
@@ -158,6 +196,8 @@ final class RecordingSession: NSObject, AVCaptureAudioDataOutputSampleBufferDele
         }
         deactivateAudioSession()
     }
+
+    deinit { NotificationCenter.default.removeObserver(self) }
 
     private func deactivateAudioSession() {
         #if os(iOS) || os(visionOS)
@@ -195,6 +235,7 @@ final class RecordingSession: NSObject, AVCaptureAudioDataOutputSampleBufferDele
             writer.startSession(atSourceTime: .zero)
             input = made
             firstSample = timestamp
+            if !hasSignalled { hasSignalled = true; firstBuffer.signal() }
         }
         guard let input, let firstSample else { return }
 
