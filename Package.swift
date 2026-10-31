@@ -52,6 +52,41 @@ let package = Package(
         // for Android. The Swift modules above it are being ported into this
         // one target by target; until that finishes both implementations exist
         // and VoxScriptaCoreParityTests holds them to the same answers.
+        // whisper.cpp, reached through a header shim. The static libraries
+        // come from Tools/build-whisper.sh rather than from SwiftPM, because
+        // whisper.cpp no longer ships a Package.swift and because CMake is
+        // what the Android NDK, Visual Studio and Linux all want anyway.
+        .target(
+            name: "CWhisper",
+            path: "Sources/CWhisper",
+            sources: ["shim.c"],
+            cSettings: [
+                .headerSearchPath("../../vendor/whisper.cpp/include"),
+                .headerSearchPath("../../vendor/whisper.cpp/ggml/include"),
+            ],
+            // The libraries CMake produced. Unsafe flags are allowed because
+            // this is a root package and nothing depends on it; if that ever
+            // changes, these move into an xcframework instead.
+            linkerSettings: [
+                .unsafeFlags([
+                    "-Lbuild/whisper/host/src",
+                    "-Lbuild/whisper/host/ggml/src",
+                    "-Lbuild/whisper/host/ggml/src/ggml-metal",
+                    "-Lbuild/whisper/host/ggml/src/ggml-blas",
+                ]),
+                .linkedLibrary("whisper"),
+                .linkedLibrary("ggml"),
+                .linkedLibrary("ggml-base"),
+                .linkedLibrary("ggml-cpu"),
+                .linkedLibrary("c++"),
+                .linkedLibrary("ggml-metal", .when(platforms: [.macOS, .iOS])),
+                .linkedLibrary("ggml-blas", .when(platforms: [.macOS, .iOS])),
+                .linkedFramework("Accelerate", .when(platforms: [.macOS, .iOS])),
+                .linkedFramework("Metal", .when(platforms: [.macOS, .iOS])),
+                .linkedFramework("MetalKit", .when(platforms: [.macOS, .iOS])),
+                .linkedFramework("CoreFoundation", .when(platforms: [.macOS, .iOS])),
+            ]
+        ),
         .target(
             name: "VoxScriptaCoreCxx",
             path: "core",
@@ -69,7 +104,8 @@ let package = Package(
 
         // ── Model-facing layers ─────────────────────────────────────────────
         .target(name: "VoxScriptaTranscription",
-                dependencies: ["VoxScriptaCore", "VoxScriptaDSP"], swiftSettings: strict),
+                dependencies: ["VoxScriptaCore", "VoxScriptaDSP", "CWhisper"],
+                swiftSettings: strict),
         .target(name: "VoxScriptaLanguage", dependencies: ["VoxScriptaCore"], swiftSettings: strict),
 
         // ── Support layers ──────────────────────────────────────────────────

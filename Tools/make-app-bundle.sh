@@ -31,6 +31,17 @@ if ! xcrun -sdk macosx metal --version >/dev/null 2>&1; then
     exit 1
 fi
 
+# Same reasoning for whisper.cpp: the engine target links its static libraries,
+# so without them the build fails at the linker with a list of missing symbols
+# rather than a line saying which script to run. They are not in the repository
+# because they are build output.
+if [ ! -f "$ROOT/build/whisper/host/src/libwhisper.a" ]; then
+    echo "whisper.cpp has not been built, and the engine links against it." >&2
+    echo "Build it once and run this again:" >&2
+    echo "    Tools/build-whisper.sh" >&2
+    exit 1
+fi
+
 BIN="$(swift build --package-path "$ROOT" -c "$CONFIG" --show-bin-path)"
 APP="$ROOT/build/VoxScripta.app"
 

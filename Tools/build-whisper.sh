@@ -13,6 +13,27 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SRC="$ROOT/vendor/whisper.cpp"
+
+# Looked up rather than assumed, the same way Tools/verify-android-core.sh does
+# it: this has to run on a Mac with CMake installed by hand, and on a Windows or
+# Linux box where Android Studio supplies it.
+find_cmake() {
+    command -v cmake 2>/dev/null && return || true
+    [ -x /Applications/CMake.app/Contents/bin/cmake ] \
+        && { echo /Applications/CMake.app/Contents/bin/cmake; return; }
+    for sdk in "${ANDROID_HOME:-}" "${ANDROID_SDK_ROOT:-}" "$HOME/Library/Android/sdk" \
+               "$LOCALAPPDATA/Android/Sdk" "$HOME/Android/Sdk"; do
+        [ -n "$sdk" ] && [ -d "$sdk/cmake" ] || continue
+        newest="$(ls -1 "$sdk/cmake" | sort -V | tail -1)"
+        [ -x "$sdk/cmake/$newest/bin/cmake" ] && { echo "$sdk/cmake/$newest/bin/cmake"; return; }
+    done
+    return 1
+}
+CMAKE="${CMAKE:-$(find_cmake || true)}"
+[ -n "$CMAKE" ] || {
+    echo "no cmake found. Install it, or set CMAKE to its path." >&2
+    exit 1
+}
 ABI="${1:-host}"
 OUT="$ROOT/build/whisper/$ABI"
 
@@ -33,19 +54,19 @@ COMMON=(
 )
 
 if [ "$ABI" = "host" ]; then
-    cmake "${COMMON[@]}"
+    "$CMAKE" "${COMMON[@]}"
 else
     NDK="${ANDROID_NDK_HOME:-}"
     [ -n "$NDK" ] || NDK="$(ls -d "$HOME/Library/Android/sdk/ndk/"* 2>/dev/null | tail -1 || true)"
     [ -n "$NDK" ] || { echo "no NDK; set ANDROID_NDK_HOME" >&2; exit 1; }
-    cmake "${COMMON[@]}" \
+    "$CMAKE" "${COMMON[@]}" \
         -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
         -DANDROID_ABI="$ABI" \
         -DANDROID_PLATFORM=android-26 \
         -DGGML_OPENMP=OFF
 fi
 
-cmake --build "$OUT" --config Release -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
+"$CMAKE" --build "$OUT" --config Release -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
 
 echo
 echo "built for $ABI:"

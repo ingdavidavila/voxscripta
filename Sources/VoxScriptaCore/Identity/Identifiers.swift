@@ -48,6 +48,9 @@ public struct EngineID: Hashable, Sendable, Codable, RawRepresentable, CustomStr
     public static let appleSpeech = EngineID(rawValue: "apple.speech-transcriber")
     /// WhisperKit running a CoreML Whisper model — the multilingual alternate.
     public static let whisperKit = EngineID(rawValue: "argmax.whisperkit")
+    /// whisper.cpp, built from source and linked in. The portable recogniser
+    /// for every platform Apple's does not reach.
+    public static let whisper = EngineID(rawValue: "whisper.cpp")
     /// Deterministic engine used by tests. Never ships in a release build.
     public static let mock = EngineID(rawValue: "voxscripta.mock")
 }
