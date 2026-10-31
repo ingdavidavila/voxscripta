@@ -35,10 +35,16 @@ fi
 # so without them the build fails at the linker with a list of missing symbols
 # rather than a line saying which script to run. They are not in the repository
 # because they are build output.
-if [ ! -f "$ROOT/build/whisper/host/src/libwhisper.a" ]; then
-    echo "whisper.cpp has not been built, and the engine links against it." >&2
+if [ ! -f "$ROOT/build/engines/host/prefix/lib/libwhisper.a" ]; then
+    echo "The native engines have not been built, and the app links against them." >&2
+    echo "Build them once and run this again:" >&2
+    echo "    Tools/build-engines.sh" >&2
+    exit 1
+fi
+if [ ! -d "$ROOT/build/ffmpeg/host/prefix/lib" ]; then
+    echo "FFmpeg has not been built, and the portable decoder links against it." >&2
     echo "Build it once and run this again:" >&2
-    echo "    Tools/build-whisper.sh" >&2
+    echo "    Tools/build-ffmpeg.sh" >&2
     exit 1
 fi
 
@@ -131,6 +137,50 @@ cat > "$ROOT/build/VoxScripta.entitlements" <<ENT
 </dict>
 </plist>
 ENT
+
+# FFmpeg ships as shared libraries, which is what keeps its LGPL licence
+# satisfiable: they sit in the bundle where they can be replaced. The linker
+# wrote absolute paths into the build directory, so without this the installed
+# app launches only on the machine that built it, and only until that directory
+# is cleaned.
+FFMPEG_LIB="$ROOT/build/ffmpeg/host/prefix/lib"
+if [ -d "$FFMPEG_LIB" ]; then
+    mkdir -p "$APP/Contents/Frameworks"
+    # The real files, not the version symlinks, and then one symlink each so
+    # the names the binary asks for resolve.
+    find "$FFMPEG_LIB" -maxdepth 1 -name '*.dylib' -type f -exec cp {} "$APP/Contents/Frameworks/" \;
+    find "$FFMPEG_LIB" -maxdepth 1 -name '*.dylib' -type l -exec cp -R {} "$APP/Contents/Frameworks/" \;
+
+    for lib in "$APP/Contents/Frameworks/"*.dylib; do
+        [ -f "$lib" ] && [ ! -L "$lib" ] || continue
+        install_name_tool -id "@rpath/$(basename "$lib")" "$lib" 2>/dev/null
+        # They reference each other by the same absolute paths.
+        deps="$(otool -L "$lib" | awk 'NR>1 {print $1}' | grep "^$FFMPEG_LIB" || true)"
+        # Collected first rather than piped: a library with no siblings among
+        # these — libavutil has none — makes grep exit 1, and with pipefail
+        # that would kill the script.
+        for dep in $deps; do
+            install_name_tool -change "$dep" "@rpath/$(basename "$dep")" "$lib" 2>/dev/null
+        done
+    done
+
+    exe_deps="$(otool -L "$APP/Contents/MacOS/VoxScripta" | awk 'NR>1 {print $1}' \
+        | grep "^$FFMPEG_LIB" || true)"
+    for dep in $exe_deps; do
+        install_name_tool -change "$dep" "@rpath/$(basename "$dep")" \
+            "$APP/Contents/MacOS/VoxScripta"
+    done
+    install_name_tool -add_rpath "@executable_path/../Frameworks" \
+        "$APP/Contents/MacOS/VoxScripta" 2>/dev/null || true
+
+    # Signed before the app, for the same reason the metallib is: codesign
+    # refuses to seal a bundle containing unsigned nested code.
+    for lib in "$APP/Contents/Frameworks/"*.dylib; do
+        [ -f "$lib" ] && [ ! -L "$lib" ] || continue
+        codesign --force --sign - "$lib"
+    done
+    echo "  bundled FFmpeg:   $(ls "$APP/Contents/Frameworks/"*.dylib 2>/dev/null | wc -l | tr -d ' ') libraries (LGPL v2.1)"
+fi
 
 # The metallib lives beside the executable because that is the first place MLX
 # looks. codesign treats anything in Contents/MacOS as nested code and refuses to

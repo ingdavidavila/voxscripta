@@ -149,17 +149,58 @@ struct PortableDecoderTests {
 
     // MARK: - Failures
 
-    @Test("A container it cannot read is named, not reported as damage")
+    @Test("Rubbish that claims to be a container is refused")
     func unsupportedContainer() async throws {
         let tmp = try TempDirectory()
         let fake = tmp.url.appending(path: "clip.m4a")
         try Data(repeating: 0, count: 2048).write(to: fake)
-        // The gap that matters: the app records m4a, and this decoder cannot
-        // open one. It has to say so in those words.
-        await #expect(throws: VoxScriptaError.unsupportedContainer(fileExtension: "m4a")) {
+        await #expect(throws: VoxScriptaError.self) {
             _ = try await PortableDecoder().decode(
                 url: fake, to: tmp.url.appending(path: "o.f32")) { _ in }
         }
+    }
+
+    @Test("It reads an m4a, which is the whole reason for FFmpeg")
+    func readsAAC() async throws {
+        // The gap that forced this decision: the app records m4a, so a
+        // recording made on a Mac has to open on Linux. miniaudio could not,
+        // and that is why this is FFmpeg.
+        let tmp = try TempDirectory()
+        let source = try writeTone(.m4a, seconds: 2, to: tmp.url)
+        let out = tmp.url.appending(path: "aac.f32")
+        let written = try await PortableDecoder().decode(url: source, to: out) { _ in }
+        #expect(written > Int64(CanonicalFormat.sampleRate),
+                "an m4a produced only \(written) samples")
+    }
+
+    @Test("It agrees with AVFoundation on an m4a too")
+    func aacAgreesWithApple() async throws {
+        let tmp = try TempDirectory()
+        let source = try writeTone(.m4a, seconds: 2, to: tmp.url)
+        let appleOut = tmp.url.appending(path: "apple-aac.f32")
+        let portableOut = tmp.url.appending(path: "portable-aac.f32")
+        _ = try await CanonicalDecoder().decode(url: source, to: appleOut) { _ in }
+        _ = try await PortableDecoder().decode(url: source, to: portableOut) { _ in }
+
+        let apple = try samples(of: appleOut)
+        let portable = try samples(of: portableOut)
+        let shared = min(apple.count, portable.count)
+        try #require(shared > CanonicalFormat.sampleRate)
+
+        // AAC is lossy and the two decoders handle the encoder's priming
+        // differently, so the alignment search is wider here than for WAV.
+        let from = shared / 4, to = shared * 3 / 4
+        func worst(shift: Int) -> Float {
+            var w: Float = 0
+            for i in from..<to where i + shift >= 0 && i + shift < portable.count {
+                w = max(w, abs(apple[i] - portable[i + shift]))
+            }
+            return w
+        }
+        let best = (-2048...2048).min { worst(shift: $0) < worst(shift: $1) } ?? 0
+        print("AAC PARITY: best shift \(best) samples, worst difference \(worst(shift: best))")
+        #expect(worst(shift: best) < 0.1,
+                "the two decoders disagree by \(worst(shift: best)) on the same m4a")
     }
 
     @Test("A missing file is unavailable, not a decode failure")
@@ -172,19 +213,19 @@ struct PortableDecoderTests {
         }
     }
 
-    @Test("What it claims to read, it reads")
-    func readableSetIsHonest() async throws {
-        #expect(PortableDecoder.canRead(URL(filePath: "/x/a.wav")))
-        #expect(PortableDecoder.canRead(URL(filePath: "/x/a.FLAC")))
-        #expect(!PortableDecoder.canRead(URL(filePath: "/x/a.m4a")))
-        #expect(!PortableDecoder.canRead(URL(filePath: "/x/a.mp4")))
-
+    @Test("Every container the Apple decoder reads, this one reads too")
+    func containerParity() async throws {
+        // Parity with AVFoundation is the whole justification for taking on
+        // FFmpeg and its licence, so it is checked rather than asserted.
         let tmp = try TempDirectory()
-        for format in [TestAudioFormat.wav] {
-            let source = try writeTone(format, seconds: 1, to: tmp.url)
-            let out = tmp.url.appending(path: "\(format).f32")
+        for format in [TestAudioFormat.wav, .m4a, .flac, .caf, .aiff] {
+            let directory = tmp.url.appending(path: "\(format)")
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            let source = try writeTone(format, seconds: 1, to: directory)
+            let out = directory.appending(path: "out.f32")
             let written = try await PortableDecoder().decode(url: source, to: out) { _ in }
-            #expect(written > 0, "\(format) produced nothing")
+            #expect(written > Int64(CanonicalFormat.sampleRate) / 2,
+                    "\(format) produced only \(written) samples")
         }
     }
 }

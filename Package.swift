@@ -2,6 +2,7 @@
 // VoxScripta — local-first transcription for Apple Silicon.
 
 import PackageDescription
+import Foundation
 
 /// Every target compiles under the Swift 6 language mode. Strict concurrency is
 /// therefore on by default and data-race safety is a compile error, not a warning.
@@ -97,8 +98,33 @@ let package = Package(
             cSettings: [.headerSearchPath("include")],
             linkerSettings: engineLinkerSettings
         ),
-        // miniaudio, for decoding where AVFoundation does not exist. Headers
-        // only in the repository; the implementation is this one .c file.
+        // FFmpeg, for decoding where AVFoundation does not exist. Shared
+        // libraries, built LGPL-only by Tools/build-ffmpeg.sh: the licence is
+        // then satisfied by shipping them beside the binary, replaceable,
+        // which static linking would not be.
+        .target(
+            name: "CFFmpeg",
+            path: "Sources/CFFmpeg",
+            sources: ["shim.c"],
+            cSettings: [.headerSearchPath("include")],
+            linkerSettings: [
+                .unsafeFlags([
+                    "-Lbuild/ffmpeg/host/prefix/lib",
+                    // So a test or the app finds the dylibs without them
+                    // being installed system-wide. The Swift driver wants
+                    // -Xlinker pairs here; a -Wl, form is rejected outright.
+                    "-Xlinker", "-rpath", "-Xlinker",
+                    FileManager.default.currentDirectoryPath + "/build/ffmpeg/host/prefix/lib",
+                ]),
+                .linkedLibrary("avformat"),
+                .linkedLibrary("avcodec"),
+                .linkedLibrary("avutil"),
+                .linkedLibrary("swresample"),
+            ]
+        ),
+        // miniaudio, kept for device IO — recording, which is the backend
+        // after this one. It decodes too, but FFmpeg does that now, and two
+        // decode paths would be two behaviours to keep agreeing.
         .target(
             name: "CMiniaudio",
             path: "Sources/CMiniaudio",
@@ -118,7 +144,7 @@ let package = Package(
         .target(name: "VoxScriptaCore", swiftSettings: strict),
 
         // ── Deterministic audio ─────────────────────────────────────────────
-        .target(name: "VoxScriptaDSP", dependencies: ["VoxScriptaCore", "CMiniaudio"],
+        .target(name: "VoxScriptaDSP", dependencies: ["VoxScriptaCore", "CFFmpeg"],
                 swiftSettings: strict),
 
         // ── Model-facing layers ─────────────────────────────────────────────

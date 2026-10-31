@@ -64,7 +64,7 @@ is a swap rather than surgery.
 | --- | --- | --- | --- |
 | Recognition | `SpeechAnalyzer` | whisper.cpp | `TranscriptionEngine` — four methods |
 | Polishing | `FoundationModels`, MLX | llama.cpp | `LanguageModelHost` |
-| Audio decode | `AVFoundation` | miniaudio, **partly done** | `CanonicalDecoding` |
+| Audio decode | `AVFoundation` | FFmpeg (LGPL v2.1), **done** | `CanonicalDecoding` |
 | Recording | `AVCaptureSession` | miniaudio, Oboe on Android | `RecordingSession` |
 
 Two more, smaller:
@@ -78,32 +78,34 @@ Two more, smaller:
   own — so the honest fallback is to run without it and have the check
   abstain visibly, which it is already built to do.
 
-## The container gap, which is a decision
+## The container gap, closed with FFmpeg
 
-`PortableDecoder` reads wav, flac and mp3, converts to 16 kHz mono on the way
-out, and agrees with AVFoundation to within 0.0071 of full scale on the same
-file — one sample of group delay apart.
+`PortableDecoder` reads what AVFoundation reads: wav, m4a, flac, caf, aiff,
+mp3, and the audio track inside mp4 and mov. It converts to 16 kHz mono on
+the way out, and it agrees with the Apple decoder to about one part in
+seventy thousand — measured, on the same files:
 
-What it cannot read is AAC: an `.m4a`, or the audio inside an `.mp4` or
-`.mov`. That is not a rounding error in coverage. **The app records m4a**, so
-as things stand a recording made on a Mac cannot be opened on Linux, and a
-recording made on Android could not be opened at all if Android recorded the
-same way. Imported video is a stated feature and would not work either.
+| File | Offset | Worst difference |
+| --- | ---: | ---: |
+| WAV | 0 samples | 0.0000138 |
+| m4a (AAC) | 0 samples | 0.0000415 |
 
-Three ways to close it, and the choice is not technical:
+This replaced a miniaudio implementation that read wav, flac and mp3 and
+could not read AAC. That was not a rounding error in coverage: the app
+records m4a, so a recording made on a Mac could not have been opened on
+Linux. miniaudio stays in the tree for device IO, which is the next backend.
 
-1. **FFmpeg** — full parity, including video containers, and the only option
-   that matches AVFoundation's matrix. LGPL 2.1, which is workable for a
-   closed app when linked dynamically, and adds several megabytes.
-2. **A system decoder per platform** — MediaFoundation, MediaCodec,
-   GStreamer. No new licence, three more implementations to keep agreeing.
-3. **Record WAV or FLAC off Apple and accept the import gap** — no new
-   dependency, and the app can always open its own recordings. Someone handing
-   it an m4a from a phone is still stuck.
+**The licence.** FFmpeg is built with `--disable-gpl --disable-nonfree
+--disable-version3`, which makes it LGPL v2.1, and as shared libraries, which
+is what keeps that satisfiable without publishing this app's source: the
+libraries ship beside the binary and can be replaced. The build is cut down to
+the demuxers and decoders listed above and nothing else — 2.9 MB rather than
+the tens of megabytes a full FFmpeg is. `Tools/build-ffmpeg.sh` holds the
+flags and prints the licence it produced.
 
-Until this is decided, the portable decoder is honest about the limit: an
-unreadable container is reported by name through `unsupportedContainer`,
-which is the error the interface already explains.
+On the Mac the libraries are copied into `Contents/Frameworks`, re-pathed to
+`@rpath` and signed. Without that the app launches only on the machine that
+built it, which is how this was found.
 
 ## What this costs the user, stated plainly
 
