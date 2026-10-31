@@ -1,5 +1,7 @@
 import Foundation
+#if canImport(NaturalLanguage)
 import NaturalLanguage
+#endif
 import VoxScriptaCore
 
 /// Sentence-level semantic distance, on device.
@@ -16,7 +18,9 @@ import VoxScriptaCore
 /// with a different threshold.
 public final class SemanticSimilarity: @unchecked Sendable {
     private let lock = NSLock()
+    #if canImport(NaturalLanguage)
     private var embeddings: [TranscriptLanguage: NLEmbedding?] = [:]
+    #endif
 
     public init() {}
 
@@ -47,13 +51,16 @@ public final class SemanticSimilarity: @unchecked Sendable {
         }
     }
 
+    #if canImport(NaturalLanguage)
     private static func nlLanguage(for language: TranscriptLanguage) -> NLLanguage {
         switch language {
         case .english: .english
         case .spanish: .spanish
         }
     }
+    #endif
 
+    #if canImport(NaturalLanguage)
     /// Loads on first use per language. Caller must hold `lock`.
     private func model(for language: TranscriptLanguage) -> NLEmbedding? {
         if let cached = embeddings[language] { return cached }
@@ -61,6 +68,7 @@ public final class SemanticSimilarity: @unchecked Sendable {
         embeddings[language] = loaded
         return loaded
     }
+    #endif
 
     /// Distance between two sentences, or `nil` when no model is available.
     ///
@@ -72,6 +80,17 @@ public final class SemanticSimilarity: @unchecked Sendable {
         // `NLEmbedding` is not documented as thread-safe, and calling it
         // concurrently from parallel tests aborts the process — which presents as
         // a signal 6 with no failing assertion, so it is worth being explicit.
+        #if !canImport(NaturalLanguage)
+        // There are no sentence embeddings off Apple's platforms, so this
+        // says so rather than returning a number it cannot justify. The
+        // gauntlet is already built to abstain visibly on `nil`.
+        //
+        // The cost is real and is recorded in PolishReadiness: English loses
+        // the second of its two defences against a reversed meaning and
+        // keeps only the lexical polarity count, which is what Spanish has
+        // always relied on alone.
+        return nil
+        #else
         lock.lock()
         defer { lock.unlock() }
 
@@ -88,13 +107,18 @@ public final class SemanticSimilarity: @unchecked Sendable {
 
         let d = model.distance(between: trimmedA, and: trimmedB)
         return d.isFinite ? d : nil
+        #endif
     }
 
     /// Whether this language's embedding model is present on this system.
     public func isAvailable(for language: TranscriptLanguage = .english) -> Bool {
+        #if !canImport(NaturalLanguage)
+        return false
+        #else
         lock.lock()
         defer { lock.unlock() }
         return model(for: language) != nil
+        #endif
     }
 
     /// Kept for call sites that predate multi-language support.

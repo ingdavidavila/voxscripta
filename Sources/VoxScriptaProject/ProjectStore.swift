@@ -177,6 +177,7 @@ public struct ProjectStore: Sendable {
             throw VoxScriptaError.projectCorrupt(
                 reason: "\(url.lastPathComponent) is not a VoxScripta project")
         }
+        #if canImport(Darwin)
         var trashed: NSURL?
         do {
             try FileManager.default.trashItem(at: url, resultingItemURL: &trashed)
@@ -184,7 +185,42 @@ public struct ProjectStore: Sendable {
             throw VoxScriptaError.ioFailure(path: url.path, reason: error.localizedDescription)
         }
         return trashed as URL?
+        #else
+        // There is no system Trash to hand this to, so the promise is kept
+        // locally: the project is moved into a Deleted folder beside the
+        // library rather than removed. Deletion stays recoverable, which is
+        // the property the tests check and the one a user actually relies on.
+        return try Self.moveToDeletedFolder(url)
+        #endif
     }
+
+#if !canImport(Darwin)
+    /// Stands in for the Trash on platforms that have none.
+    ///
+    /// Deliberately not the XDG trash specification: that needs a `.trashinfo`
+    /// file per entry and a volume-aware location, and getting it half right
+    /// would leave entries the desktop cannot restore. A folder this app owns
+    /// is honest about what it is, and "Show in folder" can open it.
+    private static func moveToDeletedFolder(_ url: URL) throws -> URL? {
+        let deleted = url.deletingLastPathComponent().appending(path: "Deleted")
+        do {
+            try FileManager.default.createDirectory(at: deleted,
+                                                    withIntermediateDirectories: true)
+            var destination = deleted.appending(path: url.lastPathComponent)
+            var suffix = 2
+            while FileManager.default.fileExists(atPath: destination.path) {
+                destination = deleted.appending(
+                    path: "\(url.deletingPathExtension().lastPathComponent) (\(suffix))."
+                        + url.pathExtension)
+                suffix += 1
+            }
+            try FileManager.default.moveItem(at: url, to: destination)
+            return destination
+        } catch {
+            throw VoxScriptaError.ioFailure(path: url.path, reason: error.localizedDescription)
+        }
+    }
+#endif
 
     /// Deletes leftover `.tmp` files from an interrupted atomic write.
     ///
@@ -217,8 +253,18 @@ public struct ProjectStore: Sendable {
             // bookmark still resolves and still tracks the file if it moves.
             return try url.bookmarkData(includingResourceValuesForKeys: nil, relativeTo: nil)
         }
-        #else
+        #elseif canImport(Darwin)
         return try url.bookmarkData(includingResourceValuesForKeys: nil, relativeTo: nil)
+        #else
+        // Bookmarks are an Apple idea. Off those platforms the reference is
+        // the path, stored in the same field — so the manifest's shape does
+        // not change and a project written here opens here.
+        //
+        // What it cannot do is follow a file that moves, which a bookmark
+        // can. ``resolveSource`` reports that as the source being
+        // unavailable, which is true and is what the interface already
+        // explains.
+        return Data(url.path.utf8)
         #endif
     }
 }
@@ -261,6 +307,7 @@ public struct Project: Sendable {
             return (url, {})
 
         case .bookmark(let data):
+            #if canImport(Darwin)
             var stale = false
             #if os(macOS)
             let scopedOptions: URL.BookmarkResolutionOptions = [.withSecurityScope]
@@ -283,6 +330,18 @@ public struct Project: Sendable {
             }
             let scoped = url.startAccessingSecurityScopedResource()
             return (url, { if scoped { url.stopAccessingSecurityScopedResource() } })
+            #else
+            // The reference is a path here — see ``makeBookmark``. A project
+            // carried over from a Mac holds a real bookmark instead, which
+            // this cannot decode, so it is reported as unavailable rather
+            // than misread as a path.
+            guard let path = String(data: data, encoding: .utf8),
+                  path.hasPrefix("/"),
+                  FileManager.default.fileExists(atPath: path) else {
+                throw VoxScriptaError.sourceUnavailable(path: manifest.source.displayName)
+            }
+            return (URL(filePath: path), {})
+            #endif
         }
     }
 

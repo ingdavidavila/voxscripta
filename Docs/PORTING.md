@@ -148,6 +148,67 @@ The alternative — whisper.cpp everywhere — buys identical output at the pric
 of the Mac's measured 120× real-time speed and its current accuracy. That
 trade was offered and declined.
 
+## Linux: what builds, and what is left
+
+Cross-compiled from a Mac with the swift.org 6.4.0 toolchain and the Static
+Linux SDK. `Tools/build-linux.sh` runs it and lists the targets.
+
+| Module | Linux |
+| --- | --- |
+| VoxScriptaCore | builds |
+| VoxScriptaExport | builds |
+| VoxScriptaProject | builds |
+| VoxScriptaLanguage | builds |
+| VoxScriptaDSP | **blocked on Accelerate** |
+| Pipeline, Transcription, CLI | wait on DSP |
+
+The prediction that only eight call sites stood in the way was close but not
+right. What actually had to change:
+
+- **`OSLog`** — missed by the original survey, which grepped a fixed list of
+  frameworks. Off Apple the logger is a silent stand-in rather than a `print`,
+  because the Apple one marks user content `.private` and a substitute that
+  printed would break that promise where it is least visible.
+- **`String(localized:)`** — Apple-only Foundation. A gated shim returns the
+  English the call site already holds, so the engine speaks English off Apple.
+  The fix is not to rebuild string tables here: the Flutter interface should
+  translate from the `VoxScriptaError` case, which carries the facts.
+- **`SQLite3`** — a module Apple ships and nothing else does; the static Linux
+  SDK has no libsqlite3 at all. The official amalgamation is now vendored and
+  compiled for every target.
+- **`CryptoKit`** — swift-crypto has the same API and was already in the graph.
+- **`F_FULLFSYNC`** — Darwin-only, and the reason it exists is that macOS's
+  `fsync` does not flush the drive cache. Linux's does, so plain `fsync` is
+  the right equivalent rather than a weaker one.
+- **Bookmarks and the Trash** — the eight that were predicted. Off Apple the
+  source reference is the path, stored in the same field, and a deleted
+  project moves to a `Deleted` folder beside the library so deletion stays
+  recoverable. A project carried from a Mac holds a real bookmark, which is
+  reported as unavailable rather than misread.
+
+### POLISH is weaker off Apple, and that needs deciding
+
+Three gauntlet checks lose their backing where `NaturalLanguage` does not
+exist, and they do not all lose it equally:
+
+| Check | Off Apple |
+| --- | --- |
+| Semantic distance | abstains — no sentence embeddings |
+| Named entities | degraded — capitalized tokens only, no tagger |
+| Content-word overlap | degraded — surface forms, no lemmas, so **stricter** |
+
+The middle one is the concern. English had two independent defences against a
+reversed meaning: the lexical polarity count and the semantic distance. Off
+Apple only the first remains — which is exactly the position Spanish has
+always been in, and the Spanish rejection corpus measured that lexical checks
+alone caught every polarity inversion. So there is evidence this is survivable,
+gathered for a different reason.
+
+What there is not, yet, is that evidence for English. Before POLISH is enabled
+on Android, Windows or Linux, the English corpus should be run with the
+embedding disabled, the way `PolishReadiness` already gates by measurement
+rather than by assertion.
+
 ## Order of work
 
 1. **whisper.cpp behind `TranscriptionEngine`, built and measured on the Mac.**

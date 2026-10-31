@@ -70,6 +70,10 @@ let package = Package(
         // leaves the implementation to the consumer, which is what its
         // #adaptHuggingFaceTokenizer macro exists to bridge.
         .package(url: "https://github.com/huggingface/swift-transformers", from: "1.3.0"),
+        // Already in the graph transitively; declared because this package
+        // now uses it directly. It is CryptoKit's API on the platforms that
+        // have no CryptoKit.
+        .package(url: "https://github.com/apple/swift-crypto.git", from: "3.0.0"),
     ],
     targets: [
         // ── The portable core (P1 of the React Native migration) ────────────
@@ -97,6 +101,24 @@ let package = Package(
             sources: ["shim.c"],
             cSettings: [.headerSearchPath("include")],
             linkerSettings: engineLinkerSettings
+        ),
+        // SQLite, compiled from the official amalgamation. Apple ships a
+        // SQLite3 module and nothing else does — the static Linux SDK has no
+        // libsqlite3 at all — so one known version is built from source for
+        // every target. See Sources/CSQLite/README.md.
+        .target(
+            name: "CSQLite",
+            path: "Sources/CSQLite",
+            sources: ["sqlite3.c"],
+            cSettings: [
+                .headerSearchPath("include"),
+                // What this project uses and nothing more: no loadable
+                // extensions, which is also one less way into the process.
+                .define("SQLITE_ENABLE_COLUMN_METADATA", to: "1"),
+                .define("SQLITE_OMIT_LOAD_EXTENSION", to: "1"),
+                .define("SQLITE_THREADSAFE", to: "1"),
+                .define("SQLITE_DQS", to: "0"),
+            ]
         ),
         // FFmpeg, for decoding where AVFoundation does not exist. Shared
         // libraries, built LGPL-only by Tools/build-ffmpeg.sh: the licence is
@@ -156,7 +178,10 @@ let package = Package(
                 swiftSettings: strict),
 
         // ── Support layers ──────────────────────────────────────────────────
-        .target(name: "VoxScriptaProject", dependencies: ["VoxScriptaCore"], swiftSettings: strict),
+        .target(name: "VoxScriptaProject",
+                dependencies: ["VoxScriptaCore", "CSQLite",
+                               .product(name: "Crypto", package: "swift-crypto")],
+                swiftSettings: strict),
         .target(name: "VoxScriptaExport", dependencies: ["VoxScriptaCore"], swiftSettings: strict),
         .target(name: "VoxScriptaBench", dependencies: ["VoxScriptaCore"], swiftSettings: strict),
 

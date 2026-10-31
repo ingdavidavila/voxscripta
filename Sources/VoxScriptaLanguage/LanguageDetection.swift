@@ -1,5 +1,7 @@
 import Foundation
+#if canImport(NaturalLanguage)
 import NaturalLanguage
+#endif
 import VoxScriptaCore
 
 /// Checks that a transcript is plausibly in the language it was transcribed as.
@@ -28,11 +30,20 @@ public enum LanguageDetection {
         let words = TextTokenizer.tokens(text)
         guard words.count >= minimumWords else { return nil }
 
+        #if canImport(NaturalLanguage)
         let recognizer = NLLanguageRecognizer()
         recognizer.processString(text)
         guard let language = recognizer.dominantLanguage else { return nil }
         let confidence = recognizer.languageHypotheses(withMaximum: 1)[language] ?? 0
         return (language.rawValue, confidence)
+        #else
+        // No recognizer off Apple's platforms, so this says it cannot tell
+        // rather than guessing. The consequence is specific and worth naming:
+        // ``diagnose`` can still catch a transcript with no words and one
+        // with far too few, but not a fluent transcript in the wrong
+        // language. That warning simply does not fire there.
+        return nil
+        #endif
     }
 
     /// Why a transcript looks wrong, or `nil` when it looks fine.

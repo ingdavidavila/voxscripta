@@ -1,5 +1,7 @@
 import Foundation
+#if canImport(FoundationModels)
 import FoundationModels
+#endif
 import VoxScriptaCore
 
 /// Which local backend serves the polish pass.
@@ -77,6 +79,12 @@ public protocol LanguageModelHosting: Sendable {
 
     func unload() async
 }
+
+#if canImport(FoundationModels)
+// Everything below belongs to Apple's Foundation Models: the dynamic schema
+// and the host that drives the system model. Off those platforms POLISH runs
+// on ``LlamaModelHost`` instead, which conforms to the same protocol and is
+// declared above, so nothing outside this file has to know which one it got.
 
 /// Builds a schema that admits exactly `count` sentences.
 ///
@@ -268,3 +276,4 @@ public actor LanguageModelHost: LanguageModelHosting {
         }
     }
 }
+#endif

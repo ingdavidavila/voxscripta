@@ -75,7 +75,7 @@ public enum Paragraphs {
     /// will be mistaken for a sentence end, which costs a paragraph break in
     /// the wrong place; the alternative is a tokenizer whose language has to
     /// be known here, and being wrong is only cosmetic.
-    static func sentences(in text: String) -> [String] {
+    public static func sentences(in text: String) -> [String] {
         var out: [String] = []
         var current = ""
         let characters = Array(text)

@@ -72,11 +72,18 @@ public enum AtomicFile {
     private static func fsyncFile(at url: URL) throws {
         let handle = try FileHandle(forWritingTo: url)
         defer { try? handle.close() }
+        #if canImport(Darwin)
         // F_FULLFSYNC asks the drive to flush its own write cache too. On macOS a
         // plain fsync(2) can return before the data is durable.
         if fcntl(handle.fileDescriptor, F_FULLFSYNC) == -1 {
             try handle.synchronize()
         }
+        #else
+        // No F_FULLFSYNC outside Darwin, and none is needed for the same
+        // reason: fsync(2) on Linux is already specified to flush the write
+        // cache, which is exactly the guarantee macOS withholds from it.
+        try handle.synchronize()
+        #endif
     }
 
     /// Flushes a directory entry, so the rename itself is durable.

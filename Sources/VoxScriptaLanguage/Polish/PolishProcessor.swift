@@ -1,5 +1,7 @@
 import Foundation
+#if canImport(NaturalLanguage)
 import NaturalLanguage
+#endif
 import VoxScriptaCore
 
 /// Whether a polished window was accepted, and how.
@@ -333,6 +335,14 @@ public struct PolishProcessor: PolishProcessing {
     }
 
     static func sentences(of text: String, language: TranscriptLanguage) -> [String] {
+        #if !canImport(NaturalLanguage)
+        // Core's own splitter, which the paragraph builder already uses. It
+        // breaks on a terminator followed by whitespace and nothing cleverer,
+        // so an abbreviation can split a sentence in two. For POLISH that
+        // costs a smaller unit of work, never a changed word, because each
+        // unit is rewritten on its own and reassembled in order.
+        return Paragraphs.sentences(in: text)
+        #else
         let tokenizer = NLTokenizer(unit: .sentence)
         tokenizer.string = text
         tokenizer.setLanguage(EntityExtraction.nlLanguage(for: language))
@@ -341,6 +351,7 @@ public struct PolishProcessor: PolishProcessing {
             .filter { !$0.isEmpty }
         // A tokenizer that finds nothing must not silently drop the segment.
         return found.isEmpty ? [text] : found
+        #endif
     }
 
     private static func context(
