@@ -97,6 +97,14 @@ let package = Package(
             cSettings: [.headerSearchPath("include")],
             linkerSettings: engineLinkerSettings
         ),
+        // miniaudio, for decoding where AVFoundation does not exist. Headers
+        // only in the repository; the implementation is this one .c file.
+        .target(
+            name: "CMiniaudio",
+            path: "Sources/CMiniaudio",
+            sources: ["miniaudio_impl.c"],
+            cSettings: [.headerSearchPath("include")]
+        ),
         .target(
             name: "VoxScriptaCoreCxx",
             path: "core",
@@ -110,7 +118,8 @@ let package = Package(
         .target(name: "VoxScriptaCore", swiftSettings: strict),
 
         // ── Deterministic audio ─────────────────────────────────────────────
-        .target(name: "VoxScriptaDSP", dependencies: ["VoxScriptaCore"], swiftSettings: strict),
+        .target(name: "VoxScriptaDSP", dependencies: ["VoxScriptaCore", "CMiniaudio"],
+                swiftSettings: strict),
 
         // ── Model-facing layers ─────────────────────────────────────────────
         .target(name: "VoxScriptaTranscription",
