@@ -65,7 +65,7 @@ is a swap rather than surgery.
 | Recognition | `SpeechAnalyzer` | whisper.cpp | `TranscriptionEngine` — four methods |
 | Polishing | `FoundationModels`, MLX | llama.cpp | `LanguageModelHost` |
 | Audio decode | `AVFoundation` | FFmpeg (LGPL v2.1), **done** | `CanonicalDecoding` |
-| Recording | `AVCaptureSession` | miniaudio, Oboe on Android | `RecordingSession` |
+| Recording | `AVCaptureSession` | miniaudio + FFmpeg, **done** | `PortableRecorder` |
 
 Two more, smaller:
 
@@ -106,6 +106,36 @@ flags and prints the licence it produced.
 On the Mac the libraries are copied into `Contents/Frameworks`, re-pathed to
 `@rpath` and signed. Without that the app launches only on the machine that
 built it, which is how this was found.
+
+## Recording, and why the file format is the same everywhere
+
+The portable recorder writes **the same fragmented m4a the Apple one does**,
+because FFmpeg is already linked and enabling its AAC encoder and mov muxer
+costs 400 KB. That is worth more than it sounds: a recording made on Android
+opens on a Mac, the crash-safety mechanism is one mechanism rather than two,
+and there is no second format for the pipeline, the exporters or the user to
+know about.
+
+miniaudio opens the capture device — WASAPI, ALSA or PulseAudio, AAudio,
+CoreAudio — and is asked for exactly the format the writer wants, so no
+conversion happens in this project's code. It is the only job miniaudio does
+now; FFmpeg took over decoding.
+
+Measured, by abandoning a half-written recording and reading it back with
+this project's own decoder:
+
+| | Recovered from 6 seconds |
+| --- | ---: |
+| Fragmented, abandoned mid-write | 4.04 s |
+| The same file unfragmented | 0.00 s |
+
+The two seconds missing are the fragment that was still in flight, which is
+the interval working as intended rather than a loss to fix.
+
+**Untested:** opening a real capture device. There is no microphone on a test
+runner and faking one would test the fake, which is the same position the
+Apple recorder is in. Everything around it — the file format, the crash
+property, the transport, the meter floor — is covered.
 
 ## What this costs the user, stated plainly
 

@@ -144,7 +144,8 @@ let package = Package(
         .target(name: "VoxScriptaCore", swiftSettings: strict),
 
         // ── Deterministic audio ─────────────────────────────────────────────
-        .target(name: "VoxScriptaDSP", dependencies: ["VoxScriptaCore", "CFFmpeg"],
+        .target(name: "VoxScriptaDSP",
+                dependencies: ["VoxScriptaCore", "CFFmpeg", "CMiniaudio"],
                 swiftSettings: strict),
 
         // ── Model-facing layers ─────────────────────────────────────────────

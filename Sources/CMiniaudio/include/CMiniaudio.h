@@ -1,17 +1,20 @@
-// Swift's view of miniaudio, decoding only.
+// Swift's view of miniaudio: the microphone, and nothing else.
 //
-// One public-domain header that brings wav, flac and mp3 decoding together
-// with a resampler and a channel mixer — which is the whole job, since the
-// canonical format is 16 kHz mono float and sources are not.
+// Decoding moved to FFmpeg, which reads the containers AVFoundation reads and
+// which miniaudio could not. What miniaudio is here for now is the one job
+// FFmpeg does not do at all: opening a capture device on Windows, Linux,
+// Android and macOS behind one API.
 //
-// Device IO is switched off here. Recording is a separate backend and turning
-// it on would link an audio device layer into a build that only decodes.
+// So the decoders are off and device IO is on — the opposite of how this
+// started, and worth saying out loud because the defines look like
+// boilerplate until you know which half is wanted.
 #ifndef VOXSCRIPTA_CMINIAUDIO_H
 #define VOXSCRIPTA_CMINIAUDIO_H
-#define MA_NO_DEVICE_IO
 #define MA_NO_ENGINE
 #define MA_NO_GENERATION
 #define MA_NO_RESOURCE_MANAGER
 #define MA_NO_NODE_GRAPH
+#define MA_NO_DECODING
+#define MA_NO_ENCODING
 #include "miniaudio.h"
 #endif

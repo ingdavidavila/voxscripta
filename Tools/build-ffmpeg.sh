@@ -34,6 +34,13 @@ DEMUXERS="mov,wav,mp3,flac,aiff,ogg,matroska,caf,aac,w64,au"
 DECODERS="aac,aac_latm,alac,mp3,mp3float,flac,vorbis,opus,\
 pcm_s16le,pcm_s24le,pcm_s32le,pcm_f32le,pcm_f64le,pcm_s16be,pcm_s24be,pcm_u8,pcm_alaw,pcm_mulaw"
 PARSERS="aac,aac_latm,mpegaudio,flac,vorbis,opus"
+# Writing, not just reading. The portable recorder muxes a fragmented m4a with
+# exactly the flags the Apple one uses, so a recording made on Android or
+# Windows is the same kind of file as one made on a Mac — and survives a crash
+# the same way, because the index is written as it goes rather than at the end.
+# FFmpeg's own AAC encoder, which is in-tree and LGPL; libfdk would not be.
+ENCODERS="aac,pcm_s16le,pcm_f32le,flac"
+MUXERS="mov,ipod,mp4,wav,flac"
 
 mkdir -p "$OUT"
 cd "$OUT"
@@ -51,6 +58,8 @@ CONFIGURE=(
     --enable-demuxer="$DEMUXERS"
     --enable-decoder="$DECODERS"
     --enable-parser="$PARSERS"
+    --enable-encoder="$ENCODERS"
+    --enable-muxer="$MUXERS"
     --enable-pic
 )
 
