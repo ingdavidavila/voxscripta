@@ -10,6 +10,30 @@ let strict: [SwiftSetting] = [
     .enableUpcomingFeature("ExistentialAny"),
 ]
 
+/// Where Tools/build-engines.sh leaves the native engines, and what to link.
+///
+/// Declared once because both C targets link the same set: llama.cpp and
+/// whisper.cpp share a single ggml, installed into one prefix, so there is one
+/// backend in the binary rather than two copies of the same symbols.
+///
+/// Unsafe flags are allowed because this is a root package and nothing depends
+/// on it. If that ever changes, these become an xcframework.
+let engineLinkerSettings: [LinkerSetting] = [
+    .unsafeFlags(["-Lbuild/engines/host/prefix/lib"]),
+    .linkedLibrary("whisper"),
+    .linkedLibrary("llama"),
+    .linkedLibrary("ggml"),
+    .linkedLibrary("ggml-base"),
+    .linkedLibrary("ggml-cpu"),
+    .linkedLibrary("c++"),
+    .linkedLibrary("ggml-metal", .when(platforms: [.macOS, .iOS])),
+    .linkedLibrary("ggml-blas", .when(platforms: [.macOS, .iOS])),
+    .linkedFramework("Accelerate", .when(platforms: [.macOS, .iOS])),
+    .linkedFramework("Metal", .when(platforms: [.macOS, .iOS])),
+    .linkedFramework("MetalKit", .when(platforms: [.macOS, .iOS])),
+    .linkedFramework("CoreFoundation", .when(platforms: [.macOS, .iOS])),
+]
+
 let package = Package(
     name: "VoxScripta",
     // iOS carries the same minimum as macOS because the app depends on
@@ -60,32 +84,18 @@ let package = Package(
             name: "CWhisper",
             path: "Sources/CWhisper",
             sources: ["shim.c"],
-            cSettings: [
-                .headerSearchPath("../../vendor/whisper.cpp/include"),
-                .headerSearchPath("../../vendor/whisper.cpp/ggml/include"),
-            ],
-            // The libraries CMake produced. Unsafe flags are allowed because
-            // this is a root package and nothing depends on it; if that ever
-            // changes, these move into an xcframework instead.
-            linkerSettings: [
-                .unsafeFlags([
-                    "-Lbuild/whisper/host/src",
-                    "-Lbuild/whisper/host/ggml/src",
-                    "-Lbuild/whisper/host/ggml/src/ggml-metal",
-                    "-Lbuild/whisper/host/ggml/src/ggml-blas",
-                ]),
-                .linkedLibrary("whisper"),
-                .linkedLibrary("ggml"),
-                .linkedLibrary("ggml-base"),
-                .linkedLibrary("ggml-cpu"),
-                .linkedLibrary("c++"),
-                .linkedLibrary("ggml-metal", .when(platforms: [.macOS, .iOS])),
-                .linkedLibrary("ggml-blas", .when(platforms: [.macOS, .iOS])),
-                .linkedFramework("Accelerate", .when(platforms: [.macOS, .iOS])),
-                .linkedFramework("Metal", .when(platforms: [.macOS, .iOS])),
-                .linkedFramework("MetalKit", .when(platforms: [.macOS, .iOS])),
-                .linkedFramework("CoreFoundation", .when(platforms: [.macOS, .iOS])),
-            ]
+            cSettings: [.headerSearchPath("include")],
+            linkerSettings: engineLinkerSettings
+        ),
+        // llama.cpp, for POLISH off Apple's platforms. It shares the ggml that
+        // Tools/build-engines.sh installs, so both engines are one copy of the
+        // backend rather than two definitions of the same symbols.
+        .target(
+            name: "CLlama",
+            path: "Sources/CLlama",
+            sources: ["shim.c"],
+            cSettings: [.headerSearchPath("include")],
+            linkerSettings: engineLinkerSettings
         ),
         .target(
             name: "VoxScriptaCoreCxx",
@@ -106,7 +116,8 @@ let package = Package(
         .target(name: "VoxScriptaTranscription",
                 dependencies: ["VoxScriptaCore", "VoxScriptaDSP", "CWhisper"],
                 swiftSettings: strict),
-        .target(name: "VoxScriptaLanguage", dependencies: ["VoxScriptaCore"], swiftSettings: strict),
+        .target(name: "VoxScriptaLanguage", dependencies: ["VoxScriptaCore", "CLlama"],
+                swiftSettings: strict),
 
         // ── Support layers ──────────────────────────────────────────────────
         .target(name: "VoxScriptaProject", dependencies: ["VoxScriptaCore"], swiftSettings: strict),

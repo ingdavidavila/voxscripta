@@ -10,6 +10,10 @@ public enum LanguageBackend: String, Sendable, Codable, CaseIterable {
     /// Any mlx-community model through `MLXLanguageModel`. Not built yet — see
     /// ``LanguageModelHost`` for why.
     case mlx
+    /// A GGUF model through llama.cpp. The portable backend: it is what
+    /// POLISH runs on wherever Apple's system model does not exist, which is
+    /// Android, Windows and Linux.
+    case llama
 }
 
 public struct LanguageModelConfiguration: Hashable, Sendable, Codable {

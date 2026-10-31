@@ -1,1 +1,1 @@
-../../../vendor/whisper.cpp/ggml/include/ggml-cpu.h
+../../../vendor/llama.cpp/ggml/include/ggml-cpu.h

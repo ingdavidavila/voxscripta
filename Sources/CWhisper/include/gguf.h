@@ -1,1 +1,1 @@
-../../../vendor/whisper.cpp/ggml/include/gguf.h
+../../../vendor/llama.cpp/ggml/include/gguf.h
