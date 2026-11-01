@@ -1,5 +1,7 @@
 import Foundation
+#if canImport(Accelerate)
 import Accelerate
+#endif
 import VoxScriptaCore
 
 /// A downsampled min/max envelope for drawing a waveform.
@@ -62,8 +64,12 @@ public struct WaveformPeaks: Sendable, Codable {
                 let slice = UnsafeBufferPointer(rebasing: samples[start..<Swift.min(end, sampleCount)])
                 var low: Float = 0
                 var high: Float = 0
+                #if canImport(Accelerate)
                 vDSP_minv(slice.baseAddress!, 1, &low, vDSP_Length(slice.count))
                 vDSP_maxv(slice.baseAddress!, 1, &high, vDSP_Length(slice.count))
+                #else
+                (low, high) = PortableDSP.bounds(slice)
+                #endif
                 minima[bucket] = low
                 maxima[bucket] = high
             }

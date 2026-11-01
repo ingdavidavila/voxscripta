@@ -159,8 +159,10 @@ Linux SDK. `Tools/build-linux.sh` runs it and lists the targets.
 | VoxScriptaExport | builds |
 | VoxScriptaProject | builds |
 | VoxScriptaLanguage | builds |
-| VoxScriptaDSP | **blocked on Accelerate** |
-| Pipeline, Transcription, CLI | wait on DSP |
+| VoxScriptaDSP | builds |
+| VoxScriptaTranscription | builds |
+| VoxScriptaPipeline | **blocked on an MLX dependency** |
+| CLI | waits on Pipeline |
 
 The prediction that only eight call sites stood in the way was close but not
 right. What actually had to change:
@@ -185,6 +187,40 @@ right. What actually had to change:
   project moves to a `Deleted` folder beside the library so deletion stays
   recoverable. A project carried from a Mac holds a real bookmark, which is
   reported as unavailable rather than misread.
+
+### Accelerate, replaced and measured
+
+`PortableDSP` carries the six vDSP calls the analysis stage uses, including
+the FFT. It is compiled on every platform rather than only off Apple, because
+`PortableDSPParityTests` runs it against vDSP on the same input — so the
+version Linux depends on is the version that was checked.
+
+| | Agreement with Accelerate |
+| --- | --- |
+| Power spectrum | < 1e-4 relative, worst bin, sizes 256–1024 |
+| Spectral flatness | < 1e-5 absolute — the number silence detection reads |
+| Hann window | 6e-8 absolute |
+| RMS, min/max, multiply | exact |
+
+Three vDSP conventions had to be reproduced rather than improved on, because
+the silence thresholds were calibrated against them: the real FFT returns
+twice the mathematical transform, DC and Nyquist are packed into the same
+complex slot, and `zvmags` therefore reports the sum of their squares as the
+first "bin". A textbook implementation would have been quietly wrong.
+
+### The one thing left, and why it is a refactor
+
+`VoxScriptaPipeline` imports `VoxScriptaMLX`, which is Apple Silicon only and
+drags in a HuggingFace package that refuses to build against musl. Gating the
+import is not enough, and neither is
+`.target(name: "VoxScriptaMLX", condition: .when(platforms: [.macOS, .iOS]))`
+— SwiftPM builds the target and its packages regardless.
+
+The fix is the one the dependency direction already wanted: Pipeline should be
+handed a `LanguageModelHosting` rather than resolving one, moving
+`PolishBackendResolver` to the layer that knows which platform it is on. The
+llama.cpp backend it would choose off Apple already exists and is already
+wired into the resolver.
 
 ### POLISH is weaker off Apple, and that needs deciding
 

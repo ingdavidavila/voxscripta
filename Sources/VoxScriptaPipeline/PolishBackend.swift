@@ -1,7 +1,9 @@
 import Foundation
 import VoxScriptaCore
 import VoxScriptaLanguage
+#if canImport(FoundationModels)
 import VoxScriptaMLX
+#endif
 
 /// Which language model the polish pass should use.
 public enum PolishBackendPreference: String, Sendable, Codable, CaseIterable {
@@ -49,6 +51,23 @@ public enum PolishBackendResolver {
         _ preference: PolishBackendPreference,
         modelDirectory: URL? = nil
     ) throws -> ResolvedBackend {
+        #if !canImport(FoundationModels)
+        // Off Apple there is no system model and no MLX, so every preference
+        // resolves to llama.cpp — except `.system`, which names something
+        // that does not exist here and is refused rather than quietly
+        // substituted. A user who asked for Apple Intelligence should be told
+        // it is absent, not handed a different model under its name.
+        guard preference != .system else {
+            throw VoxScriptaError.modelUnavailable(
+                .systemDefault,
+                reason: "Apple's on-device model does not exist on this platform")
+        }
+        let host = modelDirectory.map { LlamaModelHost(modelURL: $0) } ?? LlamaModelHost()
+        return ResolvedBackend(host: host, kind: .bundled,
+                               describedAs: "llama.cpp, "
+                                   + LlamaModelHost.defaultModelURL().lastPathComponent)
+        #else
+
         let systemAvailable = (try? LanguageModelHost.availability().get()) != nil
         let bundled = modelDirectory.map { MLXModelHost(modelDirectory: $0) }
             ?? MLXModelHost.bundled()
@@ -82,6 +101,7 @@ public enum PolishBackendResolver {
                 reason: "Apple Intelligence is unavailable and this build ships no "
                     + "bundled model, so there is nothing to polish with")
         }
+        #endif
     }
 
     /// Whether polish can run at all on this machine.
@@ -89,6 +109,7 @@ public enum PolishBackendResolver {
         (try? resolve(.automatic)) != nil
     }
 
+    #if canImport(FoundationModels)
     private static func systemUnavailable() -> VoxScriptaError {
         if case .failure(let error) = LanguageModelHost.availability() { return error }
         return .modelUnavailable(.systemDefault, reason: "the system model is unavailable")
@@ -99,4 +120,5 @@ public enum PolishBackendResolver {
             ModelID(backend: "mlx", identifier: "bundled"),
             reason: "this build ships no bundled model; rebuild with Tools/fetch-model.sh")
     }
+    #endif
 }

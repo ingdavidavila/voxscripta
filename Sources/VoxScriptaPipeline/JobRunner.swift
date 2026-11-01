@@ -3,7 +3,9 @@ import VoxScriptaCore
 import VoxScriptaDSP
 import VoxScriptaTranscription
 import VoxScriptaLanguage
+#if canImport(FoundationModels)
 import VoxScriptaMLX
+#endif
 import VoxScriptaProject
 
 /// A point at which the runner will deliberately kill the process.
@@ -92,8 +94,21 @@ public struct JobProgressReport: Sendable {
 public struct JobRunner: Sendable {
     private let engineFactory: @Sendable () -> any TranscriptionEngine
 
-    public init(engineFactory: @escaping @Sendable () -> any TranscriptionEngine = { AppleSpeechEngine() }) {
-        self.engineFactory = engineFactory
+    public init(engineFactory: (@Sendable () -> any TranscriptionEngine)? = nil) {
+        self.engineFactory = engineFactory ?? Self.defaultEngine
+    }
+
+    /// The recogniser used when the caller names none.
+    ///
+    /// Apple's where it exists, because it is the one the word error rates in
+    /// this project were measured with, and whisper.cpp everywhere else —
+    /// which was measured against it on the same audio before being relied on.
+    static let defaultEngine: @Sendable () -> any TranscriptionEngine = {
+        #if canImport(Speech)
+        AppleSpeechEngine()
+        #else
+        WhisperEngine()
+        #endif
     }
 
     /// Languages worth probing: one locale per language the text stages

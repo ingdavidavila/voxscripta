@@ -1,5 +1,7 @@
 import Foundation
+#if canImport(AVFoundation)
 import AVFoundation
+#endif
 import VoxScriptaCore
 
 /// Where a moment in the rendered audio came from in the original.
@@ -65,6 +67,12 @@ public struct SilenceRemovalMap: Sendable, Codable {
 ///
 /// - Important: The original is opened read-only and a new file is written. §5
 ///   holds here as everywhere.
+#if canImport(AVFoundation)
+// Rendering a shortened copy still writes through AVFoundation. The map
+// above is plain data and travels everywhere; this does not, and it is an
+// opt-in feature rather than part of the transcription path, so off Apple
+// it is simply absent until FFmpeg is taught to write it.
+
 public struct SilenceRemovalRenderer: Sendable {
     /// Fade applied either side of every join.
     public let crossfade: MediaTime
@@ -214,3 +222,5 @@ public struct SilenceRemovalRenderer: Sendable {
         }
     }
 }
+
+#endif

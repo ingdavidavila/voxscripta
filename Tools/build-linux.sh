@@ -21,12 +21,17 @@ TOOLCHAIN="${SWIFT_TOOLCHAIN:-$(
     exit 1
 }
 
-# What builds for Linux today. VoxScriptaDSP is absent on purpose: it uses
-# Accelerate for the FFT behind the spectral features, and a portable
-# replacement has to be measured against the Accelerate one before anything
-# depends on it. Everything downstream of DSP — Pipeline, Transcription, the
-# CLI — waits on that.
-TARGETS=(VoxScriptaCore VoxScriptaExport VoxScriptaProject VoxScriptaLanguage)
+# What builds for Linux today.
+#
+# VoxScriptaPipeline is absent, and not because of its own code. It depends on
+# VoxScriptaMLX, which is Apple Silicon only and pulls in a HuggingFace package
+# that refuses to build against musl. Marking that dependency
+# `.when(platforms: [.macOS, .iOS])` does not help: SwiftPM still builds the
+# target and its packages. The fix is to invert it — Pipeline should be handed
+# a LanguageModelHosting rather than resolving one — which is a refactor, not
+# a flag.
+TARGETS=(VoxScriptaCore VoxScriptaExport VoxScriptaProject VoxScriptaLanguage
+         VoxScriptaDSP VoxScriptaTranscription)
 
 status=0
 for target in "${TARGETS[@]}"; do

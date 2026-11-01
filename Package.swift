@@ -208,8 +208,15 @@ let package = Package(
         // that knows the pipeline's shape; everything below it is independent.
         .target(name: "VoxScriptaPipeline",
                 dependencies: ["VoxScriptaCore", "VoxScriptaDSP", "VoxScriptaTranscription",
-                               "VoxScriptaLanguage", "VoxScriptaMLX", "VoxScriptaProject",
-                               "VoxScriptaBench"],
+                               "VoxScriptaLanguage", "VoxScriptaProject", "VoxScriptaBench",
+                               // MLX runs on Apple Silicon and nowhere else, and
+                               // it drags in a HuggingFace package that refuses
+                               // to build against musl. Gating the import is not
+                               // enough — the dependency itself has to be
+                               // conditional, or SwiftPM builds it anyway.
+                               // Off Apple, POLISH resolves to llama.cpp.
+                               .target(name: "VoxScriptaMLX",
+                                       condition: .when(platforms: [.macOS, .iOS]))],
                 swiftSettings: strict),
 
         // ── Test support ────────────────────────────────────────────────────

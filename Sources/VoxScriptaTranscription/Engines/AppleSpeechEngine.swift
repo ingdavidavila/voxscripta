@@ -1,3 +1,7 @@
+#if canImport(Speech)
+// Apple's recogniser, and so Apple's alone. ``WhisperEngine`` conforms to the
+// same protocol everywhere else, and was measured against this one on the
+// same audio.
 import Foundation
 import AVFoundation
 import CoreMedia
@@ -396,3 +400,4 @@ final class CanonicalSampleReader {
         }
     }
 }
+#endif
