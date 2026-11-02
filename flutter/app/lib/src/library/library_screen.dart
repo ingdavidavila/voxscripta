@@ -1,0 +1,226 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:voxscripta_engine/voxscripta_engine.dart';
+
+import '../platform_traits.dart';
+import 'library_model.dart';
+import 'project_tile.dart';
+
+/// The app's front door: everything already recorded or imported.
+class LibraryScreen extends StatefulWidget {
+  const LibraryScreen({super.key, required this.model});
+
+  final LibraryModel model;
+
+  @override
+  State<LibraryScreen> createState() => _LibraryScreenState();
+}
+
+class _LibraryScreenState extends State<LibraryScreen> {
+  @override
+  void initState() {
+    super.initState();
+    widget.model.addListener(_onChanged);
+    widget.model.refresh();
+  }
+
+  @override
+  void dispose() {
+    widget.model.removeListener(_onChanged);
+    super.dispose();
+  }
+
+  void _onChanged() => setState(() {});
+
+  @override
+  Widget build(BuildContext context) {
+    final model = widget.model;
+
+    // Delete on the selection, which is what a desktop list does. There is no
+    // key to press on a phone, so the row's own menu carries it there.
+    return CallbackShortcuts(
+      bindings: {
+        if (PlatformTraits.hasPointer)
+          const SingleActivator(LogicalKeyboardKey.delete): () {
+            final project = model.selected;
+            if (project != null) _confirmDelete(project);
+          },
+        const SingleActivator(LogicalKeyboardKey.f5): model.refresh,
+      },
+      child: Focus(
+        autofocus: true,
+        child: Scaffold(
+          appBar: AppBar(
+            title: const Text('Recordings'),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                tooltip: 'Look again for recordings on disk.',
+                onPressed: model.refresh,
+              ),
+            ],
+          ),
+          body: _body(model),
+        ),
+      ),
+    );
+  }
+
+  Widget _body(LibraryModel model) {
+    if (model.error case final message?) {
+      return _Message(
+        icon: Icons.error_outline,
+        title: 'The library could not be read',
+        // The engine's own words. Paraphrasing them would lose the path, which
+        // is usually the only part that makes this fixable.
+        detail: message,
+        action: FilledButton(onPressed: model.refresh, child: const Text('Try again')),
+      );
+    }
+    if (model.isLoading && model.projects.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (model.projects.isEmpty) {
+      return _Message(
+        icon: Icons.graphic_eq,
+        title: 'No recordings yet',
+        // Matches the SwiftUI empty state, plus the folder — "nothing here" is
+        // much more useful when it says where "here" is.
+        detail: 'Record something, or open a file.\n\n${model.directory}',
+      );
+    }
+
+    return ListView.builder(
+      itemCount: model.projects.length,
+      itemBuilder: (context, index) {
+        final project = model.projects[index];
+        return ProjectTile(
+          project: project,
+          isSelected: project.id == model.selectedId,
+          onOpen: () {
+            model.select(project.id);
+            _notBuiltYet(project);
+          },
+          onReveal: () => _reveal(project),
+          onDelete: () => _confirmDelete(project),
+        );
+      },
+    );
+  }
+
+  /// Opening a project needs the transcript screen, which does not exist yet.
+  ///
+  /// Said plainly rather than hidden behind a disabled row: the recording is
+  /// really there and really openable, and a row that did nothing without
+  /// explanation would read as a bug.
+  void _notBuiltYet(ProjectEntry project) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('The transcript screen is not built yet — '
+          '${project.displayName} is on disk and will open here.'),
+    ));
+  }
+
+  Future<void> _reveal(ProjectEntry project) async {
+    final shown = await PlatformTraits.revealInFileManager(project.path);
+    if (!mounted || shown) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('Could not open ${PlatformTraits.fileManagerName}.'),
+    ));
+  }
+
+  /// The delete flow, reachable by a test.
+  ///
+  /// Exposed because the gesture that opens the row menu is platform-dependent
+  /// — right-click here, long-press there — while the confirmation is not, and
+  /// the confirmation is the part that must never be skipped. A test that had
+  /// to simulate the right gesture per platform would be testing the gesture.
+  @visibleForTesting
+  Future<void> confirmDeleteForTest(ProjectEntry project) => _confirmDelete(project);
+
+  Future<void> _confirmDelete(ProjectEntry project) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Delete ${project.displayName}?'),
+        // The §5 promise, stated where the user is deciding rather than in a
+        // document they will not read: the audio is not destroyed.
+        content: Text(
+          PlatformTraits.hasPointer && Theme.of(context).platform == TargetPlatform.macOS
+              ? 'The project moves to the Trash. Your original audio file is not touched.'
+              : 'The project moves to a Deleted folder beside the library. '
+                  'Your original audio file is not touched.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      final movedTo = widget.model.delete(project);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(movedTo == null
+            ? 'Deleted ${project.displayName}.'
+            : 'Moved ${project.displayName} to $movedTo'),
+      ));
+    } on VoxScriptaException catch (failure) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(failure.message)));
+    }
+  }
+}
+
+/// A centred icon, a line and an explanation. Used for both empty and broken,
+/// because the difference between them is the words and not the layout.
+class _Message extends StatelessWidget {
+  const _Message({
+    required this.icon,
+    required this.title,
+    required this.detail,
+    this.action,
+  });
+
+  final IconData icon;
+  final String title;
+  final String detail;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 48, color: theme.colorScheme.onSurfaceVariant),
+              const SizedBox(height: 16),
+              Text(title, style: theme.textTheme.titleMedium, textAlign: TextAlign.center),
+              const SizedBox(height: 8),
+              SelectableText(
+                detail,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              ),
+              if (action != null) ...[const SizedBox(height: 20), action!],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

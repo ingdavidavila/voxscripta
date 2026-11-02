@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Off for development only. A sandboxed app cannot dlopen a library
+	     outside its own bundle, and during development libVoxScriptaFFI lives
+	     in the SwiftPM build tree rather than in Contents/Frameworks. The app
+	     launched showing "Failed to load dynamic library" with the path
+	     perfectly correct until this was turned off.
+
+	     macOS is only a development harness for this app — the Mac ships the
+	     SwiftUI app instead — so nothing is distributed from here. A real
+	     Windows, Linux or Android build copies the library in beside the
+	     executable, where no such exception is needed. Release.entitlements
+	     is deliberately left alone. -->
+	<key>com.apple.security.app-sandbox</key>
+	<false/>
+	<key>com.apple.security.cs.allow-jit</key>
+	<true/>
+	<key>com.apple.security.network.server</key>
+	<true/>
+</dict>
+</plist>
