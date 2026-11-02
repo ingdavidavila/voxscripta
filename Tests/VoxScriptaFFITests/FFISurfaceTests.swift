@@ -38,7 +38,7 @@ struct FFISurfaceTests {
 
     @Test("The ABI announces a version")
     func version() {
-        #expect(vs_abi_version() == 1)
+        #expect(vs_abi_version() == 2)
     }
 
     @Test("An unknown handle is reported, not crashed on")
@@ -56,7 +56,7 @@ struct FFISurfaceTests {
 
     @Test("Null paths are refused with a reason rather than a signal")
     func nullPaths() {
-        #expect(vs_job_start(nil, nil) == -1)
+        #expect(vs_job_start(nil, nil, nil) == -1)
         let message = take(vs_last_error_copy())
         #expect(message?.isEmpty == false)
     }
@@ -69,8 +69,8 @@ struct FFISurfaceTests {
         // be found at .", which tells a caller nothing. Refused synchronously
         // now, with a distinct code so a caller can tell the two apart.
         let refusals: [Int64] = [
-            "".withCString { a in "/tmp/p".withCString { vs_job_start(a, $0) } },
-            "/tmp/a.wav".withCString { a in "".withCString { vs_job_start(a, $0) } },
+            "".withCString { a in "/tmp/p".withCString { vs_job_start(a, $0, nil) } },
+            "/tmp/a.wav".withCString { a in "".withCString { vs_job_start(a, $0, nil) } },
         ]
         for refusal in refusals {
             #expect(refusal == -2)
@@ -92,7 +92,7 @@ struct FFISurfaceTests {
         let project = directory.appending(path: "p.voxscripta").path
 
         let handle = missing.withCString { audio in
-            project.withCString { vs_job_start(audio, $0) }
+            project.withCString { vs_job_start(audio, $0, nil) }
         }
         #expect(handle > 0)
 
@@ -121,7 +121,7 @@ struct FFISurfaceTests {
         func start(_ name: String) -> Int64 {
             let project = directory.appending(path: name).path
             return missing.withCString { audio in
-                project.withCString { vs_job_start(audio, $0) }
+                project.withCString { vs_job_start(audio, $0, nil) }
             }
         }
         let first = start("a.voxscripta")
@@ -161,7 +161,7 @@ struct FFISurfaceTests {
         let status = root.path.withCString { project in
             "verbatim".withCString { variant in
                 "txt".withCString { format in
-                    vs_export(project, variant, format, &bytes, &length)
+                    vs_export(project, variant, format, nil, &bytes, &length)
                 }
             }
         }
@@ -190,7 +190,7 @@ struct FFISurfaceTests {
             var length: Int64 = 0
             let status = root.path.withCString { project in
                 "verbatim".withCString { variant in
-                    format.withCString { vs_export(project, variant, $0, &bytes, &length) }
+                    format.withCString { vs_export(project, variant, $0, nil, &bytes, &length) }
                 }
             }
             #expect(status == 0, "\(format) failed: \(take(vs_last_error_copy()) ?? "—")")
@@ -210,7 +210,7 @@ struct FFISurfaceTests {
 
         let badVariant = root.withCString { p in
             "pollished".withCString { v in
-                "txt".withCString { vs_export(p, v, $0, &bytes, &length) }
+                "txt".withCString { vs_export(p, v, $0, nil, &bytes, &length) }
             }
         }
         #expect(badVariant == -2)
@@ -218,7 +218,7 @@ struct FFISurfaceTests {
 
         let badFormat = root.withCString { p in
             "verbatim".withCString { v in
-                "pdf".withCString { vs_export(p, v, $0, &bytes, &length) }
+                "pdf".withCString { vs_export(p, v, $0, nil, &bytes, &length) }
             }
         }
         #expect(badFormat == -3)
@@ -235,7 +235,7 @@ struct FFISurfaceTests {
         var length: Int64 = 0
         let status = root.withCString { p in
             "polished".withCString { v in
-                "txt".withCString { vs_export(p, v, $0, &bytes, &length) }
+                "txt".withCString { vs_export(p, v, $0, nil, &bytes, &length) }
             }
         }
         #expect(status == -4)
@@ -255,7 +255,7 @@ struct FFISurfaceTests {
         // the same thread dictionary and read the error back. That is worth
         // knowing rather than working around — the isolation here is per OS
         // thread, which is what an isolate is, and not per task.
-        _ = vs_job_start(nil, nil)
+        _ = vs_job_start(nil, nil, nil)
         #expect(take(vs_last_error_copy())?.isEmpty == false)
 
         final class Box: @unchecked Sendable { var value: String? }

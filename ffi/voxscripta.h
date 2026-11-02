@@ -48,8 +48,22 @@ extern "C" {
 /* ─── Version ──────────────────────────────────────────────────────────── */
 
 /* Bumped when a symbol changes meaning or disappears. Check it once at load
- * and refuse to run against an ABI you were not built for. */
+ * and refuse to run against an ABI you were not built for.
+ *
+ * 2 added the library, job options and export options. */
 int32_t vs_abi_version(void);
+
+/* ─── Structured data ──────────────────────────────────────────────────────
+ *
+ * Scalars on the hot path, JSON for anything with shape. Polling a job is four
+ * integer reads and no allocation; settings are one string parameter that
+ * never changes signature as settings are added.
+ *
+ * Pass NULL or "" for any *_json input to mean "the engine's defaults". Read
+ * the defaults with vs_job_options_defaults / vs_export_options_defaults
+ * rather than hardcoding them — a default in an interface is a rule the other
+ * interface cannot see.
+ */
 
 /* ─── Errors ───────────────────────────────────────────────────────────── */
 
@@ -65,13 +79,16 @@ char *vs_last_error_copy(void);
  *
  *   -1  an argument was NULL
  *   -2  an argument was the empty string
+ *   -3  options_json would not decode, or named a backend that does not exist
  *
  * Returns immediately. Anything that can only be discovered by doing the work
  * — missing audio, an unreadable container — arrives later as VS_STATE_FAILED
  * with vs_job_error_copy, not as a negative return here.
  *
  * The original audio is referenced, never copied and never modified. */
-int64_t vs_job_start(const char *audio_path, const char *project_path);
+int64_t vs_job_start(const char *audio_path,
+                     const char *project_path,
+                     const char *options_json);
 
 /* One of the VS_STATE_* codes. */
 int32_t vs_job_state(int64_t handle);
@@ -113,8 +130,43 @@ void vs_job_release(int64_t handle);
 int32_t vs_export(const char *project_path,
                   const char *variant,
                   const char *format,
+                  const char *options_json,
                   uint8_t **out_bytes,
                   int64_t *out_length);
+
+/* ─── Library ──────────────────────────────────────────────────────────────── */
+
+/* Where projects live when nobody says otherwise. Caller releases. */
+char *vs_library_default_directory(void);
+
+/* The projects in a directory, as a JSON array, newest first. NULL or "" means
+ * the default library. An empty library returns "[]" and is not an error.
+ * Caller releases.
+ *
+ *   [{"id": "...", "path": "...", "displayName": "...",
+ *     "durationSeconds": 0.0, "state": "complete", "modifiedAt": 0.0}]
+ *
+ * `state` reads "complete" for every project with a readable manifest — the
+ * real state lives in each project's job store and opening one per row would
+ * cost a database open per entry. The SwiftUI library pane says the same
+ * slightly-too-optimistic thing, on purpose: both interfaces agreeing beats
+ * each guessing differently. */
+char *vs_library_list(const char *directory);
+
+/* Deletes a project, recoverably: to the Trash on a Mac, otherwise to a
+ * Deleted folder beside the library. The original audio survives either way.
+ *
+ * 0 on success, writing {"movedTo": "<path>"} (or null) to *out_json, which the
+ * caller releases with vs_string_free. Negative on failure, leaving *out_json
+ * untouched, with the reason in vs_last_error_copy. */
+int32_t vs_project_delete(const char *project_path, char **out_json);
+
+/* ─── Defaults ─────────────────────────────────────────────────────────────── */
+
+/* The engine's own settings, as JSON in the same shape the *_json inputs take.
+ * Caller releases. */
+char *vs_job_options_defaults(void);
+char *vs_export_options_defaults(void);
 
 /* ─── Releasing what the library returned ──────────────────────────────── */
 

@@ -83,11 +83,9 @@ public final class AppModel {
     private let store = ProjectStore()
 
     /// Where projects live when the user does not choose somewhere else.
-    static var libraryDirectory: URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory,
-                                            in: .userDomainMask)[0]
-        return base.appending(path: "VoxScripta/Projects")
-    }
+    /// Where the library is. Deferred to the engine so that the Flutter
+    /// interface reads the same answer rather than a copy of it.
+    static var libraryDirectory: URL { ProjectStore.defaultLibraryDirectory }
 
     public init() {
         // The resolver cannot name MLX — see

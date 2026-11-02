@@ -48,7 +48,14 @@ import VoxScriptaExport
 /// Bumped when a symbol changes meaning or disappears. The Dart side refuses to
 /// run against an ABI it was not built for, rather than crashing on the first
 /// mismatched call.
-private let abiVersion: Int32 = 1
+/// 2 adds the library, job options and export options. The previous version
+/// could run a job and read the result, which proved the boundary and was
+/// nowhere near enough to build an interface on — see `Docs/PARITY.md`.
+/// `vs_job_start` and `vs_export` each gained a JSON parameter rather than
+/// growing a second entry point beside them, because nothing has shipped
+/// against version 1 and a legacy variant kept forever costs more than a
+/// break that nobody can observe.
+private let abiVersion: Int32 = 2
 
 // MARK: - Job states
 
@@ -189,7 +196,8 @@ public func vs_last_error_copy() -> UnsafeMutablePointer<CChar>? {
 @_cdecl("vs_job_start")
 public func vs_job_start(
     _ audio_path: UnsafePointer<CChar>?,
-    _ project_path: UnsafePointer<CChar>?
+    _ project_path: UnsafePointer<CChar>?,
+    _ options_json: UnsafePointer<CChar>?
 ) -> Int64 {
     setLastError(nil)
     guard let audio_path, let project_path else {
@@ -210,6 +218,26 @@ public func vs_job_start(
     let audioURL = URL(filePath: audio)
     let projectURL = URL(filePath: project)
 
+    // Decoded before the handle is issued, so a malformed settings blob is a
+    // refusal rather than a job that starts and then fails. The caller gets the
+    // decoder's own complaint, which names the offending key.
+    //
+    // Silence and chunking are kept as the wire type rather than folded into
+    // JobOptions, because they are not job settings: they are fixed on the
+    // manifest when a project is created, since both feed the content hash that
+    // decides what a resume may reuse.
+    let options: JobOptions
+    let wire: JobOptionsWire
+    do {
+        wire = try Wire.decode(JobOptionsWire.self,
+                               from: options_json.map { String(cString: $0) })
+            ?? JobOptionsWire()
+        options = try wire.resolved()
+    } catch {
+        setLastError(describe(error))
+        return -3
+    }
+
     let (handle, box) = JobRegistry.shared.insert()
     let task = Task.detached {
         do {
@@ -222,11 +250,15 @@ public func vs_job_start(
             } else {
                 project = try await store.create(
                     from: audioURL, at: projectURL,
+                    silence: wire.silence ?? .default,
+                    chunking: wire.chunking ?? .default,
+                    locale: options.transcription.locale,
+                    concurrency: options.transcription.concurrency,
                     probe: { url in
                         (try await decoder.probe(url: url), try decoder.duration(of: url))
                     })
             }
-            _ = try await JobRunner().run(project: project) { report in
+            _ = try await JobRunner().run(project: project, options: options) { report in
                 JobRegistry.shared.update(handle) {
                     $0.stateCode = code(for: report.state)
                     $0.fraction = report.fraction
@@ -320,6 +352,7 @@ public func vs_export(
     _ project_path: UnsafePointer<CChar>?,
     _ variant: UnsafePointer<CChar>?,
     _ format: UnsafePointer<CChar>?,
+    _ options_json: UnsafePointer<CChar>?,
     _ out_bytes: UnsafeMutablePointer<UnsafeMutablePointer<UInt8>?>?,
     _ out_length: UnsafeMutablePointer<Int64>?
 ) -> Int32 {
@@ -349,8 +382,11 @@ public func vs_export(
     }
 
     do {
+        let wire = try Wire.decode(ExportOptionsWire.self,
+                                   from: options_json.map { String(cString: $0) })
         let transcript = try AtomicFile.readJSON(Transcript.self, from: source)
-        let data = try Exporters.make(exportFormat).export(transcript, options: .default)
+        let data = try Exporters.make(exportFormat)
+            .export(transcript, options: (wire ?? ExportOptionsWire()).resolved())
         out_bytes.pointee = copyOut(data)
         out_length.pointee = Int64(data.count)
         return 0
@@ -370,4 +406,145 @@ public func vs_bytes_free(_ bytes: UnsafeMutablePointer<UInt8>?) {
 @_cdecl("vs_string_free")
 public func vs_string_free(_ string: UnsafeMutablePointer<CChar>?) {
     string?.deallocate()
+}
+
+// MARK: - The library
+
+/// Where projects live when nobody says otherwise. Caller releases it.
+///
+/// Read from the engine rather than rebuilt in Dart, because the two interfaces
+/// disagreeing about where the library is would make them two applications.
+@_cdecl("vs_library_default_directory")
+public func vs_library_default_directory() -> UnsafeMutablePointer<CChar>? {
+    copyOut(ProjectStore.defaultLibraryDirectory.path)
+}
+
+/// Lists the projects in `directory` as a JSON array, newest first.
+///
+/// Returns `[]` for a directory with nothing in it, which is not an error — a
+/// fresh install has an empty library and an interface should show an empty
+/// library, not a failure. Caller releases the string.
+@_cdecl("vs_library_list")
+public func vs_library_list(
+    _ directory: UnsafePointer<CChar>?
+) -> UnsafeMutablePointer<CChar>? {
+    setLastError(nil)
+    let path = directory.map { String(cString: $0) }
+    let url = (path?.isEmpty == false)
+        ? URL(filePath: path!)
+        : ProjectStore.defaultLibraryDirectory
+    do {
+        return copyOut(try Wire.encode(Wire.library(at: url)))
+    } catch {
+        setLastError(describe(error))
+        return nil
+    }
+}
+
+/// Deletes a project, recoverably.
+///
+/// §5 is the reason this is not a delete. On a Mac the project goes to the
+/// Trash; elsewhere it moves to a `Deleted` folder beside the library, because
+/// there is no system Trash to hand it to and a folder the app owns is honest
+/// about what it is. Either way the original audio survives, which is the
+/// promise that matters.
+///
+/// Returns JSON `{"movedTo": "<path>"}`, or `{"movedTo": null}` when the
+/// platform could not say where it went. Negative on failure, with the reason
+/// in `vs_last_error_copy`; the out pointer is left untouched then.
+@_cdecl("vs_project_delete")
+public func vs_project_delete(
+    _ project_path: UnsafePointer<CChar>?,
+    _ out_json: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
+) -> Int32 {
+    setLastError(nil)
+    guard let project_path, let out_json else {
+        setLastError("vs_project_delete requires a project path and an out pointer")
+        return -1
+    }
+    let path = String(cString: project_path)
+    guard !path.isEmpty else {
+        setLastError("vs_project_delete was given an empty path")
+        return -2
+    }
+
+    // Synchronous, unlike starting a job. A move is a move: there is no
+    // progress to report and nothing an interface could do with a handle.
+    let outcome = Synchronously.run {
+        do {
+            let moved = try await ProjectStore().delete(at: URL(filePath: path))
+            return Result<String?, any Error>.success(moved?.path)
+        } catch {
+            return Result<String?, any Error>.failure(error)
+        }
+    }
+
+    switch outcome {
+    case .success(let movedTo):
+        do {
+            out_json.pointee = copyOut(try Wire.encode(["movedTo": movedTo]))
+            return 0
+        } catch {
+            setLastError(describe(error))
+            return -4
+        }
+    case .failure(let error):
+        setLastError(describe(error))
+        return -4
+    }
+}
+
+// MARK: - Defaults
+
+/// The engine's own job settings, as JSON. Caller releases it.
+///
+/// Exists so an interface shows the engine's numbers instead of a second copy
+/// of them. A settings screen with its own hardcoded default silence margin is
+/// a rule living in an interface, and the moment the engine's changes the two
+/// disagree — which is exactly the drift `Docs/PARITY.md` is written to stop.
+@_cdecl("vs_job_options_defaults")
+public func vs_job_options_defaults() -> UnsafeMutablePointer<CChar>? {
+    setLastError(nil)
+    do {
+        return copyOut(try Wire.encode(JobOptionsWire.defaults))
+    } catch {
+        setLastError(describe(error))
+        return nil
+    }
+}
+
+/// The engine's own export settings, as JSON. Caller releases it.
+@_cdecl("vs_export_options_defaults")
+public func vs_export_options_defaults() -> UnsafeMutablePointer<CChar>? {
+    setLastError(nil)
+    do {
+        return copyOut(try Wire.encode(ExportOptionsWire.defaults))
+    } catch {
+        setLastError(describe(error))
+        return nil
+    }
+}
+
+/// Runs async work from a synchronous C entry point.
+///
+/// Only for operations that are genuinely quick — a directory move, a manifest
+/// read. Anything that does real work gets a handle and is polled instead, so
+/// that nothing here can block a Dart isolate for longer than a filesystem
+/// call. A semaphore rather than a task group because the caller is a C
+/// function and has no async context to suspend in.
+private enum Synchronously {
+    static func run<T>(_ body: @escaping @Sendable () async -> T) -> T {
+        let box = Box<T>()
+        let signal = DispatchSemaphore(value: 0)
+        Task.detached {
+            box.value = await body()
+            signal.signal()
+        }
+        signal.wait()
+        return box.value!
+    }
+
+    private final class Box<T>: @unchecked Sendable {
+        var value: T?
+    }
 }

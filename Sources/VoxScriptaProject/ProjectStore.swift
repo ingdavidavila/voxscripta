@@ -157,6 +157,18 @@ public struct ProjectStore: Sendable {
         return bytes
     }
 
+    /// Where projects live when nobody says otherwise.
+    ///
+    /// Here rather than in an interface because it is a rule, and a rule in one
+    /// interface is a rule the other cannot see — the SwiftUI app and the
+    /// Flutter app have to agree about where the library is or they are two
+    /// applications. `Docs/PARITY.md` is the contract this serves.
+    public static var defaultLibraryDirectory: URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory,
+                                            in: .userDomainMask)[0]
+        return base.appending(path: "VoxScripta/Projects")
+    }
+
     /// Deletes a project package.
     ///
     /// Moves it to the Trash rather than unlinking, so a mistaken delete is
