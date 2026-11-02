@@ -246,3 +246,148 @@ class ExportOptions {
         if (maximumCueLength != null) 'maximumCueLength': maximumCueLength,
       };
 }
+
+/// One transcript that exists on disk.
+class VariantSummary {
+  const VariantSummary({
+    required this.variant,
+    required this.words,
+    required this.segments,
+  });
+
+  factory VariantSummary.fromJson(Map<String, Object?> json) => VariantSummary(
+        variant: TranscriptVariant.values.firstWhere(
+          (candidate) => candidate.wireName == json['variant'],
+          orElse: () => TranscriptVariant.verbatim,
+        ),
+        words: (json['words'] as num?)?.toInt() ?? 0,
+        segments: (json['segments'] as num?)?.toInt() ?? 0,
+      );
+
+  final TranscriptVariant variant;
+  final int words;
+  final int segments;
+}
+
+/// What POLISH did with one sentence it did not simply accept.
+class FlaggedSentence {
+  const FlaggedSentence({
+    required this.disposition,
+    required this.original,
+    required this.revised,
+    required this.reasons,
+  });
+
+  factory FlaggedSentence.fromJson(Map<String, Object?> json) => FlaggedSentence(
+        disposition: PolishDisposition.fromWire(json['disposition'] as String?),
+        original: json['original'] as String? ?? '',
+        revised: json['revised'] as String? ?? '',
+        reasons: ((json['reasons'] as List<Object?>?) ?? const [])
+            .map((reason) => reason.toString())
+            .toList(growable: false),
+      );
+
+  final PolishDisposition disposition;
+  final String original;
+  final String revised;
+
+  /// Which gauntlet checks failed, in the engine's own words.
+  final List<String> reasons;
+}
+
+/// What happened to a sentence in the polish pass.
+enum PolishDisposition {
+  accepted,
+  acceptedAfterRetry,
+
+  /// Validation failed twice. The CLEAN text stands.
+  fellBackToClean,
+
+  /// The model errored. The CLEAN text stands.
+  modelFailed,
+
+  unknown;
+
+  static PolishDisposition fromWire(String? name) => switch (name) {
+        'accepted' => PolishDisposition.accepted,
+        'acceptedAfterRetry' => PolishDisposition.acceptedAfterRetry,
+        'fellBackToClean' => PolishDisposition.fellBackToClean,
+        'modelFailed' => PolishDisposition.modelFailed,
+        _ => PolishDisposition.unknown,
+      };
+
+  /// Whether the model's rewrite was used. False means the CLEAN sentence
+  /// survived, which is the gauntlet doing its job rather than a failure.
+  bool get keptModelText => switch (this) {
+        PolishDisposition.accepted || PolishDisposition.acceptedAfterRetry => true,
+        _ => false,
+      };
+}
+
+/// The polish review, as the transcript screen shows it.
+class PolishReview {
+  const PolishReview({
+    required this.ran,
+    required this.skipReason,
+    required this.accepted,
+    required this.acceptedAfterRetry,
+    required this.keptClean,
+    required this.flagged,
+  });
+
+  factory PolishReview.fromJson(Map<String, Object?> json) => PolishReview(
+        ran: json['ran'] as bool? ?? false,
+        skipReason: json['skipReason'] as String?,
+        accepted: (json['accepted'] as num?)?.toInt() ?? 0,
+        acceptedAfterRetry: (json['acceptedAfterRetry'] as num?)?.toInt() ?? 0,
+        keptClean: (json['keptClean'] as num?)?.toInt() ?? 0,
+        flagged: ((json['flagged'] as List<Object?>?) ?? const [])
+            .cast<Map<String, Object?>>()
+            .map(FlaggedSentence.fromJson)
+            .toList(growable: false),
+      );
+
+  final bool ran;
+
+  /// Why POLISH declined, when it did. Shown verbatim — §26 asks that a
+  /// missing polished transcript never be unexplained.
+  final String? skipReason;
+
+  final int accepted;
+  final int acceptedAfterRetry;
+  final int keptClean;
+
+  /// Only the sentences worth reading: retries, and anything where the CLEAN
+  /// text had to stand. Plain acceptances are counted, not carried.
+  final List<FlaggedSentence> flagged;
+
+  int get total => accepted + acceptedAfterRetry + keptClean;
+  bool get hasSomethingToShow => ran || skipReason != null;
+}
+
+/// Everything the transcript screen needs that is not the text itself.
+class ProjectSummary {
+  const ProjectSummary({required this.variants, required this.polish});
+
+  factory ProjectSummary.fromJson(Map<String, Object?> json) => ProjectSummary(
+        variants: ((json['variants'] as List<Object?>?) ?? const [])
+            .cast<Map<String, Object?>>()
+            .map(VariantSummary.fromJson)
+            .toList(growable: false),
+        polish: PolishReview.fromJson(
+            (json['polish'] as Map<String, Object?>?) ?? const {}),
+      );
+
+  /// Only the transcripts that exist. A project still being processed reports
+  /// fewer than three, and an unfinished one reports none.
+  final List<VariantSummary> variants;
+
+  final PolishReview polish;
+
+  VariantSummary? forVariant(TranscriptVariant variant) {
+    for (final candidate in variants) {
+      if (candidate.variant == variant) return candidate;
+    }
+    return null;
+  }
+}

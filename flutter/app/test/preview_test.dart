@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -6,6 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:voxscripta/src/library/library_model.dart';
 import 'package:voxscripta/src/platform_traits.dart';
 import 'package:voxscripta/src/library/library_screen.dart';
+import 'package:voxscripta/src/transcript/transcript_model.dart';
+import 'package:voxscripta/src/transcript/transcript_screen.dart';
 import 'package:voxscripta_engine/voxscripta_engine.dart';
 
 /// Renders the screens to PNG, so they can be looked at without a machine to
@@ -97,6 +100,49 @@ void main() {
     await expectLater(find.byType(LibraryScreen), matchesGoldenFile('previews/$name.png'));
   }
 
+  Future<void> renderTranscript(
+    WidgetTester tester, {
+    required String name,
+    required Size size,
+    required Brightness brightness,
+    required bool pointer,
+    required bool showReview,
+  }) async {
+    PlatformTraits.debugPointerOverride = pointer;
+    addTearDown(() => PlatformTraits.debugPointerOverride = null);
+    tester.view
+      ..physicalSize = size
+      ..devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final model = TranscriptModel(
+      source: const _PreviewTranscripts(),
+      projectPath: '/library/Board meeting.voxscripta',
+      displayName: 'Board meeting 2026-10-28.m4a',
+    );
+
+    await tester.pumpWidget(MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        brightness: brightness,
+        colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xFF3B6EA5), brightness: brightness),
+        visualDensity:
+            size.width > 700 ? VisualDensity.compact : VisualDensity.standard,
+        fontFamily: 'Preview',
+        useMaterial3: true,
+      ),
+      home: TranscriptScreen(model: model),
+    ));
+    await tester.pumpAndSettle();
+    if (showReview) {
+      model.toggleReview();
+      await tester.pumpAndSettle();
+    }
+    await expectLater(
+        find.byType(TranscriptScreen), matchesGoldenFile('previews/$name.png'));
+  }
+
   testWidgets('desktop, with recordings', (tester) async {
     await render(tester,
         name: 'library-desktop-light',
@@ -131,6 +177,24 @@ void main() {
         size: const Size(400, 800),
         brightness: Brightness.light,
         projects: populated);
+  });
+
+  testWidgets('transcript, desktop with review', (tester) async {
+    await renderTranscript(tester,
+        name: 'transcript-desktop-review',
+        size: const Size(1100, 700),
+        brightness: Brightness.light,
+        pointer: true,
+        showReview: true);
+  });
+
+  testWidgets('transcript, phone', (tester) async {
+    await renderTranscript(tester,
+        name: 'transcript-phone',
+        size: const Size(400, 800),
+        brightness: Brightness.light,
+        pointer: false,
+        showReview: false);
   });
 
   testWidgets('phone, empty', (tester) async {
@@ -177,4 +241,68 @@ class _PreviewSource implements LibrarySource {
 
   @override
   String? delete(String path) => null;
+}
+
+/// Sample outputs for the transcript previews.
+class _PreviewTranscripts implements TranscriptSource {
+  const _PreviewTranscripts();
+
+  @override
+  ProjectSummary summary(String projectPath) => const ProjectSummary(
+        variants: [
+          VariantSummary(
+              variant: TranscriptVariant.verbatim, words: 1841, segments: 96),
+          VariantSummary(
+              variant: TranscriptVariant.clean, words: 1702, segments: 96),
+          VariantSummary(
+              variant: TranscriptVariant.polished, words: 1655, segments: 94),
+        ],
+        polish: PolishReview(
+          ran: true,
+          skipReason: null,
+          accepted: 91,
+          acceptedAfterRetry: 2,
+          keptClean: 1,
+          flagged: [
+            FlaggedSentence(
+              disposition: PolishDisposition.fellBackToClean,
+              original: 'We did not approve the Q4 budget at that meeting.',
+              revised: 'We approved the Q4 budget at that meeting.',
+              reasons: ['polarity reversed: negation dropped'],
+            ),
+            FlaggedSentence(
+              disposition: PolishDisposition.acceptedAfterRetry,
+              original: 'so the the headcount plan is, um, forty two roles',
+              revised: 'So the headcount plan is forty-two roles.',
+              reasons: ['numeric conservation: 42 preserved on retry'],
+            ),
+          ],
+        ),
+      );
+
+  @override
+  Future<Uint8List> export({
+    required String projectPath,
+    required TranscriptVariant variant,
+    required ExportFormat format,
+    ExportOptions? options,
+  }) async =>
+      Uint8List.fromList(utf8.encode(switch (variant) {
+        TranscriptVariant.verbatim =>
+          'So, um, the first item is the, the Q4 budget. We did not approve '
+              'the Q4 budget at that meeting, uh, because the headcount plan '
+              'was still open.\n\n'
+              'Right. So the the headcount plan is, um, forty two roles, and '
+              'that was, that was the sticking point.',
+        TranscriptVariant.clean =>
+          'The first item is the Q4 budget. We did not approve the Q4 budget '
+              'at that meeting, because the headcount plan was still open.\n\n'
+              'So the headcount plan is forty two roles, and that was the '
+              'sticking point.',
+        TranscriptVariant.polished =>
+          'The first item was the Q4 budget. We did not approve it at that '
+              'meeting, because the headcount plan was still open.\n\n'
+              'The headcount plan is forty-two roles, and that was the '
+              'sticking point.',
+      }));
 }

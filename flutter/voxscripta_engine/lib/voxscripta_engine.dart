@@ -13,9 +13,14 @@ export 'src/model.dart'
     show
         ExportFormat,
         ExportOptions,
+        FlaggedSentence,
         JobOptions,
         JobProgress,
         JobState,
+        PolishDisposition,
+        PolishReview,
         ProjectEntry,
+        ProjectSummary,
         TranscriptVariant,
+        VariantSummary,
         VoxScriptaException;

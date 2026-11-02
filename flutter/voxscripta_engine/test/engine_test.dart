@@ -242,6 +242,88 @@ void main() {
     });
   });
 
+  group('project summary',
+      skip: libraryPath == null ? 'engine not built' : null, () {
+    late VoxScriptaEngine engine;
+    setUp(() => engine = VoxScriptaEngine.open(libraryPath: libraryPath));
+
+    test('a project with nothing in it reports no variants', () {
+      final directory = Directory.systemTemp.createTempSync('summary-test');
+      addTearDown(() => directory.deleteSync(recursive: true));
+
+      final summary = engine.summary('${directory.path}/empty.voxscripta');
+      // Not an error: a job that is still running has no outputs, and the
+      // screen should say so rather than fail.
+      expect(summary.variants, isEmpty);
+      expect(summary.polish.ran, isFalse);
+      expect(summary.polish.hasSomethingToShow, isFalse);
+    });
+
+    test('an empty path is refused', () {
+      expect(() => engine.summary(''), throwsA(isA<VoxScriptaException>()));
+    });
+  });
+
+  group('PolishDisposition', () {
+    test('maps the wire names, and anything new reads as unknown', () {
+      expect(PolishDisposition.fromWire('accepted'), PolishDisposition.accepted);
+      expect(PolishDisposition.fromWire('fellBackToClean'),
+          PolishDisposition.fellBackToClean);
+      expect(PolishDisposition.fromWire('somethingNew'), PolishDisposition.unknown);
+    });
+
+    test('only the model-accepted dispositions kept the rewrite', () {
+      expect(PolishDisposition.accepted.keptModelText, isTrue);
+      expect(PolishDisposition.acceptedAfterRetry.keptModelText, isTrue);
+      // The CLEAN sentence surviving is the gauntlet working, not a failure.
+      expect(PolishDisposition.fellBackToClean.keptModelText, isFalse);
+      expect(PolishDisposition.modelFailed.keptModelText, isFalse);
+    });
+  });
+
+  group('ProjectSummary decoding', () {
+    test('reads counts and evidence out of the engine\'s JSON', () {
+      final summary = ProjectSummary.fromJson(const {
+        'variants': [
+          {'variant': 'verbatim', 'words': 120, 'segments': 8},
+          {'variant': 'clean', 'words': 101, 'segments': 8},
+        ],
+        'polish': {
+          'ran': true,
+          'skipReason': null,
+          'accepted': 6,
+          'acceptedAfterRetry': 1,
+          'keptClean': 1,
+          'flagged': [
+            {
+              'disposition': 'fellBackToClean',
+              'original': 'we did not ship',
+              'revised': 'we shipped',
+              'reasons': ['polarity reversed'],
+            }
+          ],
+        },
+      });
+
+      expect(summary.variants, hasLength(2));
+      expect(summary.forVariant(TranscriptVariant.clean)?.words, 101);
+      expect(summary.forVariant(TranscriptVariant.polished), isNull);
+      expect(summary.polish.total, 8);
+      expect(summary.polish.flagged.single.reasons, ['polarity reversed']);
+      expect(summary.polish.flagged.single.disposition.keptModelText, isFalse);
+    });
+
+    test('a declined polish keeps its reason', () {
+      final summary = ProjectSummary.fromJson(const {
+        'variants': <Object?>[],
+        'polish': {'ran': false, 'skipReason': 'Apple Intelligence is off'},
+      });
+      expect(summary.polish.ran, isFalse);
+      expect(summary.polish.skipReason, 'Apple Intelligence is off');
+      expect(summary.polish.hasSomethingToShow, isTrue);
+    });
+  });
+
   group('JobState', () {
     test('maps every code the ABI documents', () {
       expect(JobState.fromCode(0), JobState.imported);

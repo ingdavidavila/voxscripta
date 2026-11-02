@@ -4,6 +4,8 @@ import 'src/engine_host.dart';
 import 'src/library/library_model.dart';
 import 'src/library/library_screen.dart';
 import 'src/platform_traits.dart';
+import 'src/transcript/transcript_model.dart';
+import 'src/transcript/transcript_screen.dart';
 
 void main() => runApp(const VoxScriptaApp());
 
@@ -48,7 +50,20 @@ class _VoxScriptaAppState extends State<VoxScriptaApp> {
 
   Widget _home() {
     if (_host.engine case final engine?) {
-      return LibraryScreen(model: LibraryModel.of(engine));
+      return LibraryScreen(
+        model: LibraryModel.of(engine),
+        openProject: (context, project) => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => TranscriptScreen(
+              model: TranscriptModel.of(
+                engine,
+                projectPath: project.path,
+                displayName: project.displayName,
+              ),
+            ),
+          ),
+        ),
+      );
     }
     return _EngineUnavailable(failure: _host.failure, onRetry: _host.open);
   }

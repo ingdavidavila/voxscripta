@@ -8,9 +8,13 @@ import 'project_tile.dart';
 
 /// The app's front door: everything already recorded or imported.
 class LibraryScreen extends StatefulWidget {
-  const LibraryScreen({super.key, required this.model});
+  const LibraryScreen({super.key, required this.model, this.openProject});
 
   final LibraryModel model;
+
+  /// Opens a project's transcript. Injected rather than built here so the
+  /// library's tests do not need an engine to open a row.
+  final void Function(BuildContext, ProjectEntry)? openProject;
 
   @override
   State<LibraryScreen> createState() => _LibraryScreenState();
@@ -99,7 +103,12 @@ class _LibraryScreenState extends State<LibraryScreen> {
           isSelected: project.id == model.selectedId,
           onOpen: () {
             model.select(project.id);
-            _notBuiltYet(project);
+            final open = widget.openProject;
+            if (open == null) {
+              _noTranscriptScreen(project);
+            } else {
+              open(context, project);
+            }
           },
           onReveal: () => _reveal(project),
           onDelete: () => _confirmDelete(project),
@@ -108,15 +117,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
     );
   }
 
-  /// Opening a project needs the transcript screen, which does not exist yet.
-  ///
-  /// Said plainly rather than hidden behind a disabled row: the recording is
-  /// really there and really openable, and a row that did nothing without
-  /// explanation would read as a bug.
-  void _notBuiltYet(ProjectEntry project) {
+  /// Only reached when no opener was supplied, which in the app it always is.
+  /// Kept so a row never silently does nothing.
+  void _noTranscriptScreen(ProjectEntry project) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('The transcript screen is not built yet — '
-          '${project.displayName} is on disk and will open here.'),
+      content: Text('${project.displayName} cannot be opened here.'),
     ));
   }
 

@@ -27,9 +27,9 @@ Legend: ✓ in the SwiftUI app · ABI column says whether the C ABI can serve it
 | Feature | SwiftUI | C ABI today |
 | --- | --- | --- |
 | **Library** | | |
-| List projects with duration and date | ✓ | ✓ `vs_library_list` |
+| List projects with duration and date | ✓ | ✓ `vs_library_list` · Flutter ✓ |
 | Open a project | ✓ | ✓ — `vs_job_start` opens an existing package |
-| Delete a project (recoverable — Trash, or a Deleted folder) | ✓ | ✓ `vs_project_delete` |
+| Delete a project (recoverable — Trash, or a Deleted folder) | ✓ | ✓ `vs_project_delete` · Flutter ✓ |
 | Reveal in the file manager | ✓ | platform-side, not engine |
 | **Getting audio in** | | |
 | Import an audio file | ✓ | partly — `vs_job_start` takes a path |
@@ -43,13 +43,13 @@ Legend: ✓ in the SwiftUI app · ABI column says whether the C ABI can serve it
 | Cancel, leaving the project resumable | ✓ | ✓ |
 | Resume an interrupted job | ✓ | ✓ (implicit on restart) |
 | **Reading the result** | | |
-| Three variants: verbatim, clean, polished | ✓ | ✓ |
-| Copy the transcript to the clipboard | ✓ | ✓ via export |
-| Save as txt, md, docx, srt, vtt | ✓ | ✓ |
+| Three variants: verbatim, clean, polished | ✓ | ✓ · Flutter ✓ |
+| Copy the transcript to the clipboard | ✓ | ✓ · Flutter ✓ |
+| Save as txt, md, docx, srt, vtt | ✓ | ✓ · Flutter renders, cannot yet choose where |
 | Include timestamps in an export | ✓ | ✓ via `options_json` |
 | Save every variant at once | ✓ | ✓ by repeated calls |
-| Polish review: which sentences were accepted or rejected, and why | ✓ | ✗ |
-| Explanation when polish did not run | ✓ | ✗ |
+| Polish review: which sentences were accepted or rejected, and why | ✓ | ✓ `vs_project_summary` · Flutter ✓ |
+| Explanation when polish did not run | ✓ | ✓ · Flutter ✓ |
 | Render silence-removed audio | ✓ (macOS) | ✗ — and AVFoundation-only |
 | **Settings** | | |
 | Silence: margin dB, minimum duration, lead and trail padding | ✓ | ✓ |
@@ -88,8 +88,19 @@ what the engine says. For the same reason the library's location moved out of
 `AppModel` into `ProjectStore.defaultLibraryDirectory`, so both interfaces ask
 rather than each building the path.
 
-What is still ✗: recording, polish review, available locales, and copying the
-original into a project instead of referencing it.
+ABI 3 added `vs_project_summary`, which the transcript screen needed: which
+transcripts exist, their word and segment counts, and what POLISH decided. One
+call rather than four, because the screen needs all of it to draw one frame.
+
+Counts and evidence are separated in it, on purpose. A clean run of a long
+interview is thousands of accepted sentences, and shipping them all so an
+interface could count and discard them would be a megabyte of JSON to render
+one number. `flagged` carries only the retries and the fallbacks — the
+sentences a reader would actually want to see.
+
+What is still ✗: recording, available locales, copying the original into a
+project instead of referencing it, and choosing where an export is saved (which
+needs a file-dialog plugin rather than engine work).
 
 ## What the first version of that table said
 

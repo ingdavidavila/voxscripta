@@ -173,3 +173,119 @@ enum Wire {
         return found.sorted { $0.modifiedAt > $1.modifiedAt }
     }
 }
+
+// MARK: - A project's outputs
+
+/// One transcript that exists on disk.
+struct VariantWire: Codable {
+    let variant: String
+    let words: Int
+    let segments: Int
+}
+
+/// One sentence POLISH did not simply accept.
+///
+/// Only the ones worth looking at are carried. A clean run of a long interview
+/// is thousands of accepted sentences, and sending them all so that an
+/// interface can count them and throw them away would be a megabyte of JSON to
+/// render one number. The counts come separately; this list is the evidence.
+struct FlaggedSentenceWire: Codable {
+    let disposition: String
+    let original: String
+    let revised: String
+    let reasons: [String]
+}
+
+/// What POLISH did, as the review panel shows it.
+struct PolishReviewWire: Codable {
+    /// False when the stage declined. ``skipReason`` then says why, in the
+    /// engine's own words — §26 asks that a missing polished transcript never
+    /// be unexplained.
+    let ran: Bool
+    let skipReason: String?
+    let accepted: Int
+    let acceptedAfterRetry: Int
+    /// Validation failed twice, or the model errored. The CLEAN text stands.
+    let keptClean: Int
+    let flagged: [FlaggedSentenceWire]
+}
+
+/// Everything the transcript screen needs that is not the text itself.
+struct ProjectSummaryWire: Codable {
+    let variants: [VariantWire]
+    let polish: PolishReviewWire
+}
+
+extension Wire {
+    /// Reads a project's outputs without decoding more than it must.
+    ///
+    /// Each variant is decoded to count its words and segments, which is the
+    /// honest cost of reporting a count the interface must not compute itself:
+    /// `wordCount` is a rule, and a Dart reimplementation of it would be a
+    /// second answer waiting to disagree with the first.
+    static func summary(of package: ProjectPackage) -> ProjectSummaryWire {
+        let sources: [(TranscriptVariant, URL)] = [
+            (.verbatim, package.transcriptURL),
+            (.clean, package.cleanTranscriptURL),
+            (.polished, package.polishedTranscriptURL),
+        ]
+
+        var variants: [VariantWire] = []
+        for (variant, url) in sources {
+            guard let transcript = try? AtomicFile.readJSON(Transcript.self, from: url)
+            else { continue }
+            variants.append(VariantWire(variant: variant.rawValue,
+                                        words: transcript.wordCount,
+                                        segments: transcript.segments.count))
+        }
+
+        return ProjectSummaryWire(variants: variants, polish: polishReview(in: package))
+    }
+
+    private static func polishReview(in package: ProjectPackage) -> PolishReviewWire {
+        // The skip reason is plain text rather than JSON because the pipeline
+        // writes it in one line at the moment it decides not to run.
+        let skipReason = (try? String(contentsOf: package.polishSkippedURL, encoding: .utf8))?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let report = (try? AtomicFile.readJSON([PolishedSentence].self,
+                                               from: package.polishReportURL)) ?? []
+
+        if report.isEmpty, let skipReason, !skipReason.isEmpty {
+            return PolishReviewWire(ran: false, skipReason: skipReason,
+                                    accepted: 0, acceptedAfterRetry: 0,
+                                    keptClean: 0, flagged: [])
+        }
+
+        var accepted = 0, retried = 0, kept = 0
+        var flagged: [FlaggedSentenceWire] = []
+        for sentence in report {
+            switch sentence.disposition {
+            case .accepted:
+                accepted += 1
+            case .acceptedAfterRetry:
+                retried += 1
+                // Carried: it passed, but only on a second attempt, which is
+                // the one case where a reader may want to see what changed.
+                flagged.append(entry(for: sentence))
+            case .fellBackToClean, .modelFailed:
+                kept += 1
+                flagged.append(entry(for: sentence))
+            }
+        }
+
+        return PolishReviewWire(
+            ran: !report.isEmpty,
+            skipReason: report.isEmpty ? skipReason : nil,
+            accepted: accepted, acceptedAfterRetry: retried,
+            keptClean: kept, flagged: flagged)
+    }
+
+    private static func entry(for sentence: PolishedSentence) -> FlaggedSentenceWire {
+        FlaggedSentenceWire(
+            disposition: sentence.disposition.rawValue,
+            original: sentence.original,
+            revised: sentence.revised,
+            reasons: sentence.report.failureReasons)
+    }
+}

@@ -50,7 +50,8 @@ extern "C" {
 /* Bumped when a symbol changes meaning or disappears. Check it once at load
  * and refuse to run against an ABI you were not built for.
  *
- * 2 added the library, job options and export options. */
+ * 2 added the library, job options and export options.
+ * 3 added vs_project_summary. */
 int32_t vs_abi_version(void);
 
 /* ─── Structured data ──────────────────────────────────────────────────────
@@ -160,6 +161,33 @@ char *vs_library_list(const char *directory);
  * caller releases with vs_string_free. Negative on failure, leaving *out_json
  * untouched, with the reason in vs_last_error_copy. */
 int32_t vs_project_delete(const char *project_path, char **out_json);
+
+/* ─── A finished project ───────────────────────────────────────────────────── */
+
+/* What a project contains, as JSON. Caller releases.
+ *
+ *   {"variants": [{"variant": "verbatim", "words": 0, "segments": 0}, ...],
+ *    "polish": {"ran": true, "skipReason": null,
+ *               "accepted": 0, "acceptedAfterRetry": 0, "keptClean": 0,
+ *               "flagged": [{"disposition": "fellBackToClean",
+ *                            "original": "...", "revised": "...",
+ *                            "reasons": ["..."]}]}}
+ *
+ * `variants` lists only the transcripts that exist, so a project still being
+ * processed reports fewer than three and an unfinished one reports none. That
+ * is not an error.
+ *
+ * `flagged` carries only the sentences worth looking at — anything accepted on
+ * a retry, and anything where the CLEAN text had to stand. A clean run of a
+ * long interview is thousands of plain acceptances, and shipping them so a
+ * caller can count and discard them would be a megabyte of JSON to render one
+ * number. The counts are separate; this is the evidence.
+ *
+ * `skipReason` is set, and `ran` false, when POLISH declined — so a missing
+ * polished transcript is never unexplained.
+ *
+ * NULL on failure, with the reason in vs_last_error_copy. */
+char *vs_project_summary(const char *project_path);
 
 /* ─── Defaults ─────────────────────────────────────────────────────────────── */
 

@@ -4,6 +4,7 @@ import VoxScriptaCore
 import VoxScriptaProject
 import VoxScriptaTranscription
 import VoxScriptaPipeline
+import VoxScriptaLanguage
 @testable import VoxScriptaFFI
 
 /// The library, settings and defaults halves of the ABI.
@@ -250,5 +251,138 @@ struct FFILibraryTests {
         out.append(contentsOf: Array("data".utf8)); le32(dataBytes)
         out.append(Data(count: dataBytes))
         try out.write(to: url)
+    }
+}
+
+/// `vs_project_summary`, which the transcript screen is built on.
+@Suite("FFI project summary")
+struct FFISummaryTests {
+
+    private func take(_ pointer: UnsafeMutablePointer<CChar>?) -> String? {
+        guard let pointer else { return nil }
+        defer { vs_string_free(pointer) }
+        return String(cString: pointer)
+    }
+
+    private func summary(of root: URL) throws -> [String: Any] {
+        let text = try #require(root.path.withCString { take(vs_project_summary($0)) })
+        let data = try #require(text.data(using: .utf8))
+        return try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+    }
+
+    private func temporaryPackage() throws -> ProjectPackage {
+        let root = URL(filePath: NSTemporaryDirectory())
+            .appending(path: "summary-\(UUID().uuidString).\(ProjectPackage.fileExtension)")
+        let package = ProjectPackage(root: root)
+        try FileManager.default.createDirectory(at: package.outputDirectory,
+                                                withIntermediateDirectories: true)
+        return package
+    }
+
+    private func write(_ variant: TranscriptVariant, to url: URL, sentences: [String]) throws {
+        let segments = sentences.enumerated().map { index, text in
+            TranscriptSegment(
+                originalStart: .seconds(Double(index) * 2),
+                originalEnd: .seconds(Double(index) * 2 + 2),
+                text: text,
+                words: text.split(separator: " ").map {
+                    Word(text: String($0), originalStart: .zero, originalEnd: .zero,
+                         confidence: 0.9)
+                })
+        }
+        try AtomicFile.writeJSON(
+            Transcript(variant: variant, segments: segments, provenance: Provenance()),
+            to: url)
+    }
+
+    @Test("A project with nothing finished reports no variants, not an error")
+    func emptyProject() throws {
+        let package = try temporaryPackage()
+        defer { try? FileManager.default.removeItem(at: package.root) }
+
+        let object = try summary(of: package.root)
+        #expect((object["variants"] as? [Any])?.isEmpty == true)
+        let polish = try #require(object["polish"] as? [String: Any])
+        #expect(polish["ran"] as? Bool == false)
+        #expect(take(vs_last_error_copy()) == nil)
+    }
+
+    @Test("Only the transcripts that exist are listed, with their counts")
+    func listsWhatExists() throws {
+        let package = try temporaryPackage()
+        defer { try? FileManager.default.removeItem(at: package.root) }
+
+        try write(.verbatim, to: package.transcriptURL,
+                  sentences: ["one two three", "four five"])
+        try write(.clean, to: package.cleanTranscriptURL,
+                  sentences: ["one two three"])
+        // No polished transcript: the stage has not run.
+
+        let variants = try #require(try summary(of: package.root)["variants"] as? [[String: Any]])
+        #expect(variants.count == 2)
+        #expect(variants[0]["variant"] as? String == "verbatim")
+        #expect(variants[0]["words"] as? Int == 5)
+        #expect(variants[0]["segments"] as? Int == 2)
+        #expect(variants[1]["variant"] as? String == "clean")
+        #expect(variants[1]["words"] as? Int == 3)
+    }
+
+    @Test("A declined polish carries the engine's reason, not a blank")
+    func skipReasonSurvives() throws {
+        let package = try temporaryPackage()
+        defer { try? FileManager.default.removeItem(at: package.root) }
+
+        let reason = "Apple Intelligence is unavailable and this build ships no model"
+        try Data(reason.utf8).write(to: package.polishSkippedURL)
+
+        let polish = try #require(try summary(of: package.root)["polish"] as? [String: Any])
+        // §26: a missing polished transcript must never be unexplained.
+        #expect(polish["ran"] as? Bool == false)
+        #expect(polish["skipReason"] as? String == reason)
+    }
+
+    @Test("Counts and evidence are separated, so a clean run is not a megabyte")
+    func countsAndEvidenceAreSeparate() throws {
+        let package = try temporaryPackage()
+        defer { try? FileManager.default.removeItem(at: package.root) }
+
+        func sentence(_ disposition: PolishDisposition, _ reasons: [String] = [])
+            -> PolishedSentence {
+            PolishedSentence(
+                segmentID: SegmentID(), original: "before", revised: "after",
+                report: ValidationReport(results: reasons.map {
+                    CheckResult(check: .polarity, passed: false, detail: $0)
+                }),
+                disposition: disposition)
+        }
+
+        try AtomicFile.writeJSON([
+            sentence(.accepted), sentence(.accepted), sentence(.accepted),
+            sentence(.acceptedAfterRetry),
+            sentence(.fellBackToClean, ["polarity reversed"]),
+            sentence(.modelFailed),
+        ], to: package.polishReportURL)
+
+        let polish = try #require(try summary(of: package.root)["polish"] as? [String: Any])
+        #expect(polish["ran"] as? Bool == true)
+        #expect(polish["accepted"] as? Int == 3)
+        #expect(polish["acceptedAfterRetry"] as? Int == 1)
+        #expect(polish["keptClean"] as? Int == 2)
+
+        // Three plain acceptances are counted and not carried; the retry and
+        // the two fallbacks are the ones worth reading.
+        let flagged = try #require(polish["flagged"] as? [[String: Any]])
+        #expect(flagged.count == 3)
+        #expect(flagged.contains { $0["disposition"] as? String == "acceptedAfterRetry" })
+        #expect(flagged.contains {
+            ($0["reasons"] as? [String])?.contains("polarity reversed") == true
+        })
+    }
+
+    @Test("An empty path is refused rather than reported as an empty project")
+    func emptyPathRefused() {
+        #expect("".withCString { vs_project_summary($0) } == nil)
+        #expect(take(vs_last_error_copy())?.isEmpty == false)
+        #expect(vs_project_summary(nil) == nil)
     }
 }

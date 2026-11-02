@@ -21,7 +21,7 @@ class VoxScriptaEngine {
   /// The ABI this package was written against. A library announcing anything
   /// else is refused at open, rather than crashing later on a signature that
   /// moved — which is the whole reason the version exists.
-  static const int supportedAbiVersion = 2;
+  static const int supportedAbiVersion = 3;
 
   /// How often a running job is polled.
   ///
@@ -165,6 +165,26 @@ class VoxScriptaEngine {
     } finally {
       calloc.free(path);
       calloc.free(out);
+    }
+  }
+
+  /// What a project contains: which transcripts exist, how long each is, and
+  /// what POLISH decided.
+  ///
+  /// One call rather than four, because the transcript screen needs all of it
+  /// to draw a single frame. A project with nothing finished reports no
+  /// variants, which is a state to show and not an error.
+  ProjectSummary summary(String projectPath) {
+    final path = projectPath.toNativeUtf8();
+    try {
+      final text = _bindings.takeString(_bindings.projectSummary(path));
+      if (text == null) {
+        throw VoxScriptaException(
+            _bindings.lastError() ?? 'the project could not be read');
+      }
+      return ProjectSummary.fromJson(jsonDecode(text) as Map<String, Object?>);
+    } finally {
+      calloc.free(path);
     }
   }
 

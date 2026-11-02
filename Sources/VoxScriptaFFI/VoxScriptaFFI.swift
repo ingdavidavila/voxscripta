@@ -48,14 +48,16 @@ import VoxScriptaExport
 /// Bumped when a symbol changes meaning or disappears. The Dart side refuses to
 /// run against an ABI it was not built for, rather than crashing on the first
 /// mismatched call.
-/// 2 adds the library, job options and export options. The previous version
+/// 2 added the library, job options and export options. 3 adds
+/// `vs_project_summary`, which the transcript screen needs: which variants
+/// exist, their word and segment counts, and what POLISH did. The previous version
 /// could run a job and read the result, which proved the boundary and was
 /// nowhere near enough to build an interface on — see `Docs/PARITY.md`.
 /// `vs_job_start` and `vs_export` each gained a JSON parameter rather than
 /// growing a second entry point beside them, because nothing has shipped
 /// against version 1 and a legacy variant kept forever costs more than a
 /// break that nobody can observe.
-private let abiVersion: Int32 = 2
+private let abiVersion: Int32 = 3
 
 // MARK: - Job states
 
@@ -546,5 +548,38 @@ private enum Synchronously {
 
     private final class Box<T>: @unchecked Sendable {
         var value: T?
+    }
+}
+
+/// What a finished project contains, as JSON. Caller releases it.
+///
+/// One call rather than four, because a transcript screen needs all of it at
+/// once to draw a single frame: which of the three transcripts exist, how long
+/// each is, and whether POLISH ran and what it decided. Four round trips would
+/// each re-open the package.
+///
+/// Returns `{"variants": [], "polish": {"ran": false, …}}` for a project with
+/// nothing finished yet, which is not an error — a job that is still running
+/// has no outputs and the screen should say so rather than fail.
+@_cdecl("vs_project_summary")
+public func vs_project_summary(
+    _ project_path: UnsafePointer<CChar>?
+) -> UnsafeMutablePointer<CChar>? {
+    setLastError(nil)
+    guard let project_path else {
+        setLastError("vs_project_summary requires a project path")
+        return nil
+    }
+    let path = String(cString: project_path)
+    guard !path.isEmpty else {
+        setLastError("vs_project_summary was given an empty path")
+        return nil
+    }
+    do {
+        let package = ProjectPackage(root: URL(filePath: path))
+        return copyOut(try Wire.encode(Wire.summary(of: package)))
+    } catch {
+        setLastError(describe(error))
+        return nil
     }
 }
