@@ -52,15 +52,15 @@ Legend: ✓ in the SwiftUI app · ABI column says whether the C ABI can serve it
 | Explanation when polish did not run | ✓ | ✓ · Flutter ✓ |
 | Render silence-removed audio | ✓ (macOS) | ✗ — and AVFoundation-only |
 | **Settings** | | |
-| Silence: margin dB, minimum duration, lead and trail padding | ✓ | ✓ |
-| Chunking: maximum duration | ✓ | ✓ |
-| Locale, and detect-language on or off | ✓ | ✓ |
-| Available locales on this machine | ✓ | ✗ |
-| Concurrency | ✓ | ✓ |
-| Clean: fillers, repetitions, low-confidence words | ✓ | ✓ |
-| Polish: on or off, and which backend | ✓ | ✓ |
+| Silence: margin dB, minimum duration, lead and trail padding | ✓ | ✓ · Flutter ✓ |
+| Chunking: maximum duration | ✓ | ✓ · Flutter ✓ |
+| Locale, and detect-language on or off | ✓ | ✓ · Flutter ✓ |
+| Available locales on this machine | ✓ | ✓ `vs_capabilities` · Flutter ✓ |
+| Concurrency | ✓ | ✓ · Flutter ✓ |
+| Clean: fillers, repetitions, low-confidence words | ✓ | ✓ · Flutter ✓ |
+| Polish: on or off, and which backend | ✓ | ✓ · Flutter ✓, including which model would really run |
 | Default variant to show | ✓ | interface-side |
-| Keep intermediate files | ✓ | ✓ |
+| Keep intermediate files | ✓ | ✓ · Flutter ✓ |
 | **Everywhere** | | |
 | A tooltip on every button saying what it does | ✓ | interface-side |
 | Dismissible errors carrying the engine's own words | ✓ | ✓ |
@@ -98,9 +98,29 @@ interface could count and discard them would be a megabyte of JSON to render
 one number. `flagged` carries only the retries and the fallbacks — the
 sentences a reader would actually want to see.
 
-What is still ✗: recording, available locales, copying the original into a
-project instead of referencing it, and choosing where an export is saved (which
-needs a file-dialog plugin rather than engine work).
+ABI 4 added `vs_capabilities` for the settings screen: the transcription
+languages on offer, which of them the text stages understand, which have
+enough defence for POLISH to be permitted, and which model POLISH would
+actually use. Every line of that is a rule, which is why it is answered by the
+engine — a settings screen that worked any of it out for itself would be a
+second copy of the engine's judgement, free to disagree with the first. The
+same principle runs through the screen: no default is written in Dart, and
+setting a value *back* to the engine's default removes the override rather than
+pinning today's number forever.
+
+**A gap `vs_capabilities` exposed on the real machine.**
+`LlamaModelHost.defaultModelURL()` resolves `build/models/polish.gguf` relative
+to the *working directory*. That is right for the command line and wrong for a
+packaged application, whose working directory is not the project. So a shipped
+Flutter app on Windows or Linux would report "no bundled model" even with the
+GGUF sitting beside the executable. `VOXSCRIPTA_LLAMA_MODEL` overrides it, so
+nothing is blocked — but packaging has to set that, or the default has to learn
+to look beside the executable the way `EngineHost` already does for the library
+itself.
+
+What is still ✗: recording, copying the original into a project instead of
+referencing it, and choosing where an export is saved (a file-dialog plugin
+rather than engine work — the same one import needs).
 
 ## What the first version of that table said
 

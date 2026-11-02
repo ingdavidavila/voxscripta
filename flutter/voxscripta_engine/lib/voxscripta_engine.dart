@@ -11,12 +11,15 @@ export 'src/engine.dart' show VoxScriptaEngine;
 export 'src/job.dart' show Job;
 export 'src/model.dart'
     show
+        Capabilities,
         ExportFormat,
         ExportOptions,
         FlaggedSentence,
+        LocaleOption,
         JobOptions,
         JobProgress,
         JobState,
+        PolishCapability,
         PolishDisposition,
         PolishReview,
         ProjectEntry,

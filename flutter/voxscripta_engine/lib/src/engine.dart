@@ -21,7 +21,7 @@ class VoxScriptaEngine {
   /// The ABI this package was written against. A library announcing anything
   /// else is refused at open, rather than crashing later on a signature that
   /// moved — which is the whole reason the version exists.
-  static const int supportedAbiVersion = 3;
+  static const int supportedAbiVersion = 4;
 
   /// How often a running job is polled.
   ///
@@ -186,6 +186,22 @@ class VoxScriptaEngine {
     } finally {
       calloc.free(path);
     }
+  }
+
+  /// What this build on this machine can do: the transcription languages it
+  /// offers, which of them the text stages understand, which have enough
+  /// defence for POLISH, and which model POLISH would actually use.
+  ///
+  /// Every line of it is a rule, which is why it is read rather than computed.
+  /// Blocks briefly — asking the recogniser which locales it supports is a
+  /// call into a system service.
+  Capabilities capabilities() {
+    final text = _bindings.takeString(_bindings.capabilities());
+    if (text == null) {
+      throw VoxScriptaException(
+          _bindings.lastError() ?? 'the engine would not report its capabilities');
+    }
+    return Capabilities.fromJson(jsonDecode(text) as Map<String, Object?>);
   }
 
   // ── Defaults ─────────────────────────────────────────────────────────────

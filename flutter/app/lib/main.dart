@@ -4,6 +4,8 @@ import 'src/engine_host.dart';
 import 'src/library/library_model.dart';
 import 'src/library/library_screen.dart';
 import 'src/platform_traits.dart';
+import 'src/settings/settings_model.dart';
+import 'src/settings/settings_screen.dart';
 import 'src/transcript/transcript_model.dart';
 import 'src/transcript/transcript_screen.dart';
 
@@ -52,6 +54,11 @@ class _VoxScriptaAppState extends State<VoxScriptaApp> {
     if (_host.engine case final engine?) {
       return LibraryScreen(
         model: LibraryModel.of(engine),
+        openSettings: (context) => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => SettingsScreen(model: SettingsModel.of(engine)),
+          ),
+        ),
         openProject: (context, project) => Navigator.of(context).push(
           MaterialPageRoute<void>(
             builder: (_) => TranscriptScreen(

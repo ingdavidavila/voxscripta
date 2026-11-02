@@ -391,3 +391,86 @@ class ProjectSummary {
     return null;
   }
 }
+
+/// One transcription language the interface may offer.
+class LocaleOption {
+  const LocaleOption({
+    required this.identifier,
+    required this.displayName,
+    required this.hasTextSupport,
+    required this.polishValidated,
+  });
+
+  factory LocaleOption.fromJson(Map<String, Object?> json) => LocaleOption(
+        identifier: json['identifier'] as String? ?? '',
+        displayName: json['displayName'] as String? ?? '',
+        hasTextSupport: json['hasTextSupport'] as bool? ?? false,
+        polishValidated: json['polishValidated'] as bool? ?? false,
+      );
+
+  final String identifier;
+  final String displayName;
+
+  /// Whether CLEAN and POLISH understand this language. Transcription works
+  /// either way; the text stages do not, because applying one language's
+  /// filler list to another deletes real words.
+  final bool hasTextSupport;
+
+  /// Whether POLISH is permitted in it. A language with no polarity lexicon
+  /// has no defence against a reversed meaning, so the gauntlet refuses it.
+  final bool polishValidated;
+}
+
+/// Which model POLISH would use if a job started now.
+class PolishCapability {
+  const PolishCapability({
+    required this.systemModelAvailable,
+    required this.bundledModel,
+    required this.effective,
+    required this.unavailableReason,
+  });
+
+  factory PolishCapability.fromJson(Map<String, Object?> json) => PolishCapability(
+        systemModelAvailable: json['systemModelAvailable'] as bool? ?? false,
+        bundledModel: json['bundledModel'] as String?,
+        effective: json['effective'] as String?,
+        unavailableReason: json['unavailableReason'] as String?,
+      );
+
+  final bool systemModelAvailable;
+
+  /// The bundled model's name, or null when this build ships none.
+  final String? bundledModel;
+
+  /// What would actually run, in the same words the provenance records.
+  final String? effective;
+
+  /// Why nothing would run. Exactly one of this and [effective] is set.
+  final String? unavailableReason;
+
+  bool get isAvailable => effective != null;
+}
+
+/// What this build on this machine can do.
+class Capabilities {
+  const Capabilities({required this.locales, required this.polish});
+
+  factory Capabilities.fromJson(Map<String, Object?> json) => Capabilities(
+        locales: ((json['locales'] as List<Object?>?) ?? const [])
+            .cast<Map<String, Object?>>()
+            .map(LocaleOption.fromJson)
+            .toList(growable: false),
+        polish: PolishCapability.fromJson(
+            (json['polish'] as Map<String, Object?>?) ?? const {}),
+      );
+
+  final List<LocaleOption> locales;
+  final PolishCapability polish;
+
+  LocaleOption? forIdentifier(String identifier) {
+    for (final option in locales) {
+      if (option.identifier == identifier) return option;
+    }
+    return null;
+  }
+}

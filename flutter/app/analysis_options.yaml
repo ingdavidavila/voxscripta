@@ -29,8 +29,16 @@ linter:
   # `// ignore_for_file: name_of_lint` syntax on the line or in the file
   # producing the lint.
   rules:
-    # avoid_print: false  # Uncomment to disable the `avoid_print` rule
-    # prefer_single_quotes: true  # Uncomment to enable the `prefer_single_quotes` rule
+    # Off for the whole project rather than suppressed file by file.
+    #
+    # Every model here takes a public named parameter — `source:` — and stores
+    # it in a private field, so that nothing above the model can reach past it
+    # to the engine. The lint's fix is `this._source`, which for a named
+    # parameter would force callers to write a private name they cannot use,
+    # and the alternative it implies is a public field. The pattern is
+    # deliberate and appears in every model, so the rule is wrong here rather
+    # than the code.
+    prefer_initializing_formals: false
 
 # Additional information about this file can be found at
 # https://dart.dev/guides/language/analysis-options

@@ -7,6 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:voxscripta/src/library/library_model.dart';
 import 'package:voxscripta/src/platform_traits.dart';
 import 'package:voxscripta/src/library/library_screen.dart';
+import 'package:voxscripta/src/settings/settings_model.dart';
+import 'package:voxscripta/src/settings/settings_screen.dart';
 import 'package:voxscripta/src/transcript/transcript_model.dart';
 import 'package:voxscripta/src/transcript/transcript_screen.dart';
 import 'package:voxscripta_engine/voxscripta_engine.dart';
@@ -142,6 +144,40 @@ void main() {
     await expectLater(
         find.byType(TranscriptScreen), matchesGoldenFile('previews/$name.png'));
   }
+
+  Future<void> renderSettings(
+    WidgetTester tester, {
+    required String name,
+    required Size size,
+    required bool pointer,
+  }) async {
+    PlatformTraits.debugPointerOverride = pointer;
+    addTearDown(() => PlatformTraits.debugPointerOverride = null);
+    tester.view
+      ..physicalSize = size
+      ..devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF3B6EA5)),
+        visualDensity:
+            size.width > 700 ? VisualDensity.compact : VisualDensity.standard,
+        fontFamily: 'Preview',
+        useMaterial3: true,
+      ),
+      home: SettingsScreen(model: SettingsModel(source: const _PreviewSettings())),
+    ));
+    await tester.pumpAndSettle();
+    await expectLater(
+        find.byType(SettingsScreen), matchesGoldenFile('previews/$name.png'));
+  }
+
+  testWidgets('settings, desktop', (tester) async {
+    await renderSettings(tester,
+        name: 'settings-desktop', size: const Size(900, 1500), pointer: true);
+  });
 
   testWidgets('desktop, with recordings', (tester) async {
     await render(tester,
@@ -305,4 +341,54 @@ class _PreviewTranscripts implements TranscriptSource {
               'The headcount plan is forty-two roles, and that was the '
               'sticking point.',
       }));
+}
+
+/// Engine answers for the settings preview.
+class _PreviewSettings implements SettingsSource {
+  const _PreviewSettings();
+
+  @override
+  Map<String, Object?> get jobDefaults => const {
+        'locale': 'en-US',
+        'detectLanguage': true,
+        'concurrency': 4,
+        'keepIntermediates': false,
+        'polishEnabled': true,
+        'polishBackend': 'automatic',
+        'silence': {'marginDB': 6.0, 'minSilenceDuration': 0.5, 'padTrail': 0.2},
+        'chunking': {'maxDuration': 300.0},
+        'clean': {
+          'removeFillers': true,
+          'collapseRepetitions': true,
+          'dropLowConfidence': true,
+        },
+      };
+
+  @override
+  Capabilities capabilities() => const Capabilities(
+        locales: [
+          LocaleOption(
+            identifier: 'en-US',
+            displayName: 'English (United States)',
+            hasTextSupport: true,
+            polishValidated: true,
+          ),
+          LocaleOption(
+            identifier: 'es-ES',
+            displayName: 'Spanish (Spain)',
+            hasTextSupport: true,
+            polishValidated: true,
+          ),
+        ],
+        polish: PolishCapability(
+          systemModelAvailable: true,
+          bundledModel: 'Qwen2.5-1.5B-Instruct-4bit (qwen2)',
+          effective: 'Apple on-device model',
+          unavailableReason: null,
+        ),
+      );
+
+  @override
+  String get libraryDirectory =>
+      '/Users/you/Library/Application Support/VoxScripta/Projects';
 }

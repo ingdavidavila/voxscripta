@@ -289,3 +289,111 @@ extension Wire {
             reasons: sentence.report.failureReasons)
     }
 }
+
+// MARK: - What this machine can do
+
+/// One transcription language the interface may offer.
+struct LocaleOptionWire: Codable {
+    let identifier: String
+    let displayName: String
+    /// Whether CLEAN and POLISH understand this language. Transcription works
+    /// either way; the text stages do not, because applying one language's
+    /// filler list to another deletes real words.
+    let hasTextSupport: Bool
+    /// Whether POLISH is allowed to run in it at all. A language whose polarity
+    /// lexicon is empty has no defence against a reversed meaning, so the
+    /// gauntlet refuses it rather than running unguarded.
+    let polishValidated: Bool
+}
+
+/// Which model POLISH would use if a job started now.
+struct PolishCapabilityWire: Codable {
+    let systemModelAvailable: Bool
+    /// The bundled model's name, or nil when this build ships none.
+    let bundledModel: String?
+    /// What `describedAs` would say — "Apple on-device model", "llama.cpp,
+    /// polish.gguf" — or nil when nothing would run.
+    let effective: String?
+    /// Why nothing would run, when nothing would.
+    let unavailableReason: String?
+}
+
+/// Everything the settings screen needs to describe this machine.
+struct CapabilitiesWire: Codable {
+    let locales: [LocaleOptionWire]
+    let polish: PolishCapabilityWire
+}
+
+extension Wire {
+    /// What this build on this machine can actually do.
+    ///
+    /// Here rather than computed by each interface, because every line of it is
+    /// a rule: which languages the text stages understand, which have enough
+    /// defence for POLISH to be allowed, and which model would really run. A
+    /// settings screen that worked any of that out for itself would be a second
+    /// copy of the engine's judgement, free to disagree with the first.
+    static func capabilities() async -> CapabilitiesWire {
+        CapabilitiesWire(locales: await locales(), polish: polishCapability())
+    }
+
+    private static func locales() async -> [LocaleOptionWire] {
+        let offered = TranscriptLanguage.allCases.flatMap(\.offeredLocales)
+        #if canImport(Speech)
+        // Apple's recogniser supports a fixed set, which is narrower than the
+        // list the text stages know.
+        let supported = await AppleSpeechEngine.supportedLocaleIdentifiers()
+        let usable = offered.filter(supported.contains)
+        #else
+        // whisper.cpp is one multilingual model, so everything the text stages
+        // support is transcribable.
+        let usable = offered
+        #endif
+
+        return usable.map { identifier in
+            let language = TranscriptLanguage(localeIdentifier: identifier)
+            return LocaleOptionWire(
+                identifier: identifier,
+                displayName: describe(identifier),
+                hasTextSupport: language != nil,
+                polishValidated: language.map(PolishReadiness.isValidated) ?? false)
+        }
+    }
+
+    /// A human name for a locale, from the system where there is one.
+    private static func describe(_ identifier: String) -> String {
+        let locale = Locale(identifier: identifier)
+        return Locale.current.localizedString(forIdentifier: identifier)
+            ?? locale.identifier
+    }
+
+    private static func polishCapability() -> PolishCapabilityWire {
+        #if canImport(FoundationModels)
+        let systemAvailable = (try? LanguageModelHost.availability().get()) != nil
+        #else
+        let systemAvailable = false
+        #endif
+
+        // Asked rather than inferred: the resolver is the only thing that knows
+        // what a registration has put in the bundled slot, and `describedAs` is
+        // the same string the provenance records.
+        let bundled = try? PolishBackendResolver.resolve(.bundled)
+
+        // One resolve, and the refusal kept rather than discarded. `try?`
+        // throws away exactly the sentence the settings screen needs to show.
+        do {
+            let resolved = try PolishBackendResolver.resolve(.automatic)
+            return PolishCapabilityWire(
+                systemModelAvailable: systemAvailable,
+                bundledModel: bundled?.describedAs,
+                effective: resolved.describedAs,
+                unavailableReason: nil)
+        } catch {
+            return PolishCapabilityWire(
+                systemModelAvailable: systemAvailable,
+                bundledModel: bundled?.describedAs,
+                effective: nil,
+                unavailableReason: (error as? VoxScriptaError)?.errorDescription
+                    ?? error.localizedDescription)
+        }
+    }
+}

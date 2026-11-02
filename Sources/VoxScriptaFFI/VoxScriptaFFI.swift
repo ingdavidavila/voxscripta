@@ -50,14 +50,15 @@ import VoxScriptaExport
 /// mismatched call.
 /// 2 added the library, job options and export options. 3 adds
 /// `vs_project_summary`, which the transcript screen needs: which variants
-/// exist, their word and segment counts, and what POLISH did. The previous version
+/// exist, their word and segment counts, and what POLISH did. 4 adds
+/// `vs_capabilities`, which the settings screen needs. The previous version
 /// could run a job and read the result, which proved the boundary and was
 /// nowhere near enough to build an interface on — see `Docs/PARITY.md`.
 /// `vs_job_start` and `vs_export` each gained a JSON parameter rather than
 /// growing a second entry point beside them, because nothing has shipped
 /// against version 1 and a legacy variant kept forever costs more than a
 /// break that nobody can observe.
-private let abiVersion: Int32 = 3
+private let abiVersion: Int32 = 4
 
 // MARK: - Job states
 
@@ -578,6 +579,29 @@ public func vs_project_summary(
     do {
         let package = ProjectPackage(root: URL(filePath: path))
         return copyOut(try Wire.encode(Wire.summary(of: package)))
+    } catch {
+        setLastError(describe(error))
+        return nil
+    }
+}
+
+/// What this build on this machine can do, as JSON. Caller releases it.
+///
+/// The transcription languages it offers, which of them the text stages
+/// understand, which have enough defence for POLISH to be permitted, and which
+/// model POLISH would actually use. Every line of that is a rule, which is why
+/// it is answered here: a settings screen that worked any of it out for itself
+/// would be a second copy of the engine's judgement, free to disagree.
+///
+/// Blocks briefly — asking the recogniser which locales it supports is a call
+/// into a system service. A caller on a UI thread should treat it like reading
+/// a file, which is roughly what it costs.
+@_cdecl("vs_capabilities")
+public func vs_capabilities() -> UnsafeMutablePointer<CChar>? {
+    setLastError(nil)
+    let capabilities = Synchronously.run { await Wire.capabilities() }
+    do {
+        return copyOut(try Wire.encode(capabilities))
     } catch {
         setLastError(describe(error))
         return nil

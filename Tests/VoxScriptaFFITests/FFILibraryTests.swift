@@ -386,3 +386,80 @@ struct FFISummaryTests {
         #expect(vs_project_summary(nil) == nil)
     }
 }
+
+/// `vs_capabilities`, which the settings screen is built on.
+@Suite("FFI capabilities")
+struct FFICapabilityTests {
+
+    private func take(_ pointer: UnsafeMutablePointer<CChar>?) -> String? {
+        guard let pointer else { return nil }
+        defer { vs_string_free(pointer) }
+        return String(cString: pointer)
+    }
+
+    private func capabilities() throws -> [String: Any] {
+        let text = try #require(take(vs_capabilities()))
+        let data = try #require(text.data(using: .utf8))
+        return try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+    }
+
+    @Test("Every offered locale carries both support flags")
+    func localesCarryTheirRules() throws {
+        let locales = try #require(try capabilities()["locales"] as? [[String: Any]])
+        #expect(!locales.isEmpty)
+
+        for locale in locales {
+            #expect((locale["identifier"] as? String)?.isEmpty == false)
+            #expect((locale["displayName"] as? String)?.isEmpty == false)
+            // Both are the engine's judgement and neither may be guessed by an
+            // interface — applying one language's filler list to another
+            // deletes real words, and polishing without a polarity lexicon has
+            // no defence against a reversed meaning.
+            #expect(locale["hasTextSupport"] is Bool)
+            #expect(locale["polishValidated"] is Bool)
+        }
+    }
+
+    @Test("Locales the text stages support are the ones with a language")
+    func textSupportMatchesTheLanguages() throws {
+        let locales = try #require(try capabilities()["locales"] as? [[String: Any]])
+        for locale in locales {
+            let identifier = try #require(locale["identifier"] as? String)
+            let expected = TranscriptLanguage(localeIdentifier: identifier) != nil
+            #expect(locale["hasTextSupport"] as? Bool == expected,
+                    "\(identifier) disagreed about text support")
+        }
+    }
+
+    @Test("Polish validation matches the gauntlet's own answer")
+    func polishValidationMatchesTheGauntlet() throws {
+        let locales = try #require(try capabilities()["locales"] as? [[String: Any]])
+        for locale in locales {
+            let identifier = try #require(locale["identifier"] as? String)
+            let expected = TranscriptLanguage(localeIdentifier: identifier)
+                .map(PolishReadiness.isValidated) ?? false
+            #expect(locale["polishValidated"] as? Bool == expected,
+                    "\(identifier) disagreed about polish readiness")
+        }
+    }
+
+    @Test("Either a model would run, or there is a reason it would not")
+    func polishIsEitherReadyOrExplained() throws {
+        let polish = try #require(try capabilities()["polish"] as? [String: Any])
+        #expect(polish["systemModelAvailable"] is Bool)
+
+        let effective = polish["effective"] as? String
+        let reason = polish["unavailableReason"] as? String
+        // Never both nil: a settings screen must be able to say either what
+        // will run or why nothing will.
+        #expect(effective != nil || reason != nil)
+        #expect(!(effective != nil && reason != nil))
+    }
+
+    @Test("What would run agrees with what the resolver says")
+    func effectiveMatchesTheResolver() throws {
+        let polish = try #require(try capabilities()["polish"] as? [String: Any])
+        let resolved = try? PolishBackendResolver.resolve(.automatic)
+        #expect(polish["effective"] as? String == resolved?.describedAs)
+    }
+}

@@ -51,7 +51,8 @@ extern "C" {
  * and refuse to run against an ABI you were not built for.
  *
  * 2 added the library, job options and export options.
- * 3 added vs_project_summary. */
+ * 3 added vs_project_summary.
+ * 4 added vs_capabilities. */
 int32_t vs_abi_version(void);
 
 /* ─── Structured data ──────────────────────────────────────────────────────
@@ -188,6 +189,34 @@ int32_t vs_project_delete(const char *project_path, char **out_json);
  *
  * NULL on failure, with the reason in vs_last_error_copy. */
 char *vs_project_summary(const char *project_path);
+
+/* ─── What this machine can do ─────────────────────────────────────────────── */
+
+/* The settings screen's facts, as JSON. Caller releases.
+ *
+ *   {"locales": [{"identifier": "en-US", "displayName": "English (US)",
+ *                 "hasTextSupport": true, "polishValidated": true}, ...],
+ *    "polish": {"systemModelAvailable": true, "bundledModel": "...",
+ *               "effective": "Apple on-device model",
+ *               "unavailableReason": null}}
+ *
+ * hasTextSupport is whether CLEAN and POLISH understand the language at all.
+ * Transcription works either way; the text stages do not, because applying one
+ * language's filler list to another deletes real words.
+ *
+ * polishValidated is whether POLISH is permitted in it. A language whose
+ * polarity lexicon is empty has no defence against a reversed meaning, so the
+ * gauntlet refuses it rather than running unguarded.
+ *
+ * `effective` is what would actually run, in the same words the provenance
+ * records; `unavailableReason` is set instead when nothing would.
+ *
+ * Every line of this is a rule, which is why it is answered here rather than
+ * worked out by each interface. Blocks briefly: asking the recogniser which
+ * locales it supports is a call into a system service.
+ *
+ * NULL on failure, with the reason in vs_last_error_copy. */
+char *vs_capabilities(void);
 
 /* ─── Defaults ─────────────────────────────────────────────────────────────── */
 

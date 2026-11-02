@@ -1,9 +1,3 @@
-// The analyzer wants `this._source` here. For a named parameter that would
-// force callers to write `_source:`, a private name they cannot use — so the
-// fields stay private, which is the point: nothing above the model reaches
-// past it to the engine.
-// ignore_for_file: prefer_initializing_formals
-
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';

@@ -8,13 +8,21 @@ import 'project_tile.dart';
 
 /// The app's front door: everything already recorded or imported.
 class LibraryScreen extends StatefulWidget {
-  const LibraryScreen({super.key, required this.model, this.openProject});
+  const LibraryScreen({
+    super.key,
+    required this.model,
+    this.openProject,
+    this.openSettings,
+  });
 
   final LibraryModel model;
 
   /// Opens a project's transcript. Injected rather than built here so the
   /// library's tests do not need an engine to open a row.
   final void Function(BuildContext, ProjectEntry)? openProject;
+
+  /// Opens the settings screen. Injected for the same reason.
+  final void Function(BuildContext)? openSettings;
 
   @override
   State<LibraryScreen> createState() => _LibraryScreenState();
@@ -62,6 +70,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 tooltip: 'Look again for recordings on disk.',
                 onPressed: model.refresh,
               ),
+              if (widget.openSettings case final open?)
+                IconButton(
+                  icon: const Icon(Icons.settings_outlined),
+                  tooltip: 'Silence detection, language, clean and polish.',
+                  onPressed: () => open(context),
+                ),
+              const SizedBox(width: 4),
             ],
           ),
           body: _body(model),
