@@ -37,13 +37,54 @@ public enum Log {
 public struct Logger: Sendable {
     public init(subsystem: String, category: String) {}
 
-    public func debug(_ message: @autoclosure () -> String) {}
-    public func info(_ message: @autoclosure () -> String) {}
-    public func notice(_ message: @autoclosure () -> String) {}
-    public func warning(_ message: @autoclosure () -> String) {}
-    public func error(_ message: @autoclosure () -> String) {}
-    public func critical(_ message: @autoclosure () -> String) {}
-    public func fault(_ message: @autoclosure () -> String) {}
-    public func log(_ message: @autoclosure () -> String) {}
+    public func debug(_ message: LogMessage) {}
+    public func info(_ message: LogMessage) {}
+    public func notice(_ message: LogMessage) {}
+    public func warning(_ message: LogMessage) {}
+    public func error(_ message: LogMessage) {}
+    public func critical(_ message: LogMessage) {}
+    public func fault(_ message: LogMessage) {}
+    public func log(_ message: LogMessage) {}
+}
+
+/// What `OSLogMessage` is, where there is no `OSLog`.
+///
+/// It exists so call sites keep their `privacy:` qualifiers on every platform.
+/// The alternative — dropping them off Apple — would mean the same line read
+/// `"\(reason, privacy: .public)"` on a Mac and `"\(reason)"` on Linux, and the
+/// two would drift until a Mac build leaked user text into a sysdiagnose. So
+/// the qualifier is part of the shared source and this type accepts it.
+///
+/// Nothing is stored. The interpolated values are never even evaluated, which
+/// is the other half of the promise: an autoclosure that is never called cannot
+/// put a transcript on a disk.
+public struct LogMessage: ExpressibleByStringInterpolation, Sendable {
+
+    /// How much of a value a real log would reveal. Mirrors `OSLogPrivacy`'s
+    /// cases so the same spelling compiles here.
+    public struct Privacy: Sendable {
+        public static let `public` = Privacy()
+        public static let `private` = Privacy()
+        public static let sensitive = Privacy()
+        public static let auto = Privacy()
+    }
+
+    public struct StringInterpolation: StringInterpolationProtocol, Sendable {
+        public init(literalCapacity: Int, interpolationCount: Int) {}
+        public mutating func appendLiteral(_ literal: String) {}
+
+        public mutating func appendInterpolation<T>(
+            _ value: @autoclosure () -> T, privacy: Privacy = .auto
+        ) {}
+
+        /// `OSLogMessage` has a `format:` overload for numbers. Accepted and
+        /// discarded, so a formatted Apple log line still compiles here.
+        public mutating func appendInterpolation<T>(
+            _ value: @autoclosure () -> T, format: Any? = nil, privacy: Privacy = .auto
+        ) {}
+    }
+
+    public init(stringLiteral value: String) {}
+    public init(stringInterpolation: StringInterpolation) {}
 }
 #endif

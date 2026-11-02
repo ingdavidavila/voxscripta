@@ -3,9 +3,6 @@ import VoxScriptaCore
 import VoxScriptaDSP
 import VoxScriptaTranscription
 import VoxScriptaLanguage
-#if canImport(FoundationModels)
-import VoxScriptaMLX
-#endif
 import VoxScriptaProject
 
 /// A point at which the runner will deliberately kill the process.
@@ -103,11 +100,27 @@ public struct JobRunner: Sendable {
     /// Apple's where it exists, because it is the one the word error rates in
     /// this project were measured with, and whisper.cpp everywhere else —
     /// which was measured against it on the same audio before being relied on.
-    static let defaultEngine: @Sendable () -> any TranscriptionEngine = {
+    public static let defaultEngine: @Sendable () -> any TranscriptionEngine = {
         #if canImport(Speech)
         AppleSpeechEngine()
         #else
         WhisperEngine()
+        #endif
+    }
+
+    /// The decoder used for the one pass that turns a source file into
+    /// canonical 16 kHz mono float PCM.
+    ///
+    /// AVFoundation where it exists and FFmpeg everywhere else. Unlike the
+    /// engines, these two are not an approximation of each other:
+    /// `PortableDecoderTests` holds them to the same samples on the same files
+    /// — 0 samples of offset, and 1.4e-5 peak difference on WAV — so which one
+    /// ran is not something a later stage can tell.
+    public static let defaultDecoder: @Sendable () -> any CanonicalDecoding = {
+        #if canImport(AVFoundation)
+        CanonicalDecoder()
+        #else
+        PortableDecoder()
         #endif
     }
 
@@ -120,7 +133,17 @@ public struct JobRunner: Sendable {
     /// always included even if its model is not installed yet, because asking
     /// for it is consent to fetch it.
     static func probeCandidates(for requested: String) async -> [String] {
+        #if canImport(Speech)
+        // Apple ships one model per locale, fetched on demand, so a locale with
+        // nothing installed is not worth probing — and probing it would start a
+        // download the user never asked for.
         let installed = await AppleSpeechEngine.installedLocaleIdentifiers()
+        #else
+        // whisper.cpp is a single multilingual model: every language the text
+        // stages support is already on disk the moment the model is, so there
+        // is nothing to filter by and nothing a probe could trigger.
+        let installed = Set(TranscriptLanguage.allCases.flatMap(\.offeredLocales))
+        #endif
         var candidates: [String] = [requested]
         for language in TranscriptLanguage.allCases {
             let already = candidates.contains {
@@ -214,7 +237,8 @@ public struct JobRunner: Sendable {
         if startStage <= .decode {
             try await advance(project, .analyzing, progress, 0.0, "Decoding audio")
             try crashIfRequested(options, .decode, .before)
-            _ = try await CanonicalDecoder().decode(url: sourceURL, to: package.canonicalAudioURL) { p in
+            _ = try await Self.defaultDecoder().decode(
+                url: sourceURL, to: package.canonicalAudioURL) { p in
                 progress(JobProgressReport(state: .analyzing, fraction: p * 0.05, detail: "Decoding audio"))
             }
             try await project.store.setStageHash(.decode, to: inputs.hash(for: .decode))

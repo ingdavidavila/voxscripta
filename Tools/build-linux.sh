@@ -21,17 +21,28 @@ TOOLCHAIN="${SWIFT_TOOLCHAIN:-$(
     exit 1
 }
 
-# What builds for Linux today.
+# What builds for Linux today: every module in the project.
 #
-# VoxScriptaPipeline is absent, and not because of its own code. It depends on
-# VoxScriptaMLX, which is Apple Silicon only and pulls in a HuggingFace package
-# that refuses to build against musl. Marking that dependency
-# `.when(platforms: [.macOS, .iOS])` does not help: SwiftPM still builds the
-# target and its packages. The fix is to invert it — Pipeline should be handed
-# a LanguageModelHosting rather than resolving one — which is a refactor, not
-# a flag.
+# VoxScriptaPipeline used to be absent, and not because of its own code. It
+# depended on VoxScriptaMLX, which is Apple Silicon only and pulls in a
+# HuggingFace package that refuses to build against musl. Marking that
+# dependency `.when(platforms: [.macOS, .iOS])` did not help — SwiftPM still
+# built the target and its packages — so the dependency was inverted:
+# PolishBackendResolver moved into VoxScriptaLanguage and the Apple apps now
+# register MLX with it from above. Nothing above the language layer names MLX.
+#
+# voxscripta-cli is not listed, and the reason is different in kind. Every
+# Swift file in it compiles for aarch64-linux-musl; what it cannot yet do is
+# link, because the C libraries underneath — FFmpeg, whisper.cpp, llama.cpp,
+# miniaudio, SQLite — have only ever been built for the Mac. Cross-building
+# those is the next piece of work, and until it is done, listing the CLI here
+# would report a Swift problem that does not exist. Check it by hand with:
+#
+#   TOOLCHAINS=$TOOLCHAIN swift build --swift-sdk $SDK --target voxscripta-cli
+#
+# and expect `ld.lld: unable to find library -lavformat`, not a type error.
 TARGETS=(VoxScriptaCore VoxScriptaExport VoxScriptaProject VoxScriptaLanguage
-         VoxScriptaDSP VoxScriptaTranscription)
+         VoxScriptaDSP VoxScriptaTranscription VoxScriptaBench VoxScriptaPipeline)
 
 status=0
 for target in "${TARGETS[@]}"; do

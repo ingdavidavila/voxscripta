@@ -20,7 +20,10 @@ public actor LlamaModelHost: LanguageModelHosting {
 
     public nonisolated let configuration: LanguageModelConfiguration
 
-    private let modelURL: URL
+    /// The GGUF this host will open. Public so
+    /// ``PolishBackendResolver`` can decline before a job starts rather
+    /// than failing at `load()` in the middle of one.
+    public nonisolated let modelURL: URL
     private let threads: Int32
     private var model: OpaquePointer?
 

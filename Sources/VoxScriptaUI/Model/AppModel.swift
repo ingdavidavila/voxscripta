@@ -90,6 +90,12 @@ public final class AppModel {
     }
 
     public init() {
+        // The resolver cannot name MLX — see
+        // `MLXModelHost.registerAsBundledBackend()` — so the app, which is
+        // the layer that actually ships safetensors, says so here. Before
+        // this call `.bundled` would resolve to a GGUF the app does not
+        // carry, so it happens before anything can start a job.
+        MLXModelHost.registerAsBundledBackend()
         refreshLibrary()
     }
 

@@ -208,15 +208,7 @@ let package = Package(
         // that knows the pipeline's shape; everything below it is independent.
         .target(name: "VoxScriptaPipeline",
                 dependencies: ["VoxScriptaCore", "VoxScriptaDSP", "VoxScriptaTranscription",
-                               "VoxScriptaLanguage", "VoxScriptaProject", "VoxScriptaBench",
-                               // MLX runs on Apple Silicon and nowhere else, and
-                               // it drags in a HuggingFace package that refuses
-                               // to build against musl. Gating the import is not
-                               // enough — the dependency itself has to be
-                               // conditional, or SwiftPM builds it anyway.
-                               // Off Apple, POLISH resolves to llama.cpp.
-                               .target(name: "VoxScriptaMLX",
-                                       condition: .when(platforms: [.macOS, .iOS]))],
+                               "VoxScriptaLanguage", "VoxScriptaProject", "VoxScriptaBench"],
                 swiftSettings: strict),
 
         // ── Test support ────────────────────────────────────────────────────
@@ -233,9 +225,14 @@ let package = Package(
         // views, view models and nothing else.
         .target(
             name: "VoxScriptaUI",
+            // VoxScriptaMLX is declared here rather than inherited: the app is
+            // the layer that ships the safetensors and registers them with
+            // PolishBackendResolver, and it used to reach MLX only by accident,
+            // through VoxScriptaPipeline, which no longer depends on it so that
+            // the pipeline can cross-compile.
             dependencies: ["VoxScriptaCore", "VoxScriptaDSP", "VoxScriptaTranscription",
                            "VoxScriptaLanguage", "VoxScriptaProject", "VoxScriptaPipeline",
-                           "VoxScriptaExport"],
+                           "VoxScriptaExport", "VoxScriptaMLX"],
             swiftSettings: strict),
 
         // Nothing but @main. Everything it shows lives in VoxScriptaUI, which

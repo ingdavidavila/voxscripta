@@ -23,6 +23,12 @@ public protocol CanonicalDecoding: Sendable {
         to destination: URL,
         progress: @Sendable (Double) -> Void
     ) async throws -> Int64
+
+    /// The source's duration, without decoding it.
+    ///
+    /// A protocol requirement rather than a convenience on each type, because
+    /// project creation needs it and must not care which decoder it got.
+    func duration(of url: URL) throws -> MediaTime
 }
 
 #if canImport(AVFoundation)
