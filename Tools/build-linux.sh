@@ -31,18 +31,23 @@ TOOLCHAIN="${SWIFT_TOOLCHAIN:-$(
 # PolishBackendResolver moved into VoxScriptaLanguage and the Apple apps now
 # register MLX with it from above. Nothing above the language layer names MLX.
 #
-# voxscripta-cli is not listed, and the reason is different in kind. Every
-# Swift file in it compiles for aarch64-linux-musl; what it cannot yet do is
-# link, because the C libraries underneath — FFmpeg, whisper.cpp, llama.cpp,
-# miniaudio, SQLite — have only ever been built for the Mac. Cross-building
-# those is the next piece of work, and until it is done, listing the CLI here
-# would report a Swift problem that does not exist. Check it by hand with:
+# voxscripta-cli is built as a product rather than a target, because the point
+# of it is the link: a target builds objects, and objects proved nothing about
+# whether FFmpeg, whisper.cpp, llama.cpp, miniaudio and SQLite are really there.
+# They are, now — Tools/build-engines.sh linux-musl and
+# Tools/build-ffmpeg.sh linux-musl build them, and SwiftPM compiles the other
+# two from source.
 #
-#   TOOLCHAINS=$TOOLCHAIN swift build --swift-sdk $SDK --target voxscripta-cli
-#
-# and expect `ld.lld: unable to find library -lavformat`, not a type error.
+# What cannot be built here is libVoxScriptaFFI.so, which the Flutter interface
+# needs. The Static Linux SDK's own archives — libc++.a, libz.a — are compiled
+# without -fPIC, because the SDK exists to produce one static executable rather
+# than shared objects. Linking them into a .so fails with
+# "relocation R_AARCH64_ADR_PREL_PG_HI21 cannot be used against symbol". That
+# is a property of the SDK and not of this code, so the Flutter library has to
+# be built on a real Linux host or in a container.
 TARGETS=(VoxScriptaCore VoxScriptaExport VoxScriptaProject VoxScriptaLanguage
-         VoxScriptaDSP VoxScriptaTranscription VoxScriptaBench VoxScriptaPipeline)
+         VoxScriptaDSP VoxScriptaTranscription VoxScriptaBench VoxScriptaPipeline
+         VoxScriptaFFI)
 
 status=0
 for target in "${TARGETS[@]}"; do
@@ -55,4 +60,23 @@ for target in "${TARGETS[@]}"; do
         status=1
     fi
 done
+
+# The command line, linked. This is the check that matters: compiling says the
+# Swift is portable, linking says the five C libraries underneath it really
+# exist for this triple.
+printf "  %-24s " "voxscripta-cli (link)"
+if TOOLCHAINS="$TOOLCHAIN" swift build --package-path "$ROOT" \
+    --swift-sdk "$SDK" --product voxscripta-cli >/dev/null 2>&1; then
+    BIN="$ROOT/.build/out/Products/Debug-staticlinux-aarch64/voxscripta-cli"
+    if [ -f "$BIN" ]; then
+        echo "ok ($(du -h "$BIN" | cut -f1), $(file -b "$BIN" | cut -d, -f1-2))"
+    else
+        echo "ok (no binary found at the expected path)"
+    fi
+else
+    echo "FAILED — build the C libraries first:"
+    echo "      Tools/build-engines.sh linux-musl"
+    echo "      Tools/build-ffmpeg.sh linux-musl"
+    status=1
+fi
 exit $status

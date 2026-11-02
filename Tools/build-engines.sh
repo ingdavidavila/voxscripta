@@ -15,6 +15,7 @@
 #
 #   Tools/build-engines.sh                 host (this machine)
 #   Tools/build-engines.sh arm64-v8a       an Android ABI, needs the NDK
+#   Tools/build-engines.sh linux-musl      aarch64 Linux, from the Static SDK
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -60,7 +61,18 @@ common_flags() {
     echo "-DBUILD_SHARED_LIBS=OFF"
     echo "-DCMAKE_POSITION_INDEPENDENT_CODE=ON"
     echo "-DCMAKE_INSTALL_PREFIX=$PREFIX"
-    if [ "$ABI" != "host" ]; then
+    if [ "$ABI" = "linux-musl" ]; then
+        # The same clang and sysroot SwiftPM uses for this triple. The C and
+        # the Swift that calls it have to agree about libc and the C++ ABI,
+        # and one toolchain for both is the surest way to make them.
+        echo "-DCMAKE_TOOLCHAIN_FILE=$ROOT/Tools/cmake/linux-musl.toolchain.cmake"
+        # No OpenMP in the sysroot, and ggml builds its own threading anyway.
+        echo "-DGGML_OPENMP=OFF"
+        # Metal and Accelerate are Apple's; on Linux ggml falls back to its
+        # own CPU backend, which is the one measured in PortableDSPParityTests.
+        echo "-DGGML_METAL=OFF"
+        echo "-DGGML_BLAS=OFF"
+    elif [ "$ABI" != "host" ]; then
         NDK="${ANDROID_NDK_HOME:-}"
         [ -n "$NDK" ] || NDK="$(ls -d "$HOME/Library/Android/sdk/ndk/"* 2>/dev/null | tail -1 || true)"
         [ -n "$NDK" ] || { echo "no NDK; set ANDROID_NDK_HOME" >&2; exit 1; }
@@ -72,6 +84,11 @@ common_flags() {
 }
 
 JOBS="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
+
+# whisper.cpp looks for the ggml llama.cpp installed. The cross toolchain
+# restricts package search to the sysroot, so the prefix has to be named as an
+# additional root or the search cannot see it.
+export VOXSCRIPTA_EXTRA_FIND_ROOT="$PREFIX"
 
 # ── llama.cpp, which brings ggml with it ────────────────────────────────────
 echo "building llama.cpp (and ggml) for $ABI"

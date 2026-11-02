@@ -15,6 +15,17 @@
 #
 #   Tools/build-ffmpeg.sh                host
 #   Tools/build-ffmpeg.sh arm64-v8a      an Android ABI, needs the NDK
+#   Tools/build-ffmpeg.sh linux-musl     aarch64 Linux, from the Static SDK
+#
+# The linux-musl target is **static**, and that is a licence difference rather
+# than a build preference. The Swift Static Linux SDK contains no shared
+# objects at all — 52 archives and not one .so — because its whole purpose is
+# producing a single static executable. So a shared FFmpeg cannot be linked
+# there, and LGPL v2.1 §6 then asks for something more than shipping the
+# libraries: a static link obliges us to make the application's object files
+# available so that someone can relink it against their own FFmpeg. That is a
+# real obligation before anything is distributed for Linux, and it is recorded
+# here rather than discovered.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -45,10 +56,18 @@ MUXERS="mov,ipod,mp4,wav,flac"
 mkdir -p "$OUT"
 cd "$OUT"
 
+# Shared where it is possible, static where it is not. See the note at the top
+# about what that costs.
+if [ "$ABI" = "linux-musl" ]; then
+    LINKAGE=(--disable-shared --enable-static)
+else
+    LINKAGE=(--enable-shared --disable-static)
+fi
+
 CONFIGURE=(
     "$SRC/configure"
     --prefix="$PREFIX"
-    --enable-shared --disable-static
+    "${LINKAGE[@]}"
     --disable-gpl --disable-nonfree --disable-version3
     --disable-programs --disable-doc --disable-avdevice --disable-avfilter
     --disable-postproc --disable-network --disable-iconv
@@ -63,7 +82,38 @@ CONFIGURE=(
     --enable-pic
 )
 
-if [ "$ABI" != "host" ]; then
+if [ "$ABI" = "linux-musl" ]; then
+    # The same clang and sysroot SwiftPM uses for this triple, for the same
+    # reason the CMake toolchain does: the C and the Swift that calls it have
+    # to agree about libc.
+    SYSROOT="${SWIFT_LINUX_SYSROOT:-}"
+    [ -n "$SYSROOT" ] || SYSROOT="$(ls -d "$HOME"/.swiftpm/swift-sdks/*.artifactbundle/*/swift-linux-musl/musl-*.sdk/aarch64 2>/dev/null | sort | tail -1)"
+    [ -n "$SYSROOT" ] && [ -f "$SYSROOT/usr/lib/libc.a" ] || {
+        echo "no musl sysroot; install the Static Linux SDK or set SWIFT_LINUX_SYSROOT" >&2
+        exit 1
+    }
+    BIN="${SWIFT_CLANG_BIN:-$HOME/Library/Developer/Toolchains/swift-latest.xctoolchain/usr/bin}"
+    [ -x "$BIN/clang" ] || {
+        echo "no clang at $BIN; install a swift.org toolchain or set SWIFT_CLANG_BIN" >&2
+        exit 1
+    }
+    TRIPLE=aarch64-unknown-linux-musl
+    # clang defaults to GCC's runtime — libgcc, crtbeginS.o — and a musl/LLVM
+    # sysroot has none of it. It ships compiler-rt and libunwind instead, under
+    # its own resource directory, so all three have to be named. Without them
+    # FFmpeg's configure fails at its very first link test with
+    # "unable to find library -lgcc", which says nothing about the real cause.
+    MUSL_FLAGS="--target=$TRIPLE --sysroot=$SYSROOT"
+    MUSL_FLAGS="$MUSL_FLAGS -resource-dir=$SYSROOT/usr/lib/swift/clang"
+    CONFIGURE+=(
+        --target-os=linux --arch=aarch64 --enable-cross-compile
+        --cc="$BIN/clang" --cxx="$BIN/clang++"
+        --ar="$BIN/llvm-ar" --nm="$BIN/llvm-nm" --ranlib="$BIN/llvm-ranlib"
+        --strip="$BIN/llvm-strip"
+        --extra-cflags="$MUSL_FLAGS"
+        --extra-ldflags="$MUSL_FLAGS -rtlib=compiler-rt -unwindlib=libunwind -static -fuse-ld=lld"
+    )
+elif [ "$ABI" != "host" ]; then
     NDK="${ANDROID_NDK_HOME:-}"
     [ -n "$NDK" ] || NDK="$(ls -d "$HOME/Library/Android/sdk/ndk/"* 2>/dev/null | tail -1 || true)"
     [ -n "$NDK" ] || { echo "no NDK; set ANDROID_NDK_HOME" >&2; exit 1; }

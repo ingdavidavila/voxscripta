@@ -250,18 +250,68 @@ That last one matters more than it looks. Dropping `privacy:` off Apple would
 have left the same log line spelled two ways, and the two would drift until a
 Mac build leaked transcript text into a sysdiagnose.
 
-### What the command line still needs
+### The command line links for Linux
 
-Every Swift file in `voxscripta-cli` compiles for `aarch64-linux-musl`. It
-does not link: FFmpeg, whisper.cpp, llama.cpp, miniaudio and SQLite have only
-ever been built for the Mac, so the link stops at
-`ld.lld: unable to find library -lavformat`. Cross-building those five is the
-next piece of work, and it is a build-system job rather than a Swift one.
+`voxscripta-cli` builds as a statically linked `aarch64` Linux executable —
+62 MB stripped — with all five C libraries inside it. Checked by symbol rather
+than by hope: `whisper_init_from_file_with_params`, `llama_model_load_from_file`,
+`avformat_open_input`, `ma_device_init` and `sqlite3_open` are all present and
+defined.
+
+Two of the five needed no work at all. SQLite and miniaudio are compiled by
+SwiftPM as part of the `CSQLite` and `CMiniaudio` targets, so they
+cross-compiled with everything else from the first day the modules did.
+
+The other three are built by `Tools/build-engines.sh linux-musl` and
+`Tools/build-ffmpeg.sh linux-musl`, using the Static Linux SDK's own musl
+sysroot and the Swift toolchain's clang — deliberately the same pair SwiftPM
+uses for this triple, because the C and the Swift that calls it have to agree
+about libc and the C++ ABI. `Tools/cmake/linux-musl.toolchain.cmake` is the
+CMake half.
+
+Three things made that harder than it reads:
+
+**clang reaches for GCC's runtime.** The first link failed with
+`unable to find library -lgcc` and `cannot open crtbeginS.o`. An LLVM/musl
+sysroot has neither; it ships compiler-rt and libunwind under its own resource
+directory, and all three have to be named explicitly. A build producing nothing
+but static archives never links, so the CMake side appeared to work without
+them and would have failed in whatever consumed the result.
+
+**Static, which is a licence difference.** The SDK contains no shared objects
+at all — 52 archives and not one `.so` — so FFmpeg cannot be built shared
+there. LGPL v2.1 then asks for more than shipping the libraries: a static link
+obliges making the application's object files available so someone can relink
+against their own FFmpeg. **That is an obligation to settle before anything is
+distributed for Linux**, and it is a real decision rather than a detail.
+
+**zlib and bzip2 become ours.** A shared FFmpeg resolves its own dependencies;
+a static one hands them to whoever links it. Both are in the sysroot.
+
+### What cannot be built from a Mac, and why
+
+`libVoxScriptaFFI.so` — the library the Flutter interface loads — cannot be
+produced with the Static Linux SDK. Its own archives, `libc++.a` and `libz.a`
+among them, are compiled without `-fPIC`, because the SDK exists to produce a
+single static executable rather than shared objects. Linking them into a `.so`
+fails with `relocation R_AARCH64_ADR_PREL_PG_HI21 cannot be used against
+symbol`. That is a property of the SDK, not of this code: the Flutter library
+has to be built on a real Linux host or in a container.
+
+So Linux now has a working command line and still has no application, and the
+two are blocked on different things.
 
 One CLI subcommand is genuinely absent off Apple rather than merely unbuilt:
 `render-audio` writes the silence-removed copy through `AVFoundation`, so it
 throws `notImplemented` by name. The time map it would ship beside the audio
 is plain data and is produced everywhere.
+
+### Nothing has executed on Linux
+
+The binary links and contains what it should. It has not run: this machine has
+no Docker, Podman or Linux host, and macOS cannot execute ELF. Everything above
+is a build-time claim.
+
 
 ### POLISH is weaker off Apple, and that needs deciding
 

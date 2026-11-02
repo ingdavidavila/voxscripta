@@ -20,7 +20,14 @@ let strict: [SwiftSetting] = [
 /// Unsafe flags are allowed because this is a root package and nothing depends
 /// on it. If that ever changes, these become an xcframework.
 let engineLinkerSettings: [LinkerSetting] = [
-    .unsafeFlags(["-Lbuild/engines/host/prefix/lib"]),
+    // Per platform, because the two are built by the same script into
+    // different prefixes: `Tools/build-engines.sh` for the Mac and
+    // `Tools/build-engines.sh linux-musl` for Linux. One hardcoded `host`
+    // path meant a Linux link looked for Mach-O archives.
+    .unsafeFlags(["-Lbuild/engines/host/prefix/lib"],
+                 .when(platforms: [.macOS, .iOS])),
+    .unsafeFlags(["-Lbuild/engines/linux-musl/prefix/lib"],
+                 .when(platforms: [.linux, .android])),
     .linkedLibrary("whisper"),
     .linkedLibrary("llama"),
     .linkedLibrary("ggml"),
@@ -141,7 +148,17 @@ let package = Package(
                     // -Xlinker pairs here; a -Wl, form is rejected outright.
                     "-Xlinker", "-rpath", "-Xlinker",
                     FileManager.default.currentDirectoryPath + "/build/ffmpeg/host/prefix/lib",
-                ]),
+                ], .when(platforms: [.macOS, .iOS])),
+                // No rpath on the static path: there is nothing to find at
+                // run time because everything is in the binary.
+                .unsafeFlags(["-Lbuild/ffmpeg/linux-musl/prefix/lib"],
+                             .when(platforms: [.linux, .android])),
+                // FFmpeg's own dependencies, which a shared build resolves for
+                // itself and a static one hands to whoever links it. Both are
+                // in the Static Linux SDK's sysroot; zlib is what the mov
+                // demuxer uses for compressed headers.
+                .linkedLibrary("z", .when(platforms: [.linux, .android])),
+                .linkedLibrary("bz2", .when(platforms: [.linux, .android])),
                 .linkedLibrary("avformat"),
                 .linkedLibrary("avcodec"),
                 .linkedLibrary("avutil"),
