@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(WinSDK)
+import WinSDK
+#endif
 import VoxScriptaCore
 
 /// One stage's measurement.
@@ -73,7 +76,26 @@ public enum MemoryFootprint {
     /// is also the figure macOS itself uses for memory-limit decisions, so it is
     /// the number worth asserting against.
     public static func current() throws -> Int64 {
-        #if !canImport(Darwin)
+        #if os(Windows)
+        // Windows has neither phys_footprint nor /proc. WorkingSetSize is the
+        // nearest equivalent and carries the same caveat as VmRSS below: it
+        // counts the clean pages of the memory-mapped canonical audio, which is
+        // exactly what phys_footprint was chosen to exclude. So the
+        // bounded-memory assertion is weaker here too.
+        //
+        // - Important: Never compiled. There is no Windows toolchain on the
+        //   development machine and none can be cross-targeted from a Mac, so
+        //   this is the first thing to check on the first Windows build rather
+        //   than something that has been seen to work.
+        var counters = PROCESS_MEMORY_COUNTERS()
+        let size = DWORD(MemoryLayout<PROCESS_MEMORY_COUNTERS>.size)
+        guard GetProcessMemoryInfo(GetCurrentProcess(), &counters, size) else {
+            throw VoxScriptaError.analysisFailed(
+                stage: "memory measurement",
+                reason: "GetProcessMemoryInfo failed")
+        }
+        return Int64(counters.WorkingSetSize)
+        #elseif !canImport(Darwin)
         // Linux has no phys_footprint. VmRSS from /proc/self/status is the
         // closest thing, with one caveat worth stating: it *does* count the
         // clean pages of the memory-mapped canonical audio, which is exactly
