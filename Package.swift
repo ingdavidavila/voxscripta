@@ -58,6 +58,10 @@ let package = Package(
         // SwiftPM cannot produce an .app for iOS, so the iOS app is a thin
         // shell around this; the macOS executable below is the same shell.
         .library(name: "VoxScriptaUI", targets: ["VoxScriptaUI"]),
+        // Dynamic because Dart FFI opens a shared library at runtime:
+        // libVoxScriptaFFI.dylib on a Mac, .so on Linux and Android, .dll on
+        // Windows. Nothing links it statically.
+        .library(name: "VoxScriptaFFI", type: .dynamic, targets: ["VoxScriptaFFI"]),
         .executable(name: "voxscripta-cli", targets: ["voxscripta-cli"]),
         .executable(name: "corpus-gen", targets: ["corpus-gen"]),
     ],
@@ -235,6 +239,16 @@ let package = Package(
                            "VoxScriptaExport", "VoxScriptaMLX"],
             swiftSettings: strict),
 
+        // The C ABI the Flutter interface calls. It depends on the pipeline and
+        // the exporters and adds no rules of its own — deliberately, since a
+        // rule that lived here would be a rule the SwiftUI interface could not
+        // see.
+        .target(
+            name: "VoxScriptaFFI",
+            dependencies: ["VoxScriptaCore", "VoxScriptaProject", "VoxScriptaPipeline",
+                           "VoxScriptaExport"],
+            swiftSettings: strict),
+
         // Nothing but @main. Everything it shows lives in VoxScriptaUI, which
         // the iOS app target consumes the same way.
         .executableTarget(
@@ -277,6 +291,9 @@ let package = Package(
         // is now only @main, and a test bundle cannot link one anyway.
         .testTarget(name: "VoxScriptaAppTests",
                     dependencies: ["VoxScriptaUI", "VoxScriptaPipeline"], swiftSettings: strict),
+        .testTarget(name: "VoxScriptaFFITests",
+                    dependencies: ["VoxScriptaFFI", "VoxScriptaCore", "VoxScriptaProject"],
+                    swiftSettings: strict),
         .testTarget(name: "VoxScriptaPipelineTests",
                     dependencies: ["VoxScriptaPipeline", "VoxScriptaTestSupport"], swiftSettings: strict),
         // Holds the C++ port and the Swift original to the same answers.
