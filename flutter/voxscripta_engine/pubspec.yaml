@@ -1,0 +1,17 @@
+name: voxscripta_engine
+description: Dart bindings for the Vox Scripta engine's C ABI.
+version: 0.3.0
+publish_to: none
+
+# Pure Dart, not Flutter, on purpose. The binding layer carries no widgets and
+# no rules, so it can be tested with `dart test` against the real library
+# instead of needing an app to be running. The Flutter app depends on this; this
+# depends on nothing of Flutter's.
+environment:
+  sdk: ^3.13.0
+
+dependencies:
+  ffi: ^2.1.0
+
+dev_dependencies:
+  test: ^1.25.0
