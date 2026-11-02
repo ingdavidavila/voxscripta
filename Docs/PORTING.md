@@ -208,19 +208,60 @@ twice the mathematical transform, DC and Nyquist are packed into the same
 complex slot, and `zvmags` therefore reports the sum of their squares as the
 first "bin". A textbook implementation would have been quietly wrong.
 
-### The one thing left, and why it is a refactor
+### The pipeline dependency, inverted
 
-`VoxScriptaPipeline` imports `VoxScriptaMLX`, which is Apple Silicon only and
-drags in a HuggingFace package that refuses to build against musl. Gating the
-import is not enough, and neither is
+`VoxScriptaPipeline` used to import `VoxScriptaMLX`, which is Apple Silicon
+only and drags in a HuggingFace package that refuses to build against musl.
+Gating the import was not enough, and neither was
 `.target(name: "VoxScriptaMLX", condition: .when(platforms: [.macOS, .iOS]))`
 — SwiftPM builds the target and its packages regardless.
 
-The fix is the one the dependency direction already wanted: Pipeline should be
-handed a `LanguageModelHosting` rather than resolving one, moving
-`PolishBackendResolver` to the layer that knows which platform it is on. The
-llama.cpp backend it would choose off Apple already exists and is already
-wired into the resolver.
+The fix was the one the dependency direction already wanted. `PolishBackend`
+moved down into `VoxScriptaLanguage`, which already owns both hosts it can
+name, and grew a registration slot:
+
+```swift
+PolishBackendResolver.registerBundledHost { directory in … }
+```
+
+`VoxScriptaMLX` fills that slot — `MLXModelHost.registerAsBundledBackend()`,
+called from `AppModel.init` — so the arrow runs downward everywhere and
+nothing above the language layer names MLX. `VoxScriptaUI` now declares
+`VoxScriptaMLX` directly, which it had been reaching only by accident, through
+the pipeline.
+
+**What changed behaviourally, stated rather than buried.** `.bundled` resolves
+to whatever the process registered. The Mac and iOS apps register MLX at
+launch, so they are unchanged. `voxscripta-cli` registers nothing — it has to
+cross-compile — so `.bundled` there is llama.cpp reading a GGUF, and
+`--model` now names that file rather than an MLX directory. Same prompt, same
+cleaning, same gauntlet; `describedAs` records which library ran, and
+`PolishBackendResolverTests` pins all of it.
+
+Three smaller things had to be portable before the pipeline would compile:
+
+| | Before | Now |
+| --- | --- | --- |
+| Decoder | `CanonicalDecoder()` named directly | `JobRunner.defaultDecoder` — AVFoundation, else FFmpeg |
+| Locale probe | filtered by Apple's installed models | off Apple, whisper's one multilingual model covers every language the text stages support |
+| `Log` shim | no `privacy:` interpolation | `LogMessage` accepts it and discards it, so call sites keep the qualifier on every platform |
+
+That last one matters more than it looks. Dropping `privacy:` off Apple would
+have left the same log line spelled two ways, and the two would drift until a
+Mac build leaked transcript text into a sysdiagnose.
+
+### What the command line still needs
+
+Every Swift file in `voxscripta-cli` compiles for `aarch64-linux-musl`. It
+does not link: FFmpeg, whisper.cpp, llama.cpp, miniaudio and SQLite have only
+ever been built for the Mac, so the link stops at
+`ld.lld: unable to find library -lavformat`. Cross-building those five is the
+next piece of work, and it is a build-system job rather than a Swift one.
+
+One CLI subcommand is genuinely absent off Apple rather than merely unbuilt:
+`render-audio` writes the silence-removed copy through `AVFoundation`, so it
+throws `notImplemented` by name. The time map it would ship beside the audio
+is plain data and is produced everywhere.
 
 ### POLISH is weaker off Apple, and that needs deciding
 
@@ -262,3 +303,117 @@ rather than by assertion.
 
 Each step ends with the existing tests passing against the new backend, not
 with it compiling.
+
+## Windows: what the ground looks like
+
+Established on the development Mac on 2026-11-01, before any Windows code was
+written. Recorded because the first finding changes who can do the work.
+
+**Swift cannot be cross-compiled to Windows from this Mac.** The compiler
+resolves the triple — `swiftc -print-target-info -target
+x86_64-unknown-windows-msvc` answers with `"platform": "windows"` — but the
+runtime it names,
+`~/Library/Developer/Toolchains/swift-6.4.0-RELEASE.xctoolchain/usr/lib/swift/windows`,
+does not exist, and `swift sdk list` offers only
+`swift-6.4.0-RELEASE_static-linux-0.1.0`. There is no Windows equivalent of the
+Static Linux SDK: a Windows build needs the MSVC toolset and the Windows SDK
+headers and import libraries, which ship with Visual Studio on Windows. So
+unlike Linux, Windows cannot be checked from here at all — it needs a Windows
+machine or a Windows CI runner. That is a prerequisite, not a preference.
+
+**Flutter is not installed**, and the Windows interface is a Flutter
+application under the decision at the top of this document. `flutter` and
+`dart` are both absent. CMake is present but not on `PATH`
+(`/Applications/CMake.app/Contents/bin/cmake`); `ninja` is absent.
+
+**The engine's platform conditionals mostly already cover Windows.** Every
+non-Apple branch in the engine is spelled `#if !canImport(Darwin)` rather than
+`#if os(Linux)`, so Windows takes the same path Linux does. Four files carry
+one: `VoxScriptaBench/Benchmark.swift`, `VoxScriptaCore/Localization.swift`,
+`VoxScriptaProject/AtomicFile.swift` and `VoxScriptaProject/ProjectStore.swift`,
+plus `voxscripta-cli/CLI.swift`. Whether those branches use POSIX-only calls
+that Windows lacks has **not** been checked — it is the first thing to audit,
+and it cannot be settled by compiling here.
+
+### The order this implies
+
+1. **Audit the five `!canImport(Darwin)` branches for POSIX assumptions**, and
+   the C libraries' build for MSVC. Doable here by inspection; not verifiable
+   here.
+2. **A C ABI over the Swift engine.** Flutter talks to Dart FFI, which talks
+   to C. Nothing of this exists yet — the JNI in `android/jni/` belongs to the
+   superseded C++ spike, not to the Swift engine. This is the piece Windows,
+   Android and Linux all need, and it is the one piece that can be built and
+   tested on this Mac today, on macOS and cross-compiled for Linux.
+3. **The Windows build** of the five C libraries and the engine. Needs Windows.
+4. **The Flutter application.** Needs Flutter; needs Windows to produce a
+   Windows binary.
+
+Step 2 is where to start, because it is the only one of the four that this
+machine can finish and prove.
+
+### Step 1, done: two Windows defects and a near-miss
+
+`ProjectStore`'s non-Apple branches turned out to be pure Foundation — the
+local Deleted folder that stands in for the Trash, and the path that stands in
+for a security-scoped bookmark — so they carry to Windows unchanged. Two
+others did not.
+
+`Benchmark.current()` read `/proc/self/status`, which Windows does not have, so
+every memory measurement would have thrown. It now uses
+`GetProcessMemoryInfo`'s `WorkingSetSize`, with the same caveat the Linux
+branch already carried: it counts the clean pages of the memory-mapped
+canonical audio, which is exactly what `phys_footprint` was chosen to exclude,
+so the bounded-memory assertion is weaker on both. **That Windows branch has
+never been compiled** and is marked as such in the source; it is the first
+thing to check on the first Windows build.
+
+`AtomicFile.fsyncDirectory` called `open(2)` on a directory, which Windows
+cannot do at all — a directory has no file handle there and NTFS has no
+equivalent flush. The durable rename Windows offers is `MoveFileEx` with
+`MOVEFILE_WRITE_THROUGH`, a property of the move rather than a separate flush,
+and `FileManager` does not expose it. So the call is now guarded and the gap is
+documented where it happens: on Windows the *data* is still flushed, so a power
+loss can cost a project its newest artifact but cannot leave a half-written
+one.
+
+The near-miss is worth recording. The obvious guard was
+`#if canImport(Darwin) || canImport(Glibc)`. A probe build proved the static
+Linux SDK provides **`Musl`, not `Glibc`** — so that spelling would have
+silently disabled directory flushing on the very Linux build this project
+targets, with no error and no failing test. The guard includes `Musl`.
+
+### Step 2, done: the C ABI
+
+`Sources/VoxScriptaFFI` exports twelve C symbols; `ffi/voxscripta.h` is the
+header Dart's ffigen reads. Five decisions shape it, each argued in the source:
+polling rather than callbacks (a C function pointer called from a Swift
+executor thread reaches Dart on a thread Dart does not own, which is the
+standard way to crash a Flutter app); scalar getters rather than a shared
+struct; nothing that blocks; every buffer released by the library's own
+`vs_string_free` / `vs_bytes_free`, never `free()`, because a Windows DLL and
+its host can hold separate C runtime heaps; and a per-thread last error, so two
+Dart isolates cannot read each other's failures.
+
+Verified four ways, not one:
+
+| | |
+| --- | --- |
+| `VoxScriptaFFITests` | 10 tests — handle lifecycle, unknown handles, ownership, all five export formats |
+| `dlopen` from Python | loaded the dylib and drove a real job to failure from outside Swift entirely |
+| A C client | compiled against the header, linked against the library, ran |
+| `Tools/check-abi.sh` | references all twelve symbols, so the link fails if the hand-written header drifts |
+
+It also cross-compiles for `aarch64-linux-musl`.
+
+The last error being per *OS thread* and not per *task* is a real distinction
+and is pinned by a test. A `Task.detached` was the first thing tried as a stand-in
+for a second isolate and it failed: Swift's cooperative pool ran it on the
+spawning thread, so it read the same error back. An isolate is an OS thread,
+which is the granularity this gives.
+
+### What is still ahead for Windows
+
+Steps 3 and 4 are untouched and neither can start here. The engine needs the
+MSVC toolset and the Windows SDK, and the Flutter application needs Flutter
+installed — and a Windows machine to produce a Windows binary from it.

@@ -201,9 +201,11 @@ para("The honest headline", H2)
 para(
     "<b>The engine is close to done. The applications are not.</b> Four of the "
     "five platform-specific subsystems that stood between this project and its "
-    "goal have been replaced and measured; six of seven Swift modules "
-    "cross-compile for Linux. What does not exist is an interface on anything "
-    "but Apple, and nothing has ever run on a real phone.", LEAD)
+    "goal have been replaced and measured; all nine Swift modules "
+    "cross-compile for Linux, and so does every Swift file in the command line. "
+    "What does not exist is an interface on anything but Apple, a Linux build of "
+    "the five C libraries the executable links against, and any run at all on a "
+    "real phone.", LEAD)
 
 
 # ───────────────────────────────────────────────────── architecture ──
@@ -228,12 +230,14 @@ table([
     ["VoxScriptaProject", "1,289", "Project packages, manifests, job store, "
      "atomic writes, resume", chip("yes", "good")],
     ["VoxScriptaPipeline", "832", "The job graph that drives all of the above",
-     chip("MLX dependency", "warn")],
+     chip("yes", "good")],
     ["VoxScriptaExport", "621", "txt, md, docx, srt, vtt", chip("yes", "good")],
     ["VoxScriptaUI", "3,676", "The SwiftUI interface, shared by macOS and iOS",
      chip("Apple only", "none")],
     ["VoxScriptaMLX", "225", "Bundled-model host, Apple Silicon",
      chip("Apple only", "none")],
+    ["VoxScriptaFFI", "362", "The C ABI the Flutter interface calls",
+     chip("yes", "good")],
     ["voxscripta-cli", "802", "Command line: analyze, transcribe, bench, wer, "
      "run, export", chip("yes", "good")],
 ], [42 * mm, 14 * mm, 70 * mm, 29 * mm])
@@ -686,29 +690,37 @@ para(
 # ───────────────────────────────────────────────────────────────  tests ──
 para("10 &nbsp; Verification", H1)
 para(
-    "<b>442 tests</b> across ten targets, 7,958 lines of test code against 17,620 "
+    "<b>457 tests</b> across eleven targets, 8,334 lines of test code against 18,246 "
     "lines of source. Every number quoted in this report came from one of them or "
     "from a measurement taken on the development machine.", BODY)
 table([
     ["Target", "Tests", "Covers"],
     ["VoxScriptaCore", "68", "Time, identifiers, transcript model, paragraphs, errors"],
     ["VoxScriptaDSP", "96", "Decode parity, silence ground truth, chunking, FFT parity, recording"],
-    ["VoxScriptaLanguage", "112", "CLEAN invariants, the gauntlet, Spanish corpus, confidence floor"],
+    ["VoxScriptaLanguage", "117", "CLEAN invariants, the gauntlet, Spanish corpus, "
+     "confidence floor, backend resolution"],
     ["VoxScriptaTranscription", "49", "Engines, scheduler, merger, word error rate, Whisper"],
     ["VoxScriptaProject", "32", "Packages, atomic writes, stage invalidation, §5 deletion"],
     ["VoxScriptaAppTests", "27", "Settings, progress, recording transport, crash safety"],
     ["VoxScriptaExport", "21", "Five formats, subtitle timing, DOCX validity"],
     ["VoxScriptaPipeline", "20", "Crash recovery, cancellation, end-to-end CLEAN"],
     ["VoxScriptaCoreParity", "12", "C++ core against the Swift original"],
+    ["VoxScriptaFFI", "10", "C ABI: handles, ownership, all five export formats"],
     ["VoxScriptaMLX", "5", "Bundled model loads and rewrites"],
 ], [45 * mm, 16 * mm, 94 * mm], align={1: "RIGHT"})
 para(
-    "The pipeline target's 20 tests have not been re-run since the port work. They "
-    "depend on Apple's on-device language model, which was responding so slowly on "
-    "this machine that a single run exceeded 45 minutes without completing. That "
-    "target depends only on <font face='Courier'>VoxScriptaPipeline</font> and "
-    "<font face='Courier'>VoxScriptaTestSupport</font>, neither of which the port "
-    "changed, but it is an unticked box and is recorded as one.", SMALL)
+    "All ten targets were run after the pipeline dependency was inverted, including "
+    "the 20 pipeline tests that had been an unticked box in the previous report — "
+    "they depend on Apple's on-device language model, which had been responding too "
+    "slowly to finish a run, and now take 274 seconds. No issues in any target.", SMALL)
+para(
+    "One caveat about how they were run, since it bears on what the number means. "
+    "<font face='Courier'>Tools/test.sh</font> exited 0 having executed one of the "
+    "ten bundles: <font face='Courier'>swift test</font> under this package's Xcode "
+    "build system does not reliably run every test product in a single invocation. "
+    "The counts above come from ten separate filtered runs. The script's exit code "
+    "is not on its own evidence that the suite passed, which is a hole in the "
+    "project's test entry point rather than in the tests.", SMALL)
 
 para("Accuracy, measured on real audio", H2)
 table([
@@ -729,17 +741,27 @@ para(
 table([
     ["Gap", "Consequence", "Size"],
     ["No interface on Android, Windows or Linux",
-     "Three of the five platforms have no application at all. The Flutter "
-     "interface has not been started.", "Large"],
+     "Three of the five platforms have no application at all. The C ABI they all "
+     "call now exists and is verified four ways, but the Flutter application on "
+     "top of it has not been started, and Flutter is not installed.", "Large"],
+    ["Windows cannot be built or checked from this Mac",
+     "There is no Windows equivalent of the Static Linux SDK: a Windows build "
+     "needs the MSVC toolset and Windows SDK, which ship with Visual Studio. Two "
+     "Windows defects were found and fixed by inspection, and one of those fixes "
+     "has never been compiled. Needs a Windows machine or CI runner.", "Blocked"],
     ["Nothing has run on a real phone",
      "iOS builds and runs in the simulator only. Background recording, "
      "interruptions and the microphone itself are untested on a device. Needs a "
      "signing identity.", "Medium"],
-    ["Pipeline does not cross-compile",
-     "It depends on VoxScriptaMLX, which pulls in a HuggingFace package that will "
-     "not build against musl — and SwiftPM builds that dependency even when it is "
-     "marked Apple-only. The fix is to hand Pipeline a host rather than let it "
-     "resolve one.", "Small"],
+    ["Command line does not link on Linux",
+     "All eight Swift modules now cross-compile for aarch64-linux-musl, the "
+     "pipeline among them. The executable still stops at the linker: FFmpeg, "
+     "whisper.cpp, llama.cpp, miniaudio and SQLite have only been built for the "
+     "Mac. A build-system job, not a Swift one.", "Medium"],
+    ["render-audio is Apple-only",
+     "Writing the silence-removed copy goes through AVFoundation, so off Apple the "
+     "subcommand throws notImplemented by name. The time map beside it is plain "
+     "data and is produced everywhere.", "Small"],
     ["Model sizes are unresolved",
      "835 MB MLX model, 141 MB Whisper model, 1.0 GB GGUF. The installed macOS app "
      "is 924 MB. None of this can ship in a phone application as it stands.",
@@ -794,10 +816,14 @@ para("A recommendation on sequence", H2)
 para(
     "The engine work is substantially done and each piece is measured. The "
     "cheapest next step that converts work into something you can hold is "
-    "<b>inverting the Pipeline dependency</b> — small, well understood — which "
-    "unblocks the command line on Linux. A working Linux CLI would be the first "
-    "time this project runs end to end on a non-Apple platform, and it needs no "
-    "interface, no store and no signing identity to prove it.", LEAD)
+    "<b>cross-building the five C libraries</b> — FFmpeg, whisper.cpp, llama.cpp, "
+    "miniaudio and SQLite. The Swift above them already compiles for Linux, and "
+    "the C ABI the three new interfaces call is now built and verified, so those "
+    "five libraries are the last thing between here and a command line that runs "
+    "on Linux: the first time this project would run end to end on a non-Apple "
+    "platform, with no interface, store or signing identity needed to prove it. "
+    "Two things need arranging before Windows can be verified rather than merely "
+    "written: a Windows machine or CI runner, and a Flutter install.", LEAD)
 
 # ───────────────────────────────────────────────────────────── appendix ──
 para("Appendix &nbsp; Commits in this period", H1)
