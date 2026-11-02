@@ -1,7 +1,7 @@
 import 'dart:ffi';
 import 'package:ffi/ffi.dart';
 
-/// The twenty symbols of `ffi/voxscripta.h`, and nothing else.
+/// The thirty-one symbols of `ffi/voxscripta.h`, and nothing else.
 ///
 /// Hand-written rather than generated. ffigen would need libclang and a config
 /// file to produce a dozen declarations that change about once a year, and the
@@ -55,6 +55,29 @@ final class VoxScriptaBindings {
             Pointer<Utf8> Function(Pointer<Utf8>)>('vs_project_summary'),
         capabilities = library.lookupFunction<Pointer<Utf8> Function(),
             Pointer<Utf8> Function()>('vs_capabilities'),
+        recordingDirectory = library.lookupFunction<Pointer<Utf8> Function(),
+            Pointer<Utf8> Function()>('vs_recording_directory'),
+        recordingNewPath = library.lookupFunction<Pointer<Utf8> Function(),
+            Pointer<Utf8> Function()>('vs_recording_new_path'),
+        recordingStart = library.lookupFunction<Int64 Function(Pointer<Utf8>),
+            int Function(Pointer<Utf8>)>('vs_recording_start'),
+        recordingState = library
+            .lookupFunction<Int32 Function(Int64), int Function(int)>('vs_recording_state'),
+        recordingElapsed = library.lookupFunction<Double Function(Int64),
+            double Function(int)>('vs_recording_elapsed'),
+        recordingLevel = library.lookupFunction<Double Function(Int64),
+            double Function(int)>('vs_recording_level'),
+        recordingFailureCopy = library.lookupFunction<Pointer<Utf8> Function(Int64),
+            Pointer<Utf8> Function(int)>('vs_recording_failure_copy'),
+        recordingPause = library
+            .lookupFunction<Int32 Function(Int64), int Function(int)>('vs_recording_pause'),
+        recordingResume = library
+            .lookupFunction<Int32 Function(Int64), int Function(int)>('vs_recording_resume'),
+        recordingFinish = library.lookupFunction<
+            Int32 Function(Int64, Pointer<Pointer<Utf8>>),
+            int Function(int, Pointer<Pointer<Utf8>>)>('vs_recording_finish'),
+        recordingDiscard = library
+            .lookupFunction<Int32 Function(Int64), int Function(int)>('vs_recording_discard'),
         waveform = library.lookupFunction<
             Int32 Function(Pointer<Utf8>, Int32, Pointer<Pointer<Uint8>>,
                 Pointer<Int64>),
@@ -87,6 +110,17 @@ final class VoxScriptaBindings {
   final Pointer<Utf8> Function() capabilities;
   final int Function(Pointer<Utf8>, int, Pointer<Pointer<Uint8>>, Pointer<Int64>)
       waveform;
+  final Pointer<Utf8> Function() recordingDirectory;
+  final Pointer<Utf8> Function() recordingNewPath;
+  final int Function(Pointer<Utf8>) recordingStart;
+  final int Function(int) recordingState;
+  final double Function(int) recordingElapsed;
+  final double Function(int) recordingLevel;
+  final Pointer<Utf8> Function(int) recordingFailureCopy;
+  final int Function(int) recordingPause;
+  final int Function(int) recordingResume;
+  final int Function(int, Pointer<Pointer<Utf8>>) recordingFinish;
+  final int Function(int) recordingDiscard;
   final void Function(Pointer<Uint8>) bytesFree;
   final void Function(Pointer<Utf8>) stringFree;
 

@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 
+import 'package:voxscripta_engine/voxscripta_engine.dart';
+
 import 'src/engine_host.dart';
 import 'src/library/library_model.dart';
 import 'src/library/library_screen.dart';
 import 'src/platform_traits.dart';
 import 'src/processing/processing_model.dart';
 import 'src/processing/processing_screen.dart';
+import 'src/recording/recording_model.dart';
+import 'src/recording/recording_screen.dart';
 import 'src/settings/settings_model.dart';
 import 'src/settings/settings_screen.dart';
 import 'src/transcript/transcript_model.dart';
@@ -56,6 +60,30 @@ class _VoxScriptaAppState extends State<VoxScriptaApp> {
     if (_host.engine case final engine?) {
       return LibraryScreen(
         model: LibraryModel.of(engine),
+        openRecorder: (context) => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => RecordingScreen(
+              model: RecordingModel.of(engine),
+              // Straight into the pipeline, which is the point of recording in
+              // the app: the file is handed to exactly the import path a
+              // chosen file takes.
+              onFinished: (context, result) =>
+                  Navigator.of(context).pushReplacement(
+                MaterialPageRoute<void>(
+                  builder: (_) => ProcessingScreen(
+                    model: ProcessingModel.of(
+                      engine,
+                      projectPath: _projectPathFor(engine, result.path),
+                      audioPath: result.path,
+                      displayName: _fileName(result.path),
+                      options: SettingsModel.of(engine).toJobOptions(),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
         openSettings: (context) => Navigator.of(context).push(
           MaterialPageRoute<void>(
             builder: (_) => SettingsScreen(model: SettingsModel.of(engine)),
@@ -122,6 +150,18 @@ class _VoxScriptaAppState extends State<VoxScriptaApp> {
         useMaterial3: true,
       );
 }
+
+/// Where a recording's project package goes: beside the library, named after
+/// the audio. The engine owns the library's location; the package name is just
+/// the file's.
+String _projectPathFor(VoxScriptaEngine engine, String audioPath) {
+  final name = _fileName(audioPath);
+  final stem = name.contains('.') ? name.substring(0, name.lastIndexOf('.')) : name;
+  return '${engine.defaultLibraryDirectory}/$stem.voxscripta';
+}
+
+String _fileName(String path) =>
+    path.contains('/') ? path.substring(path.lastIndexOf('/') + 1) : path;
 
 /// Shown when the engine will not load.
 ///

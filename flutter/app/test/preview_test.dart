@@ -10,6 +10,8 @@ import 'package:voxscripta/src/library/library_model.dart';
 import 'package:voxscripta/src/platform_traits.dart';
 import 'package:voxscripta/src/library/library_screen.dart';
 import 'package:voxscripta/src/processing/processing_model.dart';
+import 'package:voxscripta/src/recording/recording_model.dart';
+import 'package:voxscripta/src/recording/recording_screen.dart';
 import 'package:voxscripta/src/processing/processing_screen.dart';
 import 'package:voxscripta/src/settings/settings_model.dart';
 import 'package:voxscripta/src/settings/settings_screen.dart';
@@ -177,6 +179,36 @@ void main() {
     await expectLater(
         find.byType(SettingsScreen), matchesGoldenFile('previews/$name.png'));
   }
+
+  testWidgets('recording, phone', (tester) async {
+    PlatformTraits.debugPointerOverride = false;
+    addTearDown(() => PlatformTraits.debugPointerOverride = null);
+    tester.view
+      ..physicalSize = const Size(400, 800)
+      ..devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final stub = _PreviewRecording();
+    await tester.pumpWidget(MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF3B6EA5)),
+        fontFamily: 'Preview',
+        useMaterial3: true,
+      ),
+      home: RecordingScreen(model: RecordingModel(source: stub)),
+    ));
+    await tester.pump();
+    await tester.pump();
+    // A plausible run of levels, so the meter shows what it really shows.
+    for (var index = 0; index < RecordingModel.meterHistory; index += 1) {
+      stub.emit(index);
+      await tester.pump();
+      await tester.pump();
+    }
+    await expectLater(find.byType(RecordingScreen),
+        matchesGoldenFile('previews/recording-phone.png'));
+  });
 
   testWidgets('processing, desktop', (tester) async {
     PlatformTraits.debugPointerOverride = true;
@@ -519,3 +551,60 @@ final _previewSpeechSpans = <(double, double)>[
       index * 72 * 60 / 11 + 72 * 60 / 11 - 60,
     ),
 ];
+
+/// A recording the preview drives through a plausible level history.
+class _PreviewRecording implements RecordingSource {
+  _PreviewJobRecording? _job;
+
+  void emit(int index) {
+    final swell = 0.45 + 0.5 * math.sin(index * 0.19).abs();
+    final grain = 0.3 + 0.7 * math.sin(index * 1.7).abs();
+    _job?.emit(RecordingProgress(
+      state: RecordingState.recording,
+      elapsed: Duration(milliseconds: 47_000 + index * 50),
+      level: (swell * grain).clamp(0.05, 1.0),
+    ));
+  }
+
+  @override
+  Recording start({String? destinationPath}) =>
+      _job = _PreviewJobRecording();
+
+  @override
+  String get directory =>
+      '/Users/you/Library/Application Support/VoxScripta/Recordings';
+}
+
+class _PreviewJobRecording implements Recording {
+  final StreamController<RecordingProgress> _controller =
+      StreamController<RecordingProgress>.broadcast();
+
+  RecordingProgress _latest = const RecordingProgress(
+      state: RecordingState.idle, elapsed: Duration.zero, level: 0);
+
+  void emit(RecordingProgress report) {
+    _latest = report;
+    _controller.add(report);
+  }
+
+  @override
+  Stream<RecordingProgress> get progress => _controller.stream;
+
+  @override
+  RecordingProgress get latest => _latest;
+
+  @override
+  int get handle => 1;
+
+  @override
+  void pause() {}
+
+  @override
+  void resume() {}
+
+  @override
+  RecordingResult? finish() => null;
+
+  @override
+  void discard() {}
+}

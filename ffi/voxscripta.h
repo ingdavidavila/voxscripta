@@ -53,7 +53,8 @@ extern "C" {
  * 2 added the library, job options and export options.
  * 3 added vs_project_summary.
  * 4 added vs_capabilities.
- * 5 added the audio facts to vs_project_summary, and vs_waveform. */
+ * 5 added the audio facts to vs_project_summary, and vs_waveform.
+ * 6 added recording. */
 int32_t vs_abi_version(void);
 
 /* ─── Structured data ──────────────────────────────────────────────────────
@@ -264,6 +265,65 @@ char *vs_capabilities(void);
  * Caller releases. */
 char *vs_job_options_defaults(void);
 char *vs_export_options_defaults(void);
+
+/* ─── Recording ────────────────────────────────────────────────────────────
+ *
+ * Same shape as a job — a handle, then polling — and for the same reason: a
+ * level meter calling back into the host sixty times a second from a capture
+ * thread is the crash the job surface was designed to avoid. Four scalar reads
+ * at 20 Hz cost nothing.
+ *
+ * NOTE: the capture device layer underneath this has never run on a machine
+ * that is not a Mac. The writer is tested on both paths; opening a microphone
+ * cannot be tested without a microphone.
+ */
+
+/* Recording states, as vs_recording_state returns them. */
+#define VS_RECORDING_UNKNOWN_HANDLE (-1)
+#define VS_RECORDING_IDLE             0
+#define VS_RECORDING_RECORDING        1
+#define VS_RECORDING_PAUSED           2
+
+/* The folder recordings are written to, and a new non-colliding path inside
+ * it. Both read from the engine so the two interfaces agree about where a
+ * recording lands. Caller releases. */
+char *vs_recording_directory(void);
+char *vs_recording_new_path(void);
+
+/* Opens the microphone and starts writing to destination_path, or to a newly
+ * generated path when it is NULL or "".
+ *
+ * Returns a handle, or negative with the reason in vs_last_error_copy. The file
+ * is readable while it is being written — the writer emits fragments, so a
+ * crash costs the last fragment rather than the recording. */
+int64_t vs_recording_start(const char *destination_path);
+
+int32_t vs_recording_state(int64_t handle);
+
+/* Seconds actually written, excluding anything paused. */
+double vs_recording_elapsed(int64_t handle);
+
+/* The meter, already mapped onto 0...1. Normalized in the engine because the
+ * mapping is a measured curve, and two meters moving differently for one
+ * microphone would describe two different recordings. */
+double vs_recording_level(int64_t handle);
+
+/* Why capture or writing failed part-way through, or NULL. A report rather
+ * than a state: a recording can fail after it started and what was written so
+ * far is still good. Caller releases. */
+char *vs_recording_failure_copy(int64_t handle);
+
+int32_t vs_recording_pause(int64_t handle);
+int32_t vs_recording_resume(int64_t handle);
+
+/* Stops, finalizes and forgets the handle, writing {"path": "...",
+ * "seconds": 0.0} to *out_json for the caller to release. */
+int32_t vs_recording_finish(int64_t handle, char **out_json);
+
+/* Stops and deletes what was written. The one call here that destroys audio,
+ * and only because the user asked: §5 protects original files, and a recording
+ * just thrown away is not one yet. */
+int32_t vs_recording_discard(int64_t handle);
 
 /* ─── Releasing what the library returned ──────────────────────────────── */
 

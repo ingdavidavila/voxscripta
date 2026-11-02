@@ -34,10 +34,10 @@ Legend: ✓ in the SwiftUI app · ABI column says whether the C ABI can serve it
 | **Getting audio in** | | |
 | Import an audio file | ✓ | partly — `vs_job_start` takes a path |
 | Copy the original into the project, or reference it | ✓ | ✗ (always references) |
-| Record in the app, with pause and resume | ✓ | ✗ |
-| Level meter and elapsed clock while recording | ✓ | ✗ |
-| Discard a recording | ✓ | ✗ |
-| Microphone permission refusal, handled | ✓ | platform-side |
+| Record in the app, with pause and resume | ✓ | ✓ `vs_recording_*` · Flutter ✓ |
+| Level meter and elapsed clock while recording | ✓ | ✓ — the meter curve is the engine's · Flutter ✓ |
+| Discard a recording | ✓ | ✓ · Flutter ✓ |
+| Microphone permission refusal, handled | ✓ | the engine's refusal is shown verbatim · Flutter ✓ |
 | **Running a job** | | |
 | Progress with the stage and its detail line | ✓ | ✓ · Flutter ✓ |
 | Cancel, leaving the project resumable | ✓ | ✓ · Flutter ✓ |
@@ -140,9 +140,28 @@ interface pass the project path twice to say this, which worked only because
 the audio argument is ignored once a manifest exists: a call that read as a
 lie.
 
-What is still ✗: recording, copying the original into a project instead of
-referencing it, and choosing where an export is saved (a file-dialog plugin
-rather than engine work — the same one import needs).
+ABI 6 added recording, which was the last surface. Two rules moved out of the
+Apple-only interface and into the engine on the way: where recordings are
+written and what they are called, and the level meter's curve. The curve
+especially — two meters moving differently for one microphone would be
+describing two different recordings.
+
+**The capture path has now run, once.** `tool/record_check.dart` records three
+seconds through the whole stack — Dart, the C ABI, miniaudio, FFmpeg — and the
+result is a real file: 1 channel, 44.1 kHz AAC, 2.99 seconds, which macOS's own
+`afinfo` reads. That is the first time `PortableRecorder` has executed at all.
+It is still only one platform; the device layer on Windows, Linux and Android
+remains unexercised, and a microphone cannot be opened in a test suite without
+prompting a developer and failing a build server.
+
+Recording also surfaced a bug worth the trip: after `finish()`, `latest.state`
+still said `recording`, because cancelling the poll timer left the last reading
+in place. A screen trusting it would have shown a finished recording as live.
+
+The five surfaces are built. What is still ✗ is one feature and one
+plugin: copying the original into a project instead of referencing it, and
+choosing where an export is saved — the latter a file-dialog plugin rather than
+engine work, and the same one importing a file needs.
 
 ## What the first version of that table said
 

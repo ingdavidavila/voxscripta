@@ -13,6 +13,7 @@ class LibraryScreen extends StatefulWidget {
     required this.model,
     this.openProject,
     this.openSettings,
+    this.openRecorder,
   });
 
   final LibraryModel model;
@@ -23,6 +24,9 @@ class LibraryScreen extends StatefulWidget {
 
   /// Opens the settings screen. Injected for the same reason.
   final void Function(BuildContext)? openSettings;
+
+  /// Starts a new recording.
+  final void Function(BuildContext)? openRecorder;
 
   @override
   State<LibraryScreen> createState() => _LibraryScreenState();
@@ -70,6 +74,12 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 tooltip: 'Look again for recordings on disk.',
                 onPressed: model.refresh,
               ),
+              if (widget.openRecorder case final record?)
+                IconButton(
+                  icon: const Icon(Icons.mic_none),
+                  tooltip: 'Record something now.',
+                  onPressed: () => record(context),
+                ),
               if (widget.openSettings case final open?)
                 IconButton(
                   icon: const Icon(Icons.settings_outlined),
@@ -106,6 +116,16 @@ class _LibraryScreenState extends State<LibraryScreen> {
         // Matches the SwiftUI empty state, plus the folder — "nothing here" is
         // much more useful when it says where "here" is.
         detail: 'Record something, or open a file.\n\n${model.directory}',
+        // An empty list with nothing to tap is a dead end, which is why the
+        // SwiftUI app shows the import screen instead of an empty sidebar on a
+        // phone. Here the offer is the button.
+        action: widget.openRecorder == null
+            ? null
+            : FilledButton.icon(
+                onPressed: () => widget.openRecorder!(context),
+                icon: const Icon(Icons.mic),
+                label: const Text('Record'),
+              ),
       );
     }
 

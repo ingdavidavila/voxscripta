@@ -53,14 +53,14 @@ import VoxScriptaExport
 /// exist, their word and segment counts, and what POLISH did. 4 adds
 /// `vs_capabilities`, which the settings screen needs. 5 adds the audio
 /// facts to `vs_project_summary` and `vs_waveform` beside it, for the
-/// processing screen. The previous version
+/// processing screen. 6 adds recording. The previous version
 /// could run a job and read the result, which proved the boundary and was
 /// nowhere near enough to build an interface on — see `Docs/PARITY.md`.
 /// `vs_job_start` and `vs_export` each gained a JSON parameter rather than
 /// growing a second entry point beside them, because nothing has shipped
 /// against version 1 and a legacy variant kept forever costs more than a
 /// break that nobody can observe.
-private let abiVersion: Int32 = 5
+private let abiVersion: Int32 = 6
 
 // MARK: - Job states
 
@@ -147,14 +147,14 @@ private final class JobRegistry: @unchecked Sendable {
 /// Allocated through Swift rather than `strdup` so that allocation and release
 /// are the same allocator on every platform — see the note on Windows C
 /// runtimes above.
-private func copyOut(_ string: String) -> UnsafeMutablePointer<CChar>? {
+func copyOut(_ string: String) -> UnsafeMutablePointer<CChar>? {
     let bytes = Array(string.utf8) + [0]
     let buffer = UnsafeMutablePointer<CChar>.allocate(capacity: bytes.count)
     for (index, byte) in bytes.enumerated() { buffer[index] = CChar(bitPattern: byte) }
     return buffer
 }
 
-private func copyOut(_ data: Data) -> UnsafeMutablePointer<UInt8>? {
+func copyOut(_ data: Data) -> UnsafeMutablePointer<UInt8>? {
     let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: max(1, data.count))
     data.copyBytes(to: buffer, count: data.count)
     return buffer
@@ -162,9 +162,9 @@ private func copyOut(_ data: Data) -> UnsafeMutablePointer<UInt8>? {
 
 // MARK: - Errors
 
-private let lastErrorKey = "com.voxscripta.ffi.lastError"
+let lastErrorKey = "com.voxscripta.ffi.lastError"
 
-private func setLastError(_ message: String?) {
+func setLastError(_ message: String?) {
     if let message {
         Thread.current.threadDictionary[lastErrorKey] = message
     } else {
@@ -172,7 +172,7 @@ private func setLastError(_ message: String?) {
     }
 }
 
-private func describe(_ error: any Error) -> String {
+func describe(_ error: any Error) -> String {
     (error as? VoxScriptaError)?.errorDescription ?? error.localizedDescription
 }
 

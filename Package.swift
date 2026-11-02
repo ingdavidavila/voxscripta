@@ -245,8 +245,8 @@ let package = Package(
         // see.
         .target(
             name: "VoxScriptaFFI",
-            dependencies: ["VoxScriptaCore", "VoxScriptaProject", "VoxScriptaPipeline",
-                           "VoxScriptaExport"],
+            dependencies: ["VoxScriptaCore", "VoxScriptaDSP", "VoxScriptaProject",
+                           "VoxScriptaPipeline", "VoxScriptaExport"],
             swiftSettings: strict),
 
         // Nothing but @main. Everything it shows lives in VoxScriptaUI, which

@@ -2,6 +2,7 @@ import AVFoundation
 import Foundation
 import Observation
 import VoxScriptaCore
+import VoxScriptaDSP
 
 /// Captures the microphone to a file, and nothing else.
 ///
@@ -130,39 +131,18 @@ public final class AudioRecorder {
     /// get it. On macOS the Finder reaches everywhere, so recordings sit beside
     /// the project library rather than being dropped into ~/Documents
     /// uninvited.
-    public static var recordingsDirectory: URL {
-        #if os(macOS)
-        let base = FileManager.default.urls(for: .applicationSupportDirectory,
-                                            in: .userDomainMask)[0]
-        return base.appending(path: "VoxScripta/Recordings")
-        #else
-        let base = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        return base.appending(path: "Recordings")
-        #endif
-    }
 
-    /// A name that sorts chronologically and cannot collide.
-    ///
-    /// The timestamp is fixed-format rather than locale-formatted: a localized
-    /// date contains slashes in most of the world, and a slash in a filename is
-    /// a path separator.
+    /// Where recordings go. Deferred to the engine so the Flutter interface
+    /// writes to the same place rather than to a copy of this decision.
+    public static var recordingsDirectory: URL { RecordingDestination.directory }
+
+    /// A name that sorts chronologically and cannot collide. Also the
+    /// engine's, for the same reason.
     static func newRecordingURL(now: Date = .now,
                                 existsAt: (URL) -> Bool = {
                                     FileManager.default.fileExists(atPath: $0.path)
                                 }) -> URL {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd HH.mm.ss"
-        let stamp = formatter.string(from: now)
-        let word = String(localized: "Recording")
-
-        var candidate = recordingsDirectory.appending(path: "\(word) \(stamp).m4a")
-        var suffix = 2
-        while existsAt(candidate) {
-            candidate = recordingsDirectory.appending(path: "\(word) \(stamp) (\(suffix)).m4a")
-            suffix += 1
-        }
-        return candidate
+        RecordingDestination.newRecordingURL(now: now, existsAt: existsAt)
     }
 
     // MARK: - Transport
@@ -421,8 +401,6 @@ public final class AudioRecorder {
     /// raised to a power below one to open out the bottom of the scale,
     /// which is where the difference between "quiet" and "nothing" lives.
     static func normalize(_ decibels: Float) -> Double {
-        let floorDB = -50.0
-        let clamped = Swift.max(floorDB, Swift.min(0, Double(decibels)))
-        return pow((clamped - floorDB) / -floorDB, 0.6)
+        RecordingLevel.normalize(Double(decibels))
     }
 }

@@ -8,6 +8,7 @@ import 'package:ffi/ffi.dart';
 
 import 'bindings.dart';
 import 'job.dart';
+import 'recording.dart';
 import 'model.dart';
 
 /// The engine, as Dart sees it.
@@ -21,7 +22,7 @@ class VoxScriptaEngine {
   /// The ABI this package was written against. A library announcing anything
   /// else is refused at open, rather than crashing later on a signature that
   /// moved — which is the whole reason the version exists.
-  static const int supportedAbiVersion = 5;
+  static const int supportedAbiVersion = 6;
 
   /// How often a running job is polled.
   ///
@@ -236,6 +237,47 @@ class VoxScriptaEngine {
       calloc.free(path);
       calloc.free(outBytes);
       calloc.free(outLength);
+    }
+  }
+
+  // ── Recording ────────────────────────────────────────────────────────────
+
+  /// How often a recording is polled.
+  ///
+  /// 50 ms rather than the job's 100: a meter updating ten times a second
+  /// reads as laggy where a progress bar does not.
+  static const Duration defaultMeterInterval = Duration(milliseconds: 50);
+
+  /// Where recordings are written. Read from the engine so both interfaces
+  /// agree about where a recording lands.
+  String get recordingDirectory =>
+      _bindings.takeString(_bindings.recordingDirectory()) ?? '';
+
+  /// A new, non-colliding recording path inside that directory.
+  String newRecordingPath() =>
+      _bindings.takeString(_bindings.recordingNewPath()) ?? '';
+
+  /// Opens the microphone and starts writing.
+  ///
+  /// [destinationPath] defaults to a newly generated one. The file is readable
+  /// while it is being written — the writer emits fragments, so a crash costs
+  /// the last fragment rather than the recording.
+  ///
+  /// Throws [VoxScriptaException] when the device will not open, with the
+  /// engine's own reason.
+  Recording startRecording({String? destinationPath}) {
+    final path = (destinationPath ?? '').toNativeUtf8();
+    try {
+      final handle = _bindings.recordingStart(path);
+      if (handle <= 0) {
+        throw VoxScriptaException(
+          _bindings.lastError() ?? 'the microphone could not be opened',
+          code: handle,
+        );
+      }
+      return makeRecording(_bindings, handle, defaultMeterInterval);
+    } finally {
+      calloc.free(path);
     }
   }
 

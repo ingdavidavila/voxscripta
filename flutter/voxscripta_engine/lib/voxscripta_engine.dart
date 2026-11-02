@@ -9,6 +9,8 @@ library;
 
 export 'src/engine.dart' show VoxScriptaEngine;
 export 'src/job.dart' show Job;
+export 'src/recording.dart'
+    show Recording, RecordingProgress, RecordingResult, RecordingState;
 export 'src/model.dart'
     show
         AudioFacts,
