@@ -10,4 +10,12 @@ library;
 export 'src/engine.dart' show VoxScriptaEngine;
 export 'src/job.dart' show Job;
 export 'src/model.dart'
-    show ExportFormat, JobProgress, JobState, TranscriptVariant, VoxScriptaException;
+    show
+        ExportFormat,
+        ExportOptions,
+        JobOptions,
+        JobProgress,
+        JobState,
+        ProjectEntry,
+        TranscriptVariant,
+        VoxScriptaException;

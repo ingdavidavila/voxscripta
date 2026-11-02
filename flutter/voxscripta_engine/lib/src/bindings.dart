@@ -1,7 +1,7 @@
 import 'dart:ffi';
 import 'package:ffi/ffi.dart';
 
-/// The twelve symbols of `ffi/voxscripta.h`, and nothing else.
+/// The seventeen symbols of `ffi/voxscripta.h`, and nothing else.
 ///
 /// Hand-written rather than generated. ffigen would need libclang and a config
 /// file to produce a dozen declarations that change about once a year, and the
@@ -19,8 +19,9 @@ final class VoxScriptaBindings {
         lastErrorCopy = library.lookupFunction<Pointer<Utf8> Function(),
             Pointer<Utf8> Function()>('vs_last_error_copy'),
         jobStart = library.lookupFunction<
-            Int64 Function(Pointer<Utf8>, Pointer<Utf8>),
-            int Function(Pointer<Utf8>, Pointer<Utf8>)>('vs_job_start'),
+            Int64 Function(Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>),
+            int Function(Pointer<Utf8>, Pointer<Utf8>,
+                Pointer<Utf8>)>('vs_job_start'),
         jobState =
             library.lookupFunction<Int32 Function(Int64), int Function(int)>('vs_job_state'),
         jobFraction = library
@@ -35,9 +36,21 @@ final class VoxScriptaBindings {
             library.lookupFunction<Void Function(Int64), void Function(int)>('vs_job_release'),
         export = library.lookupFunction<
             Int32 Function(Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>,
-                Pointer<Pointer<Uint8>>, Pointer<Int64>),
+                Pointer<Utf8>, Pointer<Pointer<Uint8>>, Pointer<Int64>),
             int Function(Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>,
-                Pointer<Pointer<Uint8>>, Pointer<Int64>)>('vs_export'),
+                Pointer<Utf8>, Pointer<Pointer<Uint8>>,
+                Pointer<Int64>)>('vs_export'),
+        libraryDefaultDirectory = library.lookupFunction<Pointer<Utf8> Function(),
+            Pointer<Utf8> Function()>('vs_library_default_directory'),
+        libraryList = library.lookupFunction<Pointer<Utf8> Function(Pointer<Utf8>),
+            Pointer<Utf8> Function(Pointer<Utf8>)>('vs_library_list'),
+        projectDelete = library.lookupFunction<
+            Int32 Function(Pointer<Utf8>, Pointer<Pointer<Utf8>>),
+            int Function(Pointer<Utf8>, Pointer<Pointer<Utf8>>)>('vs_project_delete'),
+        jobOptionsDefaults = library.lookupFunction<Pointer<Utf8> Function(),
+            Pointer<Utf8> Function()>('vs_job_options_defaults'),
+        exportOptionsDefaults = library.lookupFunction<Pointer<Utf8> Function(),
+            Pointer<Utf8> Function()>('vs_export_options_defaults'),
         bytesFree = library
             .lookupFunction<Void Function(Pointer<Uint8>), void Function(Pointer<Uint8>)>(
                 'vs_bytes_free'),
@@ -47,15 +60,20 @@ final class VoxScriptaBindings {
 
   final int Function() abiVersion;
   final Pointer<Utf8> Function() lastErrorCopy;
-  final int Function(Pointer<Utf8>, Pointer<Utf8>) jobStart;
+  final int Function(Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>) jobStart;
   final int Function(int) jobState;
   final double Function(int) jobFraction;
   final Pointer<Utf8> Function(int) jobDetailCopy;
   final Pointer<Utf8> Function(int) jobErrorCopy;
   final int Function(int) jobCancel;
   final void Function(int) jobRelease;
-  final int Function(Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>,
+  final int Function(Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>,
       Pointer<Pointer<Uint8>>, Pointer<Int64>) export;
+  final Pointer<Utf8> Function() libraryDefaultDirectory;
+  final Pointer<Utf8> Function(Pointer<Utf8>) libraryList;
+  final int Function(Pointer<Utf8>, Pointer<Pointer<Utf8>>) projectDelete;
+  final Pointer<Utf8> Function() jobOptionsDefaults;
+  final Pointer<Utf8> Function() exportOptionsDefaults;
   final void Function(Pointer<Uint8>) bytesFree;
   final void Function(Pointer<Utf8>) stringFree;
 

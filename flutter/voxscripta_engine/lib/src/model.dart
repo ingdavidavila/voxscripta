@@ -127,3 +127,122 @@ class VoxScriptaException implements Exception {
   String toString() =>
       'VoxScriptaException: $message${code == null ? '' : ' (code $code)'}';
 }
+
+/// One project, as the library lists it.
+class ProjectEntry {
+  const ProjectEntry({
+    required this.id,
+    required this.path,
+    required this.displayName,
+    required this.duration,
+    required this.state,
+    required this.modifiedAt,
+  });
+
+  factory ProjectEntry.fromJson(Map<String, Object?> json) => ProjectEntry(
+        id: json['id'] as String? ?? '',
+        path: json['path'] as String? ?? '',
+        displayName: json['displayName'] as String? ?? '',
+        duration: Duration(
+            microseconds:
+                (((json['durationSeconds'] as num?) ?? 0) * 1e6).round()),
+        state: JobState.values.firstWhere(
+          (candidate) => candidate.name == json['state'],
+          orElse: () => JobState.unknownHandle,
+        ),
+        modifiedAt: DateTime.fromMillisecondsSinceEpoch(
+            (((json['modifiedAt'] as num?) ?? 0) * 1000).round()),
+      );
+
+  final String id;
+  final String path;
+  final String displayName;
+  final Duration duration;
+
+  /// Reads `complete` for every project with a readable manifest. The real
+  /// state lives in each project's job store, and opening one per row would
+  /// cost a database open per entry. The SwiftUI library pane says the same
+  /// thing, deliberately: both interfaces agreeing beats each guessing.
+  final JobState state;
+
+  final DateTime modifiedAt;
+
+  @override
+  String toString() => 'ProjectEntry($displayName, $duration, ${state.name})';
+}
+
+/// Settings for a job.
+///
+/// Every field is nullable and a null means "the engine's default", so an
+/// interface sets only what the user changed. Read the defaults from
+/// [VoxScriptaEngine.jobOptionDefaults] rather than writing them here — a
+/// default in an interface is a rule the other interface cannot see.
+class JobOptions {
+  const JobOptions({
+    this.locale,
+    this.detectLanguage,
+    this.concurrency,
+    this.silence,
+    this.chunking,
+    this.clean,
+    this.polish,
+    this.polishEnabled,
+    this.polishBackend,
+    this.keepIntermediates,
+  });
+
+  final String? locale;
+  final bool? detectLanguage;
+  final int? concurrency;
+
+  /// Passed through as the engine encodes them, so that adding a silence
+  /// parameter does not mean changing this package. The shapes are whatever
+  /// `jobOptionDefaults` reports.
+  final Map<String, Object?>? silence;
+  final Map<String, Object?>? chunking;
+  final Map<String, Object?>? clean;
+  final Map<String, Object?>? polish;
+
+  /// False stops after CLEAN.
+  final bool? polishEnabled;
+
+  /// `automatic`, `system` or `bundled`. A name the engine does not know is
+  /// refused rather than substituted.
+  final String? polishBackend;
+
+  final bool? keepIntermediates;
+
+  Map<String, Object?> toJson() => {
+        if (locale != null) 'locale': locale,
+        if (detectLanguage != null) 'detectLanguage': detectLanguage,
+        if (concurrency != null) 'concurrency': concurrency,
+        if (silence != null) 'silence': silence,
+        if (chunking != null) 'chunking': chunking,
+        if (clean != null) 'clean': clean,
+        if (polish != null) 'polish': polish,
+        if (polishEnabled != null) 'polishEnabled': polishEnabled,
+        if (polishBackend != null) 'polishBackend': polishBackend,
+        if (keepIntermediates != null) 'keepIntermediates': keepIntermediates,
+      };
+}
+
+/// Settings for an export.
+class ExportOptions {
+  const ExportOptions({
+    this.includeTimestamps,
+    this.includeSpeakerLabels,
+    this.maximumCueLength,
+  });
+
+  final bool? includeTimestamps;
+  final bool? includeSpeakerLabels;
+
+  /// Maximum characters per subtitle cue.
+  final int? maximumCueLength;
+
+  Map<String, Object?> toJson() => {
+        if (includeTimestamps != null) 'includeTimestamps': includeTimestamps,
+        if (includeSpeakerLabels != null) 'includeSpeakerLabels': includeSpeakerLabels,
+        if (maximumCueLength != null) 'maximumCueLength': maximumCueLength,
+      };
+}

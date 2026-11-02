@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:ffi';
 import 'dart:io';
 import 'dart:isolate';
@@ -20,7 +21,7 @@ class VoxScriptaEngine {
   /// The ABI this package was written against. A library announcing anything
   /// else is refused at open, rather than crashing later on a signature that
   /// moved — which is the whole reason the version exists.
-  static const int supportedAbiVersion = 1;
+  static const int supportedAbiVersion = 2;
 
   /// How often a running job is polled.
   ///
@@ -86,21 +87,107 @@ class VoxScriptaEngine {
   ///
   /// Throws [VoxScriptaException] if the engine refuses to start — a bad path,
   /// typically — with the engine's own explanation.
-  Job startJob({required String audioPath, required String projectPath}) {
+  Job startJob({
+    required String audioPath,
+    required String projectPath,
+    JobOptions? options,
+  }) {
     final audio = audioPath.toNativeUtf8();
     final project = projectPath.toNativeUtf8();
+    final settings =
+        options == null ? nullptr : jsonEncode(options.toJson()).toNativeUtf8();
     try {
-      final handle = _bindings.jobStart(audio, project);
+      final handle = _bindings.jobStart(audio, project, settings.cast());
       if (handle <= 0) {
         throw VoxScriptaException(
           _bindings.lastError() ?? 'the engine refused to start the job',
+          code: handle,
         );
       }
       return makeJob(_bindings, handle, pollInterval);
     } finally {
       calloc.free(audio);
       calloc.free(project);
+      if (settings != nullptr) calloc.free(settings);
     }
+  }
+
+  // ── The library ──────────────────────────────────────────────────────────
+
+  /// Where projects live when nobody says otherwise.
+  ///
+  /// Read from the engine rather than rebuilt here, so the Flutter and SwiftUI
+  /// interfaces cannot end up pointing at two different libraries.
+  String get defaultLibraryDirectory =>
+      _bindings.takeString(_bindings.libraryDefaultDirectory()) ?? '';
+
+  /// The projects in [directory], newest first.
+  ///
+  /// Defaults to [defaultLibraryDirectory]. An empty library is an empty list,
+  /// not an error — a fresh install should show an empty shelf.
+  List<ProjectEntry> library({String? directory}) {
+    final path = (directory ?? '').toNativeUtf8();
+    try {
+      final text = _bindings.takeString(_bindings.libraryList(path));
+      if (text == null) {
+        throw VoxScriptaException(
+            _bindings.lastError() ?? 'the library could not be read');
+      }
+      final rows = jsonDecode(text) as List<Object?>;
+      return rows
+          .cast<Map<String, Object?>>()
+          .map(ProjectEntry.fromJson)
+          .toList(growable: false);
+    } finally {
+      calloc.free(path);
+    }
+  }
+
+  /// Deletes a project, recoverably.
+  ///
+  /// Returns where it went — the Trash on a Mac, a Deleted folder elsewhere —
+  /// or null when the platform could not say. The original audio survives
+  /// either way, which is the promise that matters.
+  String? deleteProject(String projectPath) {
+    final path = projectPath.toNativeUtf8();
+    final out = calloc<Pointer<Utf8>>();
+    try {
+      final status = _bindings.projectDelete(path, out);
+      if (status != 0) {
+        throw VoxScriptaException(
+          _bindings.lastError() ?? 'the project could not be deleted',
+          code: status,
+        );
+      }
+      final text = _bindings.takeString(out.value);
+      if (text == null) return null;
+      return (jsonDecode(text) as Map<String, Object?>)['movedTo'] as String?;
+    } finally {
+      calloc.free(path);
+      calloc.free(out);
+    }
+  }
+
+  // ── Defaults ─────────────────────────────────────────────────────────────
+
+  /// The engine's own job settings.
+  ///
+  /// A settings screen renders from this rather than from literals, so that the
+  /// engine changing a default changes both interfaces at once.
+  Map<String, Object?> get jobOptionDefaults =>
+      _decodeDefaults(_bindings.jobOptionsDefaults(), 'job options');
+
+  /// The engine's own export settings.
+  Map<String, Object?> get exportOptionDefaults =>
+      _decodeDefaults(_bindings.exportOptionsDefaults(), 'export options');
+
+  Map<String, Object?> _decodeDefaults(Pointer<Utf8> pointer, String what) {
+    final text = _bindings.takeString(pointer);
+    if (text == null) {
+      throw VoxScriptaException(
+          _bindings.lastError() ?? 'the engine would not report its $what');
+    }
+    return jsonDecode(text) as Map<String, Object?>;
   }
 
   /// Renders a finished transcript.
@@ -114,13 +201,16 @@ class VoxScriptaEngine {
     required String projectPath,
     required TranscriptVariant variant,
     required ExportFormat format,
+    ExportOptions? options,
   }) {
     final path = libraryPath;
+    final settings = options == null ? null : jsonEncode(options.toJson());
     return Isolate.run(() => _exportSync(
           libraryPath: path,
           projectPath: projectPath,
           variant: variant,
           format: format,
+          settingsJson: settings,
         ));
   }
 
@@ -132,12 +222,14 @@ class VoxScriptaEngine {
     required String projectPath,
     required TranscriptVariant variant,
     required ExportFormat format,
+    ExportOptions? options,
   }) =>
       _runExport(
         bindings: _bindings,
         projectPath: projectPath,
         variant: variant,
         format: format,
+        settingsJson: options == null ? null : jsonEncode(options.toJson()),
       );
 
   static Uint8List _exportSync({
@@ -145,12 +237,14 @@ class VoxScriptaEngine {
     required String projectPath,
     required TranscriptVariant variant,
     required ExportFormat format,
+    String? settingsJson,
   }) =>
       _runExport(
         bindings: VoxScriptaBindings(DynamicLibrary.open(libraryPath)),
         projectPath: projectPath,
         variant: variant,
         format: format,
+        settingsJson: settingsJson,
       );
 
   static Uint8List _runExport({
@@ -158,15 +252,17 @@ class VoxScriptaEngine {
     required String projectPath,
     required TranscriptVariant variant,
     required ExportFormat format,
+    String? settingsJson,
   }) {
     final project = projectPath.toNativeUtf8();
     final variantName = variant.wireName.toNativeUtf8();
     final formatName = format.wireName.toNativeUtf8();
+    final settings = settingsJson == null ? nullptr : settingsJson.toNativeUtf8();
     final outBytes = calloc<Pointer<Uint8>>();
     final outLength = calloc<Int64>();
     try {
-      final status =
-          bindings.export(project, variantName, formatName, outBytes, outLength);
+      final status = bindings.export(
+          project, variantName, formatName, settings.cast(), outBytes, outLength);
       if (status != 0) {
         throw VoxScriptaException(
           bindings.lastError() ?? 'the export failed',
@@ -186,6 +282,7 @@ class VoxScriptaEngine {
       calloc.free(project);
       calloc.free(variantName);
       calloc.free(formatName);
+      if (settings != nullptr) calloc.free(settings);
       calloc.free(outBytes);
       calloc.free(outLength);
     }

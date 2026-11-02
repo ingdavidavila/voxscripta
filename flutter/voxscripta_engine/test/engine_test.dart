@@ -142,6 +142,106 @@ void main() {
     });
   });
 
+  group('library and defaults',
+      skip: libraryPath == null ? 'engine not built' : null, () {
+    late VoxScriptaEngine engine;
+    setUp(() => engine = VoxScriptaEngine.open(libraryPath: libraryPath));
+
+    test('the library directory comes from the engine', () {
+      // Not rebuilt here. If Dart constructed this path itself, the two
+      // interfaces could end up pointing at different libraries.
+      expect(engine.defaultLibraryDirectory, isNotEmpty);
+      expect(engine.defaultLibraryDirectory, contains('VoxScripta'));
+    });
+
+    test('an empty directory is an empty library, not a failure', () {
+      final directory = Directory.systemTemp.createTempSync('library-test');
+      addTearDown(() => directory.deleteSync(recursive: true));
+      expect(engine.library(directory: directory.path), isEmpty);
+    });
+
+    test('job defaults arrive with every key the options take', () {
+      final defaults = engine.jobOptionDefaults;
+      for (final key in [
+        'locale',
+        'detectLanguage',
+        'concurrency',
+        'silence',
+        'chunking',
+        'clean',
+        'polish',
+        'polishEnabled',
+        'polishBackend',
+        'keepIntermediates',
+      ]) {
+        expect(defaults.containsKey(key), isTrue, reason: 'missing $key');
+      }
+      // A settings screen renders from this, so the nested shapes have to be
+      // objects rather than opaque strings.
+      expect(defaults['silence'], isA<Map<String, Object?>>());
+      expect(defaults['concurrency'], isA<int>());
+    });
+
+    test('export defaults arrive too', () {
+      final defaults = engine.exportOptionDefaults;
+      expect(defaults['includeTimestamps'], isFalse);
+      expect(defaults['maximumCueLength'], isA<int>());
+    });
+
+    test('the defaults are valid input, round-tripped through a start', () {
+      // The point is that whatever the engine reports can be handed straight
+      // back without translation — otherwise a settings screen would need its
+      // own mapping layer, which is a rule living in an interface.
+      final defaults = engine.jobOptionDefaults;
+      final directory = Directory.systemTemp.createTempSync('round-trip');
+      addTearDown(() => directory.deleteSync(recursive: true));
+
+      final job = engine.startJob(
+        audioPath: '${directory.path}/nothing.wav',
+        projectPath: '${directory.path}/p.voxscripta',
+        options: JobOptions(
+          locale: defaults['locale'] as String?,
+          detectLanguage: defaults['detectLanguage'] as bool?,
+          concurrency: defaults['concurrency'] as int?,
+          silence: defaults['silence'] as Map<String, Object?>?,
+          chunking: defaults['chunking'] as Map<String, Object?>?,
+          clean: defaults['clean'] as Map<String, Object?>?,
+          polish: defaults['polish'] as Map<String, Object?>?,
+          polishEnabled: defaults['polishEnabled'] as bool?,
+          polishBackend: defaults['polishBackend'] as String?,
+          keepIntermediates: defaults['keepIntermediates'] as bool?,
+        ),
+      );
+      addTearDown(job.dispose);
+      // Accepted — it fails later for the missing audio, not for the settings.
+      expect(job.handle, greaterThan(0));
+    });
+
+    test('a backend the engine does not know is refused by name', () {
+      final directory = Directory.systemTemp.createTempSync('bad-backend');
+      addTearDown(() => directory.deleteSync(recursive: true));
+      expect(
+        () => engine.startJob(
+          audioPath: '${directory.path}/nothing.wav',
+          projectPath: '${directory.path}/p.voxscripta',
+          options: const JobOptions(polishBackend: 'gpt'),
+        ),
+        throwsA(isA<VoxScriptaException>()
+            .having((e) => e.code, 'code', -3)
+            .having((e) => e.message, 'message', contains('gpt'))),
+      );
+    });
+
+    test('deleting something that is not a project is refused', () {
+      final directory = Directory.systemTemp.createTempSync('delete-test');
+      addTearDown(() => directory.deleteSync(recursive: true));
+      expect(
+        () => engine.deleteProject(directory.path),
+        throwsA(isA<VoxScriptaException>()),
+      );
+    });
+  });
+
   group('JobState', () {
     test('maps every code the ABI documents', () {
       expect(JobState.fromCode(0), JobState.imported);
