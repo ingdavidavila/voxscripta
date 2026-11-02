@@ -32,7 +32,7 @@ Legend: ✓ in the SwiftUI app · ABI column says whether the C ABI can serve it
 | Delete a project (recoverable — Trash, or a Deleted folder) | ✓ | ✓ `vs_project_delete` · Flutter ✓ |
 | Reveal in the file manager | ✓ | platform-side, not engine |
 | **Getting audio in** | | |
-| Import an audio file | ✓ | partly — `vs_job_start` takes a path |
+| Import an audio file | ✓ | ✓ · Flutter ✓ (platform dialog, or a typed path) |
 | Copy the original into the project, or reference it | ✓ | ✗ (always references) |
 | Record in the app, with pause and resume | ✓ | ✓ `vs_recording_*` · Flutter ✓ |
 | Level meter and elapsed clock while recording | ✓ | ✓ — the meter curve is the engine's · Flutter ✓ |
@@ -158,10 +158,25 @@ Recording also surfaced a bug worth the trip: after `finish()`, `latest.state`
 still said `recording`, because cancelling the poll timer left the last reading
 in place. A screen trusting it would have shown a finished recording as live.
 
-The five surfaces are built. What is still ✗ is one feature and one
-plugin: copying the original into a project instead of referencing it, and
-choosing where an export is saved — the latter a file-dialog plugin rather than
-engine work, and the same one importing a file needs.
+Importing works, and without a plugin. A file-picker plugin is the right
+answer eventually and is the only way to reach Android's document provider —
+but it needs CocoaPods on macOS, macOS is the only platform this app can
+currently be *run* on, and adding one would have traded a working feature for
+an unverifiable one. So the import sheet asks the desktop for its own dialog —
+`osascript`, `zenity` or `kdialog`, PowerShell — and always offers a typed
+path, which is both the fallback on a machine with no dialog installed and the
+only route a test can take.
+
+**Android is deliberately not covered.** There is no shell dialog there, and
+that is the point at which the plugin has to arrive.
+
+The whole path has been walked once against a real file:
+`tool/import_check.dart` imports `jfk.wav`, runs the pipeline and prints the
+result — verbatim, clean and polished transcripts, and the right words.
+
+What is still ✗: copying the original into a project instead of referencing
+it, and choosing where an export is saved. Saving needs the same dialog work
+as importing and will reuse `FileChooser`.
 
 ## What the first version of that table said
 

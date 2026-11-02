@@ -6,6 +6,7 @@ import 'src/engine_host.dart';
 import 'src/library/library_model.dart';
 import 'src/library/library_screen.dart';
 import 'src/platform_traits.dart';
+import 'src/import/import_sheet.dart';
 import 'src/processing/processing_model.dart';
 import 'src/processing/processing_screen.dart';
 import 'src/recording/recording_model.dart';
@@ -60,6 +61,16 @@ class _VoxScriptaAppState extends State<VoxScriptaApp> {
     if (_host.engine case final engine?) {
       return LibraryScreen(
         model: LibraryModel.of(engine),
+        openImporter: (context) async {
+          final choice = await ImportSheet.show(context);
+          if (choice == null || !context.mounted) return;
+          _startJob(
+            context,
+            engine,
+            audioPath: choice.audioPath,
+            displayName: _fileName(choice.audioPath),
+          );
+        },
         openRecorder: (context) => Navigator.of(context).push(
           MaterialPageRoute<void>(
             builder: (_) => RecordingScreen(
@@ -67,19 +78,12 @@ class _VoxScriptaAppState extends State<VoxScriptaApp> {
               // Straight into the pipeline, which is the point of recording in
               // the app: the file is handed to exactly the import path a
               // chosen file takes.
-              onFinished: (context, result) =>
-                  Navigator.of(context).pushReplacement(
-                MaterialPageRoute<void>(
-                  builder: (_) => ProcessingScreen(
-                    model: ProcessingModel.of(
-                      engine,
-                      projectPath: _projectPathFor(engine, result.path),
-                      audioPath: result.path,
-                      displayName: _fileName(result.path),
-                      options: SettingsModel.of(engine).toJobOptions(),
-                    ),
-                  ),
-                ),
+              onFinished: (context, result) => _startJob(
+                context,
+                engine,
+                audioPath: result.path,
+                displayName: _fileName(result.path),
+                replace: true,
               ),
             ),
           ),
@@ -149,6 +153,47 @@ class _VoxScriptaAppState extends State<VoxScriptaApp> {
             : VisualDensity.standard,
         useMaterial3: true,
       );
+}
+
+/// Creates a project for [audioPath] and shows it running.
+///
+/// One path for both ways audio arrives — a file the user chose and one they
+/// just recorded — which is the point: nothing downstream knows the
+/// difference, and neither does this.
+void _startJob(
+  BuildContext context,
+  VoxScriptaEngine engine, {
+  required String audioPath,
+  required String displayName,
+  bool replace = false,
+}) {
+  final route = MaterialPageRoute<void>(
+    builder: (_) => ProcessingScreen(
+      model: ProcessingModel.of(
+        engine,
+        projectPath: _projectPathFor(engine, audioPath),
+        audioPath: audioPath,
+        displayName: displayName,
+        options: SettingsModel.of(engine).toJobOptions(),
+      ),
+      onFinished: (context, _) => Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(
+          builder: (_) => TranscriptScreen(
+            model: TranscriptModel.of(
+              engine,
+              projectPath: _projectPathFor(engine, audioPath),
+              displayName: displayName,
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+  if (replace) {
+    Navigator.of(context).pushReplacement(route);
+  } else {
+    Navigator.of(context).push(route);
+  }
 }
 
 /// Where a recording's project package goes: beside the library, named after

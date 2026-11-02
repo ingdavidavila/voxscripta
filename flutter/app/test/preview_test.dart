@@ -102,7 +102,15 @@ void main() {
         fontFamily: 'Preview',
         useMaterial3: true,
       ),
-      home: LibraryScreen(model: LibraryModel(_PreviewSource(projects))),
+      home: LibraryScreen(
+        model: LibraryModel(_PreviewSource(projects)),
+        // Wired, because the preview should look like the shipped app: the
+        // toolbar and the empty state both change when they are not.
+        openProject: (_, _) {},
+        openSettings: (_) {},
+        openRecorder: (_) {},
+        openImporter: (_) {},
+      ),
     ));
     await tester.pumpAndSettle();
     await expectLater(find.byType(LibraryScreen), matchesGoldenFile('previews/$name.png'));

@@ -14,6 +14,7 @@ class LibraryScreen extends StatefulWidget {
     this.openProject,
     this.openSettings,
     this.openRecorder,
+    this.openImporter,
   });
 
   final LibraryModel model;
@@ -27,6 +28,9 @@ class LibraryScreen extends StatefulWidget {
 
   /// Starts a new recording.
   final void Function(BuildContext)? openRecorder;
+
+  /// Opens an audio file that already exists.
+  final void Function(BuildContext)? openImporter;
 
   @override
   State<LibraryScreen> createState() => _LibraryScreenState();
@@ -74,6 +78,12 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 tooltip: 'Look again for recordings on disk.',
                 onPressed: model.refresh,
               ),
+              if (widget.openImporter case final open?)
+                IconButton(
+                  icon: const Icon(Icons.audio_file_outlined),
+                  tooltip: 'Open an audio file you already have.',
+                  onPressed: () => open(context),
+                ),
               if (widget.openRecorder case final record?)
                 IconButton(
                   icon: const Icon(Icons.mic_none),
@@ -119,12 +129,28 @@ class _LibraryScreenState extends State<LibraryScreen> {
         // An empty list with nothing to tap is a dead end, which is why the
         // SwiftUI app shows the import screen instead of an empty sidebar on a
         // phone. Here the offer is the button.
-        action: widget.openRecorder == null
+        // Null rather than an empty Row when neither is wired, or the empty
+        // state grows a blank band where the buttons would be.
+        action: (widget.openRecorder == null && widget.openImporter == null)
             ? null
-            : FilledButton.icon(
-                onPressed: () => widget.openRecorder!(context),
-                icon: const Icon(Icons.mic),
-                label: const Text('Record'),
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (widget.openRecorder case final record?)
+                    FilledButton.icon(
+                      onPressed: () => record(context),
+                      icon: const Icon(Icons.mic),
+                      label: const Text('Record'),
+                    ),
+                  if (widget.openRecorder != null && widget.openImporter != null)
+                    const SizedBox(width: 12),
+                  if (widget.openImporter case final open?)
+                    OutlinedButton.icon(
+                      onPressed: () => open(context),
+                      icon: const Icon(Icons.audio_file_outlined),
+                      label: const Text('Open a file'),
+                    ),
+                ],
               ),
       );
     }
