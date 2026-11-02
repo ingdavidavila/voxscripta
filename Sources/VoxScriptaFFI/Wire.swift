@@ -210,10 +210,70 @@ struct PolishReviewWire: Codable {
     let flagged: [FlaggedSentenceWire]
 }
 
-/// Everything the transcript screen needs that is not the text itself.
+/// What is known about a project's audio.
+///
+/// Present as soon as the stage that produced it has run, so the processing
+/// screen can show something real during the long wait rather than only a bar.
+struct AudioFactsWire: Codable {
+    let durationSeconds: Double
+    /// Nil until silence detection has run.
+    let speechRegions: Int?
+    let speechFraction: Double?
+    /// Buckets available from `vs_waveform`, or nil before analysis.
+    let waveformBuckets: Int?
+    /// Where speech was detected, as `[start, end]` pairs in seconds.
+    ///
+    /// The spans themselves and not only the fraction, because an interface
+    /// drawing them needs to know *where*. The first version of the processing
+    /// screen had the fraction alone and shaded that share of the width from
+    /// the left, which looks like a finding and is not one — it says the first
+    /// 71% of the recording is speech when the truth is that 71% of it is,
+    /// scattered throughout.
+    let speechSpans: [[Double]]?
+    /// Roughly how long POLISH will take, at the measured 1.4 seconds per
+    /// second of audio. The rate is a measurement and therefore a rule, so it
+    /// is applied here and not in an interface.
+    let polishEstimateSeconds: Double?
+
+    // Encoded by hand so that an absent value is written as `null` rather than
+    // dropped. `JSONEncoder` omits nil optionals, which would make the keys
+    // appear and disappear as stages ran — and a consumer in another language
+    // cannot tell "not measured yet" from "this build does not report it" when
+    // the key is simply missing. The documented shape is the shape.
+    enum CodingKeys: String, CodingKey {
+        case durationSeconds, speechRegions, speechFraction
+        case waveformBuckets, speechSpans, polishEstimateSeconds
+    }
+
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(durationSeconds, forKey: .durationSeconds)
+        try encodeOptional(speechRegions, .speechRegions, into: &container)
+        try encodeOptional(speechFraction, .speechFraction, into: &container)
+        try encodeOptional(waveformBuckets, .waveformBuckets, into: &container)
+        try encodeOptional(speechSpans, .speechSpans, into: &container)
+        try encodeOptional(polishEstimateSeconds, .polishEstimateSeconds,
+                           into: &container)
+    }
+
+    private func encodeOptional<T: Encodable>(
+        _ value: T?,
+        _ key: CodingKeys,
+        into container: inout KeyedEncodingContainer<CodingKeys>
+    ) throws {
+        if let value {
+            try container.encode(value, forKey: key)
+        } else {
+            try container.encodeNil(forKey: key)
+        }
+    }
+}
+
+/// Everything the transcript and processing screens need that is not text.
 struct ProjectSummaryWire: Codable {
     let variants: [VariantWire]
     let polish: PolishReviewWire
+    let audio: AudioFactsWire
 }
 
 extension Wire {
@@ -239,7 +299,72 @@ extension Wire {
                                         segments: transcript.segments.count))
         }
 
-        return ProjectSummaryWire(variants: variants, polish: polishReview(in: package))
+        return ProjectSummaryWire(variants: variants,
+                                  polish: polishReview(in: package),
+                                  audio: audioFacts(in: package))
+    }
+
+    /// Seconds of polishing per second of recording.
+    ///
+    /// Measured rather than guessed: seventeen minutes of Spanish took
+    /// twenty-three minutes, at one model call per sentence. Here rather than
+    /// in an interface because a measurement is a fact about the engine, and
+    /// two interfaces quoting different numbers for the same wait would be
+    /// two applications.
+    static let polishSecondsPerSecondOfAudio = 1.4
+
+    private static func audioFacts(in package: ProjectPackage) -> AudioFactsWire {
+        let manifest = try? AtomicFile.readJSON(ProjectManifest.self,
+                                                from: package.manifestURL)
+        let duration = manifest?.source.duration.seconds ?? 0
+
+        let map = try? AtomicFile.readJSON(SilenceMap.self, from: package.silenceMapURL)
+        let peaks = try? AtomicFile.readJSON(WaveformPeaks.self, from: package.peaksURL)
+
+        return AudioFactsWire(
+            durationSeconds: duration,
+            speechRegions: map?.speechRegions.count,
+            speechFraction: map?.speechFraction,
+            waveformBuckets: peaks?.maxima.count,
+            speechSpans: map?.speechRegions.map {
+                [$0.range.start.seconds, $0.range.end.seconds]
+            },
+            polishEstimateSeconds: duration > 0
+                ? duration * polishSecondsPerSecondOfAudio
+                : nil)
+    }
+
+    /// The waveform, as interleaved little-endian Float32 min/max pairs.
+    ///
+    /// Bytes rather than JSON because a few thousand buckets as decimal text
+    /// is twenty times the size for a drawing that is redrawn on every resize.
+    /// Downsampled here rather than in the interface: picking the extremes of
+    /// each span is the only reduction that keeps a waveform looking like the
+    /// audio, and averaging — which is what a naive interface would do —
+    /// flattens every transient.
+    static func waveform(in package: ProjectPackage, buckets requested: Int) -> Data? {
+        guard let peaks = try? AtomicFile.readJSON(WaveformPeaks.self,
+                                                   from: package.peaksURL),
+              peaks.maxima.count > 0
+        else { return nil }
+
+        let source = peaks.maxima.count
+        let target = requested > 0 ? Swift.min(requested, source) : source
+
+        var out = Data(capacity: target * 2 * MemoryLayout<Float>.size)
+        for bucket in 0..<target {
+            let start = bucket * source / target
+            let end = Swift.max(start + 1, (bucket + 1) * source / target)
+            var low = Float.greatestFiniteMagnitude
+            var high = -Float.greatestFiniteMagnitude
+            for index in start..<Swift.min(end, source) {
+                low = Swift.min(low, peaks.minima[index])
+                high = Swift.max(high, peaks.maxima[index])
+            }
+            withUnsafeBytes(of: low.bitPattern.littleEndian) { out.append(contentsOf: $0) }
+            withUnsafeBytes(of: high.bitPattern.littleEndian) { out.append(contentsOf: $0) }
+        }
+        return out
     }
 
     private static func polishReview(in package: ProjectPackage) -> PolishReviewWire {

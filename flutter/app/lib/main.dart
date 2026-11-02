@@ -4,6 +4,8 @@ import 'src/engine_host.dart';
 import 'src/library/library_model.dart';
 import 'src/library/library_screen.dart';
 import 'src/platform_traits.dart';
+import 'src/processing/processing_model.dart';
+import 'src/processing/processing_screen.dart';
 import 'src/settings/settings_model.dart';
 import 'src/settings/settings_screen.dart';
 import 'src/transcript/transcript_model.dart';
@@ -66,6 +68,33 @@ class _VoxScriptaAppState extends State<VoxScriptaApp> {
                 engine,
                 projectPath: project.path,
                 displayName: project.displayName,
+              ),
+              // A project with no transcript can be run from where it is: the
+              // package already references its audio, and the engine resumes
+              // from whatever stage a previous attempt reached.
+              onRun: (context) => Navigator.of(context).pushReplacement(
+                MaterialPageRoute<void>(
+                  builder: (_) => ProcessingScreen(
+                    model: ProcessingModel.of(
+                      engine,
+                      projectPath: project.path,
+                      displayName: project.displayName,
+                      options: SettingsModel.of(engine).toJobOptions(),
+                    ),
+                    onFinished: (context, _) =>
+                        Navigator.of(context).pushReplacement(
+                      MaterialPageRoute<void>(
+                        builder: (_) => TranscriptScreen(
+                          model: TranscriptModel.of(
+                            engine,
+                            projectPath: project.path,
+                            displayName: project.displayName,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
           ),

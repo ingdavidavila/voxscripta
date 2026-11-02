@@ -5,6 +5,7 @@ import VoxScriptaProject
 import VoxScriptaTranscription
 import VoxScriptaPipeline
 import VoxScriptaLanguage
+import VoxScriptaDSP
 @testable import VoxScriptaFFI
 
 /// The library, settings and defaults halves of the ABI.
@@ -461,5 +462,146 @@ struct FFICapabilityTests {
         let polish = try #require(try capabilities()["polish"] as? [String: Any])
         let resolved = try? PolishBackendResolver.resolve(.automatic)
         #expect(polish["effective"] as? String == resolved?.describedAs)
+    }
+}
+
+/// The audio facts and the waveform, which the processing screen draws.
+@Suite("FFI waveform and audio facts")
+struct FFIWaveformTests {
+
+    private func take(_ pointer: UnsafeMutablePointer<CChar>?) -> String? {
+        guard let pointer else { return nil }
+        defer { vs_string_free(pointer) }
+        return String(cString: pointer)
+    }
+
+    private func temporaryPackage() throws -> ProjectPackage {
+        let root = URL(filePath: NSTemporaryDirectory())
+            .appending(path: "wave-\(UUID().uuidString).\(ProjectPackage.fileExtension)")
+        let package = ProjectPackage(root: root)
+        try FileManager.default.createDirectory(at: package.derivedDirectory,
+                                                withIntermediateDirectories: true)
+        return package
+    }
+
+    /// A triangle: every bucket a different height, so downsampling that
+    /// averaged instead of taking extremes would be visible in the result.
+    private func writePeaks(to package: ProjectPackage, count: Int) throws {
+        let maxima = (0..<count).map { Float($0) / Float(count) }
+        let minima = maxima.map { -$0 }
+        try AtomicFile.writeJSON(
+            WaveformPeaks(minima: minima, maxima: maxima, duration: .seconds(60)),
+            to: package.peaksURL)
+    }
+
+    private func readWaveform(_ root: URL, buckets: Int32) -> (Int32, [Float]) {
+        var bytes: UnsafeMutablePointer<UInt8>?
+        var length: Int64 = 0
+        let status = root.path.withCString { vs_waveform($0, buckets, &bytes, &length) }
+        guard status == 0, let bytes else { return (status, []) }
+        defer { vs_bytes_free(bytes) }
+        let count = Int(length) / MemoryLayout<Float>.size
+        var values: [Float] = []
+        values.reserveCapacity(count)
+        for index in 0..<count {
+            var raw: UInt32 = 0
+            for byte in 0..<4 {
+                raw |= UInt32(bytes[index * 4 + byte]) << (8 * byte)
+            }
+            values.append(Float(bitPattern: UInt32(littleEndian: raw)))
+        }
+        return (status, values)
+    }
+
+    @Test("Before analysis there is no waveform, and that is said not thrown")
+    func noWaveformYet() throws {
+        let package = try temporaryPackage()
+        defer { try? FileManager.default.removeItem(at: package.root) }
+
+        let (status, values) = readWaveform(package.root, buckets: 100)
+        // -5 rather than a failure: the screen shows "reading audio" until the
+        // analysis stage has produced something.
+        #expect(status == -5)
+        #expect(values.isEmpty)
+        #expect(take(vs_last_error_copy())?.isEmpty == false)
+    }
+
+    @Test("Buckets come back as interleaved min/max pairs")
+    func pairsComeBack() throws {
+        let package = try temporaryPackage()
+        defer { try? FileManager.default.removeItem(at: package.root) }
+        try writePeaks(to: package, count: 400)
+
+        let (status, values) = readWaveform(package.root, buckets: 50)
+        #expect(status == 0)
+        #expect(values.count == 100)
+        for pair in stride(from: 0, to: values.count, by: 2) {
+            #expect(values[pair] <= values[pair + 1], "min above max at \(pair)")
+        }
+    }
+
+    @Test("Downsampling keeps the extremes rather than averaging them")
+    func keepsExtremes() throws {
+        let package = try temporaryPackage()
+        defer { try? FileManager.default.removeItem(at: package.root) }
+        try writePeaks(to: package, count: 400)
+
+        let (_, values) = readWaveform(package.root, buckets: 4)
+        // The last span covers buckets 300..399, whose highest maximum is
+        // 399/400. An average would have given about 0.87, which is the whole
+        // reason the reduction lives in the engine.
+        let lastMax = values[values.count - 1]
+        #expect(abs(lastMax - 399.0 / 400.0) < 1e-5,
+                "last bucket was \(lastMax), so the span was averaged")
+    }
+
+    @Test("Asking for more buckets than exist returns what exists")
+    func doesNotInventBuckets() throws {
+        let package = try temporaryPackage()
+        defer { try? FileManager.default.removeItem(at: package.root) }
+        try writePeaks(to: package, count: 20)
+
+        let (status, values) = readWaveform(package.root, buckets: 5_000)
+        #expect(status == 0)
+        // Upsampling a waveform would draw detail the audio does not contain.
+        #expect(values.count == 40)
+    }
+
+    @Test("Zero buckets means every bucket")
+    func zeroMeansAll() throws {
+        let package = try temporaryPackage()
+        defer { try? FileManager.default.removeItem(at: package.root) }
+        try writePeaks(to: package, count: 37)
+
+        let (status, values) = readWaveform(package.root, buckets: 0)
+        #expect(status == 0)
+        #expect(values.count == 74)
+    }
+
+    @Test("Audio facts are nulls until the stages that fill them have run")
+    func factsFillInAsStagesRun() throws {
+        let package = try temporaryPackage()
+        defer { try? FileManager.default.removeItem(at: package.root) }
+
+        func audio() throws -> [String: Any] {
+            let text = try #require(package.root.path.withCString {
+                take(vs_project_summary($0))
+            })
+            let data = try #require(text.data(using: .utf8))
+            let object = try #require(
+                try JSONSerialization.jsonObject(with: data) as? [String: Any])
+            return try #require(object["audio"] as? [String: Any])
+        }
+
+        // Nothing yet: no manifest, no silence map, no peaks.
+        var facts = try audio()
+        #expect(facts["waveformBuckets"] is NSNull)
+        #expect(facts["speechRegions"] is NSNull)
+
+        try writePeaks(to: package, count: 64)
+        facts = try audio()
+        #expect(facts["waveformBuckets"] as? Int == 64)
+        // Still nothing about speech — a different stage produces that.
+        #expect(facts["speechRegions"] is NSNull)
     }
 }

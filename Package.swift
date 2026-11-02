@@ -294,7 +294,7 @@ let package = Package(
         .testTarget(name: "VoxScriptaFFITests",
                     dependencies: ["VoxScriptaFFI", "VoxScriptaCore", "VoxScriptaProject",
                                    "VoxScriptaTranscription", "VoxScriptaPipeline",
-                                   "VoxScriptaLanguage"],
+                                   "VoxScriptaLanguage", "VoxScriptaDSP"],
                     swiftSettings: strict),
         .testTarget(name: "VoxScriptaPipelineTests",
                     dependencies: ["VoxScriptaPipeline", "VoxScriptaTestSupport"], swiftSettings: strict),

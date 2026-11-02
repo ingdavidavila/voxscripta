@@ -1,7 +1,7 @@
 import 'dart:ffi';
 import 'package:ffi/ffi.dart';
 
-/// The nineteen symbols of `ffi/voxscripta.h`, and nothing else.
+/// The twenty symbols of `ffi/voxscripta.h`, and nothing else.
 ///
 /// Hand-written rather than generated. ffigen would need libclang and a config
 /// file to produce a dozen declarations that change about once a year, and the
@@ -55,6 +55,11 @@ final class VoxScriptaBindings {
             Pointer<Utf8> Function(Pointer<Utf8>)>('vs_project_summary'),
         capabilities = library.lookupFunction<Pointer<Utf8> Function(),
             Pointer<Utf8> Function()>('vs_capabilities'),
+        waveform = library.lookupFunction<
+            Int32 Function(Pointer<Utf8>, Int32, Pointer<Pointer<Uint8>>,
+                Pointer<Int64>),
+            int Function(Pointer<Utf8>, int, Pointer<Pointer<Uint8>>,
+                Pointer<Int64>)>('vs_waveform'),
         bytesFree = library
             .lookupFunction<Void Function(Pointer<Uint8>), void Function(Pointer<Uint8>)>(
                 'vs_bytes_free'),
@@ -80,6 +85,8 @@ final class VoxScriptaBindings {
   final Pointer<Utf8> Function() exportOptionsDefaults;
   final Pointer<Utf8> Function(Pointer<Utf8>) projectSummary;
   final Pointer<Utf8> Function() capabilities;
+  final int Function(Pointer<Utf8>, int, Pointer<Pointer<Uint8>>, Pointer<Int64>)
+      waveform;
   final void Function(Pointer<Uint8>) bytesFree;
   final void Function(Pointer<Utf8>) stringFree;
 

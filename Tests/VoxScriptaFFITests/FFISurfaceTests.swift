@@ -38,7 +38,7 @@ struct FFISurfaceTests {
 
     @Test("The ABI announces a version")
     func version() {
-        #expect(vs_abi_version() == 4)
+        #expect(vs_abi_version() == 5)
     }
 
     @Test("An unknown handle is reported, not crashed on")
@@ -59,6 +59,32 @@ struct FFISurfaceTests {
         #expect(vs_job_start(nil, nil, nil) == -1)
         let message = take(vs_last_error_copy())
         #expect(message?.isEmpty == false)
+    }
+
+    @Test("An empty audio path resumes a project that exists, and is refused otherwise")
+    func emptyAudioMeansResume() throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let project = directory.appending(path: "p.voxscripta")
+
+        // Nothing there yet: creating a project does need audio.
+        let refused = "".withCString { audio in
+            project.path.withCString { vs_job_start(audio, $0, nil) }
+        }
+        #expect(refused == -2)
+        #expect(take(vs_last_error_copy())?.contains("needs an audio path") == true)
+
+        // With a manifest in place it is accepted, because the package
+        // references its own source — passing the project path twice to say
+        // this, as the first version did, read as a lie.
+        try FileManager.default.createDirectory(at: project,
+                                                withIntermediateDirectories: true)
+        try Data("{}".utf8).write(to: project.appending(path: "manifest.json"))
+        let handle = "".withCString { audio in
+            project.path.withCString { vs_job_start(audio, $0, nil) }
+        }
+        #expect(handle > 0)
+        vs_job_release(handle)
     }
 
     @Test("An empty path is refused before any work starts")

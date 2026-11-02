@@ -21,7 +21,7 @@ class VoxScriptaEngine {
   /// The ABI this package was written against. A library announcing anything
   /// else is refused at open, rather than crashing later on a signature that
   /// moved — which is the whole reason the version exists.
-  static const int supportedAbiVersion = 4;
+  static const int supportedAbiVersion = 5;
 
   /// How often a running job is polled.
   ///
@@ -87,12 +87,17 @@ class VoxScriptaEngine {
   ///
   /// Throws [VoxScriptaException] if the engine refuses to start — a bad path,
   /// typically — with the engine's own explanation.
+  /// Starts the pipeline for [projectPath].
+  ///
+  /// [audioPath] is required only to *create* a project. Leave it null to
+  /// resume one that already exists — a package references its own source, so
+  /// re-running it needs no audio path.
   Job startJob({
-    required String audioPath,
     required String projectPath,
+    String? audioPath,
     JobOptions? options,
   }) {
-    final audio = audioPath.toNativeUtf8();
+    final audio = (audioPath ?? '').toNativeUtf8();
     final project = projectPath.toNativeUtf8();
     final settings =
         options == null ? nullptr : jsonEncode(options.toJson()).toNativeUtf8();
@@ -202,6 +207,36 @@ class VoxScriptaEngine {
           _bindings.lastError() ?? 'the engine would not report its capabilities');
     }
     return Capabilities.fromJson(jsonDecode(text) as Map<String, Object?>);
+  }
+
+  /// The waveform, as min/max pairs in `-1...1`.
+  ///
+  /// [buckets] should be the pixel width of the view that will draw it; the
+  /// engine downsamples by taking each span's extremes, which is the only
+  /// reduction that keeps a waveform looking like the audio. Returns null
+  /// before the analysis stage has run — a state to show, not an error.
+  List<(double min, double max)>? waveform(String projectPath, {int buckets = 0}) {
+    final path = projectPath.toNativeUtf8();
+    final outBytes = calloc<Pointer<Uint8>>();
+    final outLength = calloc<Int64>();
+    try {
+      final status = _bindings.waveform(path, buckets, outBytes, outLength);
+      if (status != 0) return null;
+      final buffer = outBytes.value;
+      try {
+        final floats = buffer.cast<Float>().asTypedList(outLength.value ~/ 4);
+        return [
+          for (var index = 0; index + 1 < floats.length; index += 2)
+            (floats[index], floats[index + 1]),
+        ];
+      } finally {
+        _bindings.bytesFree(buffer);
+      }
+    } finally {
+      calloc.free(path);
+      calloc.free(outBytes);
+      calloc.free(outLength);
+    }
   }
 
   // ── Defaults ─────────────────────────────────────────────────────────────

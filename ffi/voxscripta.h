@@ -52,7 +52,8 @@ extern "C" {
  *
  * 2 added the library, job options and export options.
  * 3 added vs_project_summary.
- * 4 added vs_capabilities. */
+ * 4 added vs_capabilities.
+ * 5 added the audio facts to vs_project_summary, and vs_waveform. */
 int32_t vs_abi_version(void);
 
 /* ─── Structured data ──────────────────────────────────────────────────────
@@ -76,7 +77,10 @@ char *vs_last_error_copy(void);
 /* ─── Jobs ─────────────────────────────────────────────────────────────── */
 
 /* Creates or opens the project at project_path for the audio at audio_path,
- * then runs the pipeline. Returns a handle, or a negative number on refusal
+ * then runs the pipeline.
+ *
+ * audio_path may be "" to resume a project that already exists, since a
+ * package references its own source. It is required only to create one. Returns a handle, or a negative number on refusal
  * with the reason in vs_last_error_copy:
  *
  *   -1  an argument was NULL
@@ -187,8 +191,44 @@ int32_t vs_project_delete(const char *project_path, char **out_json);
  * `skipReason` is set, and `ran` false, when POLISH declined — so a missing
  * polished transcript is never unexplained.
  *
+ * `audio` carries what is known about the recording, filled in as the stages
+ * that produce it run:
+ *
+ *   "audio": {"durationSeconds": 0.0, "speechRegions": null,
+ *             "speechFraction": null, "waveformBuckets": null,
+ *             "speechSpans": [[0.0, 1.2], ...],
+ *             "polishEstimateSeconds": 0.0}
+ *
+ * speechSpans carries where speech was detected, not only how much of it there
+ * is. An interface given the fraction alone can only shade that share of the
+ * width from one end, which reads as a finding and is not one.
+ *
+ * The nulls are "not yet", not "none" — the processing screen shows what it
+ * has. polishEstimateSeconds applies the measured 1.4 seconds of polishing per
+ * second of audio; the rate is a measurement and therefore a rule, which is
+ * why it is applied here and not in an interface.
+ *
  * NULL on failure, with the reason in vs_last_error_copy. */
 char *vs_project_summary(const char *project_path);
+
+/* The waveform, as interleaved little-endian Float32 min/max pairs.
+ *
+ * `buckets` is how many pairs are wanted — pass the pixel width of the view
+ * that will draw it, or 0 for every bucket the analysis produced. On success
+ * returns 0 and writes 2 * buckets * 4 bytes to *out_bytes, released with
+ * vs_bytes_free.
+ *
+ * Bytes rather than JSON: a few thousand buckets as decimal text is twenty
+ * times the size, for a drawing redrawn on every resize. Downsampling happens
+ * in the engine because taking each span's extremes is the only reduction that
+ * keeps a waveform looking like the audio; averaging flattens every transient.
+ *
+ * Returns -5 before the analysis stage has run, which is a state to show and
+ * not an error. */
+int32_t vs_waveform(const char *project_path,
+                    int32_t buckets,
+                    uint8_t **out_bytes,
+                    int64_t *out_length);
 
 /* ─── What this machine can do ─────────────────────────────────────────────── */
 

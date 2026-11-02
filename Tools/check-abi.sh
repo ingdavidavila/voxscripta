@@ -42,11 +42,11 @@ int main(void) {
         (void *)vs_job_options_defaults,
         (void *)vs_export_options_defaults,
         (void *)vs_project_summary,
-        (void *)vs_capabilities,
+        (void *)vs_capabilities, (void *)vs_waveform,
     };
     (void)used;
     /* One real call, so the library is actually loaded and initialized. */
-    return vs_abi_version() == 4 ? 0 : 1;
+    return vs_abi_version() == 5 ? 0 : 1;
 }
 C
 
@@ -54,4 +54,4 @@ cc -I "$ROOT/ffi" -o "$WORK/abi" "$WORK/abi.c" \
    -L "$BIN" -lVoxScriptaFFI -Wl,-rpath,"$BIN"
 
 "$WORK/abi"
-echo "ABI ok — all 19 symbols resolve and vs_abi_version() is 4"
+echo "ABI ok — all 20 symbols resolve and vs_abi_version() is 5"

@@ -39,9 +39,9 @@ Legend: ✓ in the SwiftUI app · ABI column says whether the C ABI can serve it
 | Discard a recording | ✓ | ✗ |
 | Microphone permission refusal, handled | ✓ | platform-side |
 | **Running a job** | | |
-| Progress with the stage and its detail line | ✓ | ✓ |
-| Cancel, leaving the project resumable | ✓ | ✓ |
-| Resume an interrupted job | ✓ | ✓ (implicit on restart) |
+| Progress with the stage and its detail line | ✓ | ✓ · Flutter ✓ |
+| Cancel, leaving the project resumable | ✓ | ✓ · Flutter ✓ |
+| Resume an interrupted job | ✓ | ✓ — `vs_job_start` with an empty audio path · Flutter ✓ |
 | **Reading the result** | | |
 | Three variants: verbatim, clean, polished | ✓ | ✓ · Flutter ✓ |
 | Copy the transcript to the clipboard | ✓ | ✓ · Flutter ✓ |
@@ -117,6 +117,28 @@ GGUF sitting beside the executable. `VOXSCRIPTA_LLAMA_MODEL` overrides it, so
 nothing is blocked — but packaging has to set that, or the default has to learn
 to look beside the executable the way `EngineHost` already does for the library
 itself.
+
+ABI 5 added what the processing screen draws: the audio facts on
+`vs_project_summary` — duration, speech regions, the speech spans, how many
+waveform buckets exist and how long POLISH will take — and `vs_waveform`
+beside it, which returns interleaved Float32 min/max pairs rather than JSON.
+
+Three decisions in that worth keeping:
+
+**Downsampling is the engine's.** `vs_waveform` takes the pixel width the view
+will draw at and reduces by taking each span's extremes. Averaging — which is
+what an interface reaching for a one-liner would do — flattens every transient,
+and a waveform that has lost its transients no longer looks like the audio.
+
+**The speech spans, not only the fraction.** The first version of the screen
+had the fraction alone and shaded that share of the width from the left. It
+looked like a finding — "the first 71% is speech" — and was not one.
+
+**An empty audio path means resume.** A project package references its own
+source, so re-running one needs no audio path. The first version had the
+interface pass the project path twice to say this, which worked only because
+the audio argument is ignored once a manifest exists: a call that read as a
+lie.
 
 What is still ✗: recording, copying the original into a project instead of
 referencing it, and choosing where an export is saved (a file-dialog plugin

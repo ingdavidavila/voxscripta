@@ -11,6 +11,7 @@ export 'src/engine.dart' show VoxScriptaEngine;
 export 'src/job.dart' show Job;
 export 'src/model.dart'
     show
+        AudioFacts,
         Capabilities,
         ExportFormat,
         ExportOptions,

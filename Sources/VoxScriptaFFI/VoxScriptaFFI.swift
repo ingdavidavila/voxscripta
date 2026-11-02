@@ -51,14 +51,16 @@ import VoxScriptaExport
 /// 2 added the library, job options and export options. 3 adds
 /// `vs_project_summary`, which the transcript screen needs: which variants
 /// exist, their word and segment counts, and what POLISH did. 4 adds
-/// `vs_capabilities`, which the settings screen needs. The previous version
+/// `vs_capabilities`, which the settings screen needs. 5 adds the audio
+/// facts to `vs_project_summary` and `vs_waveform` beside it, for the
+/// processing screen. The previous version
 /// could run a job and read the result, which proved the boundary and was
 /// nowhere near enough to build an interface on — see `Docs/PARITY.md`.
 /// `vs_job_start` and `vs_export` each gained a JSON parameter rather than
 /// growing a second entry point beside them, because nothing has shipped
 /// against version 1 and a legacy variant kept forever costs more than a
 /// break that nobody can observe.
-private let abiVersion: Int32 = 4
+private let abiVersion: Int32 = 5
 
 // MARK: - Job states
 
@@ -214,11 +216,24 @@ public func vs_job_start(
     // so the job would start and then fail with "could not be found at ." —
     // which tells a caller nothing about what it got wrong. Found by the Dart
     // bindings, which pass empty strings where a null pointer was expected.
-    guard !audio.isEmpty, !project.isEmpty else {
+    guard !project.isEmpty else {
         setLastError("vs_job_start was given an empty path")
         return -2
     }
-    let audioURL = URL(filePath: audio)
+    // An empty audio path means "resume what is already there", which is a real
+    // request rather than a mistake: a project package references its own
+    // source, so re-running one needs no audio path at all. The first version
+    // had callers pass the project path twice to express this, which worked
+    // only because the audio argument is ignored once a manifest exists — a
+    // call that reads as a lie.
+    let resuming = audio.isEmpty
+    if resuming,
+       !FileManager.default.fileExists(
+            atPath: ProjectPackage(root: URL(filePath: project)).manifestURL.path) {
+        setLastError("vs_job_start needs an audio path to create a new project")
+        return -2
+    }
+    let audioURL = resuming ? nil : URL(filePath: audio)
     let projectURL = URL(filePath: project)
 
     // Decoded before the handle is issued, so a malformed settings blob is a
@@ -247,12 +262,12 @@ public func vs_job_start(
             let store = ProjectStore()
             let decoder = JobRunner.defaultDecoder()
             let project: Project
-            if FileManager.default.fileExists(
+            if resuming || FileManager.default.fileExists(
                 atPath: ProjectPackage(root: projectURL).manifestURL.path) {
                 project = try await store.open(at: projectURL)
             } else {
                 project = try await store.create(
-                    from: audioURL, at: projectURL,
+                    from: audioURL!, at: projectURL,
                     silence: wire.silence ?? .default,
                     chunking: wire.chunking ?? .default,
                     locale: options.transcription.locale,
@@ -471,27 +486,16 @@ public func vs_project_delete(
         return -2
     }
 
-    // Synchronous, unlike starting a job. A move is a move: there is no
-    // progress to report and nothing an interface could do with a handle.
-    let outcome = Synchronously.run {
-        do {
-            let moved = try await ProjectStore().delete(at: URL(filePath: path))
-            return Result<String?, any Error>.success(moved?.path)
-        } catch {
-            return Result<String?, any Error>.failure(error)
-        }
-    }
-
-    switch outcome {
-    case .success(let movedTo):
-        do {
-            out_json.pointee = copyOut(try Wire.encode(["movedTo": movedTo]))
-            return 0
-        } catch {
-            setLastError(describe(error))
-            return -4
-        }
-    case .failure(let error):
+    // Called directly. `delete` is not actually async — it is a move — and the
+    // first version wrapped it in `Synchronously.run` anyway, which the
+    // compiler pointed out by way of an `await` with nothing to wait for. A
+    // move has no progress to report and nothing an interface could do with a
+    // handle, so there is nothing to wrap.
+    do {
+        let moved = try ProjectStore().delete(at: URL(filePath: path))
+        out_json.pointee = copyOut(try Wire.encode(["movedTo": moved?.path]))
+        return 0
+    } catch {
         setLastError(describe(error))
         return -4
     }
@@ -606,4 +610,47 @@ public func vs_capabilities() -> UnsafeMutablePointer<CChar>? {
         setLastError(describe(error))
         return nil
     }
+}
+
+/// The waveform, as interleaved little-endian Float32 min/max pairs.
+///
+/// `buckets` is how many pairs are wanted — pass the pixel width of the view
+/// that will draw it, or 0 for every bucket the analysis produced. The result
+/// is `2 * buckets * 4` bytes, released with `vs_bytes_free`.
+///
+/// Bytes rather than JSON because a few thousand buckets as decimal text is
+/// twenty times the size, for a drawing that is redrawn on every resize.
+/// Downsampling happens here because picking each span's extremes is the only
+/// reduction that keeps a waveform looking like the audio — averaging, which
+/// is what an interface would reach for, flattens every transient.
+///
+/// Returns -5 before the analysis stage has run, which is a state to show
+/// rather than an error: the processing screen displays "reading audio" until
+/// there is a waveform to draw.
+@_cdecl("vs_waveform")
+public func vs_waveform(
+    _ project_path: UnsafePointer<CChar>?,
+    _ buckets: Int32,
+    _ out_bytes: UnsafeMutablePointer<UnsafeMutablePointer<UInt8>?>?,
+    _ out_length: UnsafeMutablePointer<Int64>?
+) -> Int32 {
+    setLastError(nil)
+    guard let project_path, let out_bytes, let out_length else {
+        setLastError("vs_waveform requires a project path and two out pointers")
+        return -1
+    }
+    let path = String(cString: project_path)
+    guard !path.isEmpty else {
+        setLastError("vs_waveform was given an empty path")
+        return -2
+    }
+
+    let package = ProjectPackage(root: URL(filePath: path))
+    guard let data = Wire.waveform(in: package, buckets: Int(buckets)) else {
+        setLastError("no waveform yet — the analysis stage has not run")
+        return -5
+    }
+    out_bytes.pointee = copyOut(data)
+    out_length.pointee = Int64(data.count)
+    return 0
 }

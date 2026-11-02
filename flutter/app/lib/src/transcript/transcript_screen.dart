@@ -11,9 +11,13 @@ import 'wording.dart';
 
 /// The three outputs, and the evidence behind them.
 class TranscriptScreen extends StatefulWidget {
-  const TranscriptScreen({super.key, required this.model});
+  const TranscriptScreen({super.key, required this.model, this.onRun});
 
   final TranscriptModel model;
+
+  /// Starts the pipeline for a project that has no transcript yet. Null leaves
+  /// the empty state as a statement rather than an offer.
+  final void Function(BuildContext)? onRun;
 
   @override
   State<TranscriptScreen> createState() => _TranscriptScreenState();
@@ -95,11 +99,19 @@ class _TranscriptScreenState extends State<TranscriptScreen> {
       );
     }
     if (model.availableVariants.isEmpty) {
-      return const _Centred(
+      return _Centred(
         icon: Icons.hourglass_empty,
         title: 'Nothing transcribed yet',
-        detail: 'This project has no finished transcript. '
-            'Run it, and the three variants appear here.',
+        detail: 'This project has no finished transcript.',
+        // An offer rather than an instruction: the audio is right there and
+        // the engine can resume from wherever a previous run stopped.
+        action: widget.onRun == null
+            ? null
+            : FilledButton.icon(
+                onPressed: () => widget.onRun!(context),
+                icon: const Icon(Icons.play_arrow),
+                label: const Text('Transcribe it'),
+              ),
       );
     }
 
@@ -304,11 +316,17 @@ class _SaveButton extends StatelessWidget {
 }
 
 class _Centred extends StatelessWidget {
-  const _Centred({required this.icon, required this.title, required this.detail});
+  const _Centred({
+    required this.icon,
+    required this.title,
+    required this.detail,
+    this.action,
+  });
 
   final IconData icon;
   final String title;
   final String detail;
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
@@ -329,6 +347,10 @@ class _Centred extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodySmall
                       ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+              if (action case final widget?) ...[
+                const SizedBox(height: 20),
+                widget,
+              ],
             ],
           ),
         ),

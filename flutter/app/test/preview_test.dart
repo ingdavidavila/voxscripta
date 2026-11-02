@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,6 +9,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:voxscripta/src/library/library_model.dart';
 import 'package:voxscripta/src/platform_traits.dart';
 import 'package:voxscripta/src/library/library_screen.dart';
+import 'package:voxscripta/src/processing/processing_model.dart';
+import 'package:voxscripta/src/processing/processing_screen.dart';
 import 'package:voxscripta/src/settings/settings_model.dart';
 import 'package:voxscripta/src/settings/settings_screen.dart';
 import 'package:voxscripta/src/transcript/transcript_model.dart';
@@ -173,6 +177,40 @@ void main() {
     await expectLater(
         find.byType(SettingsScreen), matchesGoldenFile('previews/$name.png'));
   }
+
+  testWidgets('processing, desktop', (tester) async {
+    PlatformTraits.debugPointerOverride = true;
+    addTearDown(() => PlatformTraits.debugPointerOverride = null);
+    tester.view
+      ..physicalSize = const Size(900, 640)
+      ..devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF3B6EA5)),
+        visualDensity: VisualDensity.compact,
+        fontFamily: 'Preview',
+        useMaterial3: true,
+      ),
+      home: ProcessingScreen(
+        model: ProcessingModel(
+          source: _PreviewJob(),
+          projectPath: '/library/Board meeting.voxscripta',
+          displayName: 'Board meeting 2026-10-28.m4a',
+        ),
+      ),
+    ));
+    // pump, not pumpAndSettle: the current phase shows a spinner, which never
+    // settles, so pumpAndSettle waits for a quiet frame that will not come.
+    // Two pumps are enough for the stream's first report to arrive and the
+    // facts to be read.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    await expectLater(find.byType(ProcessingScreen),
+        matchesGoldenFile('previews/processing-desktop.png'));
+  });
 
   testWidgets('settings, desktop', (tester) async {
     await renderSettings(tester,
@@ -392,3 +430,92 @@ class _PreviewSettings implements SettingsSource {
   String get libraryDirectory =>
       '/Users/you/Library/Application Support/VoxScripta/Projects';
 }
+
+/// A job frozen mid-transcription, for the preview.
+class _PreviewJob implements ProcessingSource {
+  @override
+  Job start({required String projectPath, String? audioPath, JobOptions? options}) =>
+      _FrozenJob();
+
+  @override
+  ProjectSummary summary(String projectPath) => ProjectSummary(
+        variants: const [],
+        polish: const PolishReview(
+          ran: false,
+          skipReason: null,
+          accepted: 0,
+          acceptedAfterRetry: 0,
+          keptClean: 0,
+          flagged: [],
+        ),
+        audio: AudioFacts(
+          duration: const Duration(minutes: 72),
+          speechRegions: 148,
+          speechFraction: 0.71,
+          waveformBuckets: 2000,
+          polishEstimate: const Duration(minutes: 101),
+          speechSpans: _previewSpeechSpans,
+        ),
+      );
+
+  @override
+  List<(double, double)>? waveform(String projectPath, {int buckets = 0}) {
+    // Derived from the same spans the screen shades, so the drawing is
+    // coherent. The first version generated the two from different formulas
+    // and the shading landed in the gaps between the bursts — which is
+    // exactly the kind of thing a preview exists to catch.
+    final count = buckets == 0 ? 600 : buckets;
+    final seconds = 72 * 60.0;
+    return [
+      for (var index = 0; index < count; index += 1)
+        _bucket((index + 0.5) / count * seconds, index),
+    ];
+  }
+
+  static (double, double) _bucket(double at, int index) {
+    final speaking = _previewSpeechSpans.any((s) => at >= s.$1 && at <= s.$2);
+    // Two rates rather than one: a slow swell for the shape of a phrase and a
+    // fast grain for syllables. A single frequency gave near-constant
+    // amplitude, so every burst drew as a solid block.
+    final swell = 0.35 + 0.65 * (0.5 + 0.5 * math.sin(index * 0.11)).abs();
+    final grain = (0.2 + 0.8 * math.sin(index * 1.9).abs()) *
+        (0.4 + 0.6 * math.sin(index * 0.61).abs());
+    final amplitude = speaking ? (0.12 + 0.85 * grain) * swell : 0.015;
+    return (-amplitude, amplitude);
+  }
+}
+
+/// Reports one fixed state, so the preview is a still of a running job.
+class _FrozenJob implements Job {
+  @override
+  Stream<JobProgress> get progress => Stream<JobProgress>.value(latest);
+
+  @override
+  JobProgress get latest => const JobProgress(
+        state: JobState.transcribing,
+        fraction: 0.46,
+        detail: 'Transcribing — segment 9 of 21',
+      );
+
+  @override
+  Future<JobProgress> get done => Completer<JobProgress>().future;
+
+  @override
+  int get handle => 1;
+
+  @override
+  void cancel() {}
+
+  @override
+  void dispose() {}
+}
+
+/// Speech spans matching the preview waveform's bursts, so the shading lines
+/// up with the audio instead of being shaded at one end.
+final _previewSpeechSpans = <(double, double)>[
+  for (var index = 0; index < 11; index += 1)
+    (
+      index * 72 * 60 / 11 + 20,
+      index * 72 * 60 / 11 + 72 * 60 / 11 - 60,
+    ),
+];

@@ -365,9 +365,74 @@ class PolishReview {
   bool get hasSomethingToShow => ran || skipReason != null;
 }
 
-/// Everything the transcript screen needs that is not the text itself.
+/// What is known about a project's audio, filled in as the stages that produce
+/// it run. A null is "not yet", not "none".
+class AudioFacts {
+  const AudioFacts({
+    required this.duration,
+    required this.speechRegions,
+    required this.speechFraction,
+    required this.waveformBuckets,
+    required this.polishEstimate,
+    this.speechSpans = const [],
+  });
+
+  factory AudioFacts.fromJson(Map<String, Object?> json) => AudioFacts(
+        duration: Duration(
+            microseconds:
+                (((json['durationSeconds'] as num?) ?? 0) * 1e6).round()),
+        speechRegions: (json['speechRegions'] as num?)?.toInt(),
+        speechFraction: (json['speechFraction'] as num?)?.toDouble(),
+        waveformBuckets: (json['waveformBuckets'] as num?)?.toInt(),
+        speechSpans: [
+          for (final span in (json['speechSpans'] as List<Object?>?) ?? const [])
+            if (span is List<Object?> && span.length >= 2)
+              (
+                ((span[0] as num?) ?? 0).toDouble(),
+                ((span[1] as num?) ?? 0).toDouble(),
+              ),
+        ],
+        polishEstimate: (json['polishEstimateSeconds'] as num?) == null
+            ? null
+            : Duration(
+                microseconds:
+                    ((json['polishEstimateSeconds']! as num) * 1e6).round()),
+      );
+
+  final Duration duration;
+
+  /// Null until silence detection has run.
+  final int? speechRegions;
+  final double? speechFraction;
+
+  /// Null until the analysis stage has produced a waveform.
+  final int? waveformBuckets;
+
+  /// Where speech was detected, in seconds. Empty until silence detection has
+  /// run. The spans and not just the fraction, because an interface drawing
+  /// them needs to know where.
+  final List<(double start, double end)> speechSpans;
+
+  /// Roughly how long POLISH will take, at the engine's measured rate. The
+  /// rate is a measurement and therefore the engine's to apply.
+  final Duration? polishEstimate;
+
+  bool get hasWaveform => (waveformBuckets ?? 0) > 0;
+}
+
+/// Everything the transcript and processing screens need that is not text.
 class ProjectSummary {
-  const ProjectSummary({required this.variants, required this.polish});
+  const ProjectSummary({
+    required this.variants,
+    required this.polish,
+    this.audio = const AudioFacts(
+      duration: Duration.zero,
+      speechRegions: null,
+      speechFraction: null,
+      waveformBuckets: null,
+      polishEstimate: null,
+    ),
+  });
 
   factory ProjectSummary.fromJson(Map<String, Object?> json) => ProjectSummary(
         variants: ((json['variants'] as List<Object?>?) ?? const [])
@@ -376,6 +441,8 @@ class ProjectSummary {
             .toList(growable: false),
         polish: PolishReview.fromJson(
             (json['polish'] as Map<String, Object?>?) ?? const {}),
+        audio: AudioFacts.fromJson(
+            (json['audio'] as Map<String, Object?>?) ?? const {}),
       );
 
   /// Only the transcripts that exist. A project still being processed reports
@@ -383,6 +450,7 @@ class ProjectSummary {
   final List<VariantSummary> variants;
 
   final PolishReview polish;
+  final AudioFacts audio;
 
   VariantSummary? forVariant(TranscriptVariant variant) {
     for (final candidate in variants) {
