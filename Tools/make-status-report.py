@@ -767,9 +767,11 @@ table([
      "is 924 MB. None of this can ship in a phone application as it stands.",
      "A decision"],
     ["POLISH is weaker off Apple",
-     "Semantic distance abstains, named entities fall back to capitalized tokens, "
-     "content words fall back to surface forms. English loses the second of its "
-     "two defences against a reversed meaning.", "A decision"],
+     "Semantic distance abstains and named entities fall back to capitalized "
+     "tokens. No longer a decision: EnglishRejectionCorpus measured the gauntlet "
+     "with the embedding forced absent, found seven of twenty-nine corruptions "
+     "escaping, and the English negation lexicon was extended until none did.",
+     "Measured"],
     ["Android C++ core is a spike",
      "568 lines cross-compile for four ABIs and pass 13 checks; nothing has been "
      "executed on a device. It is no longer the plan of record.", "Superseded"],

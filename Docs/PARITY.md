@@ -210,6 +210,11 @@ rather than left to be discovered:
 - **Silence-removed audio** is AVFoundation-only. Off Apple the time map is
   produced but the audio is not, and `render-audio` throws `notImplemented` by
   name. Closing it means teaching FFmpeg to write the file.
-- **Polish is weaker off Apple.** Semantic distance abstains without
-  `NLEmbedding`. Spanish has corpus evidence that the lexical checks catch
-  every polarity inversion on their own; English does not.
+- **Polish is weaker off Apple, and now measured.** Semantic distance abstains
+  without `NLEmbedding`. `EnglishRejectionCorpus` measured what that costs by
+  running the gauntlet on a Mac with the embedding forced absent: seven of
+  twenty-nine corruptions escaped, all of them negation spelled without a
+  negative word. The English lexicon was extended until all twenty-nine were
+  refused and no legitimate rewrite was blocked. Spanish was re-measured in the
+  same configuration: twenty of twenty refused, and the embedding changed no
+  verdict — confirming it was never doing the work there.

@@ -20,6 +20,21 @@ public enum SemanticLexicons {
         }
     }
 
+    /// Negation spelled across more than one word.
+    ///
+    /// A token set cannot see these: neither "far" nor "from" is negative
+    /// alone, and both are far too common to add. Measured need rather than
+    /// completeness — these are the forms `EnglishRejectionCorpus` caught
+    /// escaping after the single-word list was extended.
+    public static func negationPhrases(
+        for language: TranscriptLanguage
+    ) -> [[String]] {
+        switch language {
+        case .english: englishNegationPhrases
+        case .spanish: []
+        }
+    }
+
     public static func hedges(for language: TranscriptLanguage) -> Set<String> {
         switch language {
         case .english: englishHedges
@@ -36,10 +51,11 @@ public enum SemanticLexicons {
 
     /// Spanish negation, and the most load-bearing list in this file.
     ///
-    /// In English this check is one of two defences against a flipped
-    /// sentence; the semantic-distance check catches every negation we
-    /// measured. In Spanish that check catches none, so this list is the only
-    /// thing standing between a polish pass and an inverted meaning. It is
+    /// In English this check is one of two defences on Apple and the only one
+    /// everywhere else, and it is now measured in both configurations — see
+    /// ``englishNegations``. In Spanish the distance check catches no
+    /// negation at all, so this list has always been the only thing standing
+    /// between a polish pass and an inverted meaning. It is
     /// therefore deliberately over-inclusive, and both accented and bare forms
     /// are present because ``normalize`` keeps accents while engines are not
     /// consistent about emitting them.
@@ -100,12 +116,69 @@ public enum SemanticLexicons {
         "así", "asi", "ahí", "ahi", "allí", "alli", "aquí", "aqui",
     ]
 
+    /// English negation.
+    ///
+    /// The second half of this list was added after measuring, not before. The
+    /// list used to hold only words that *look* negative — `not`, `never`,
+    /// `nobody` — and `EnglishRejectionCorpus` showed what that misses: with
+    /// the embedding gone, seven of twenty-nine meaning-changing rewrites got
+    /// through, and every one of them was negation spelled without a negative
+    /// word. "We hardly finished on time" became "We finished on time";
+    /// "They disagreed" became "They agreed"; "He denied signing it" became
+    /// "He signed it".
+    ///
+    /// Three of those seven also got through *with* the embedding, on a Mac.
+    /// So this was never only an off-Apple problem — it was a hole in English
+    /// that the embedding happened to cover most of the time.
     static let englishNegations: Set<String> = [
+        // Overt negation: a negative word doing the negating.
         "not", "no", "never", "none", "nobody", "nothing", "nowhere", "neither",
         "nor", "cannot", "cant", "wont", "dont", "doesnt", "didnt", "isnt",
         "arent", "wasnt", "werent", "hasnt", "havent", "hadnt", "shouldnt",
         "wouldnt", "couldnt", "wont", "aint", "without", "lack", "lacks",
         "lacking", "absent", "fail", "fails", "failed", "unable",
+
+        // Approximative negators. "Hardly finished" is nearer to "did not
+        // finish" than to "finished", and dropping one reads as a tidy-up.
+        "hardly", "scarcely", "barely", "seldom", "rarely",
+
+        // Bare `few` is negative where `a few` is not — "few people agreed"
+        // against "a few people agreed". Counting it costs a false rejection
+        // if a polish pass rewrites "a few" as "several", which is a change of
+        // quantity that the stage has no business making anyway.
+        "few",
+
+        // Verbs that negate their complement. Dropping one inverts the
+        // sentence without touching a negative word: "denied signing it"
+        // becomes "signed it".
+        "deny", "denies", "denied", "denying",
+        "refuse", "refuses", "refused", "refusing",
+        "reject", "rejects", "rejected", "rejecting",
+        "decline", "declines", "declined", "declining",
+        "prevent", "prevents", "prevented", "preventing",
+
+        // The dis- prefix, which reverses a verb while looking like a word of
+        // its own. Only the forms a transcript plausibly contains.
+        "disagree", "disagrees", "disagreed",
+        "disapprove", "disapproves", "disapproved",
+        "disallow", "disallows", "disallowed",
+    ]
+
+    /// English negation written across words.
+    ///
+    /// Both of these survived the single-word list and were caught escaping by
+    /// measurement: "That is far from settled" became "That is settled", and
+    /// "It is anything but finished" became "It is finished". Each reads as a
+    /// tidy-up and reverses the sentence.
+    /// Exactly the two the measurement demanded, and no more.
+    ///
+    /// "nothing but", "rather than" and "instead of" were in the first version
+    /// of this list and are gone: the first double-counts against the `nothing`
+    /// token, and the other two are not negation — adding markers nothing has
+    /// shown to be needed trades real false rejections for imagined safety.
+    static let englishNegationPhrases: [[String]] = [
+        ["far", "from"],
+        ["anything", "but"],
     ]
 
     /// Hedges and epistemic qualifiers.
@@ -144,6 +217,25 @@ public enum SemanticLexicons {
         for token in tokens {
             let key = normalize(token)
             if lexicon.contains(key) { counts[key, default: 0] += 1 }
+        }
+        return counts
+    }
+
+    /// Counts multi-word markers, as a sliding window over the same
+    /// normalized tokens the single-word count uses — so "Far from settled"
+    /// and "far from settled" compare equal, like everything else here.
+    public static func phraseOccurrences(
+        _ tokens: [String], in phrases: [[String]]
+    ) -> [String: Int] {
+        guard !phrases.isEmpty else { return [:] }
+        let normalized = tokens.map(normalize)
+        var counts: [String: Int] = [:]
+        for phrase in phrases where phrase.count <= normalized.count {
+            let key = phrase.joined(separator: " ")
+            for start in 0...(normalized.count - phrase.count)
+            where Array(normalized[start..<(start + phrase.count)]) == phrase {
+                counts[key, default: 0] += 1
+            }
         }
         return counts
     }

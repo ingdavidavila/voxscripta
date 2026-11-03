@@ -22,9 +22,23 @@ public final class SemanticSimilarity: @unchecked Sendable {
     private var embeddings: [TranscriptLanguage: NLEmbedding?] = [:]
     #endif
 
-    public init() {}
+    /// Whether this instance will consult a model at all.
+    private let consultsModel: Bool
+
+    public init() { consultsModel = true }
+
+    private init(consultsModel: Bool) { self.consultsModel = consultsModel }
 
     public static let shared = SemanticSimilarity()
+
+    /// Behaves as though no embedding model exists.
+    ///
+    /// For reproducing the off-Apple configuration on a Mac, which is the only
+    /// way to measure it: Windows, Linux and Android have no `NLEmbedding`,
+    /// and a claim about how the gauntlet behaves there cannot honestly be
+    /// made from a machine where the model is present. The rejection corpora
+    /// use it to answer whether the lexical checks hold on their own.
+    public static let unavailable = SemanticSimilarity(consultsModel: false)
 
     /// Whether this language's embedding separates a negated sentence from its
     /// original well enough for distance alone to catch a meaning inversion.
@@ -76,6 +90,7 @@ public final class SemanticSimilarity: @unchecked Sendable {
     /// the check abstain visibly, not silently pass everything.
     public func distance(_ a: String, _ b: String,
                          in language: TranscriptLanguage = .english) -> Double? {
+        guard consultsModel else { return nil }
         // The lock is held across the query, not merely across loading.
         // `NLEmbedding` is not documented as thread-safe, and calling it
         // concurrently from parallel tests aborts the process — which presents as
@@ -112,6 +127,7 @@ public final class SemanticSimilarity: @unchecked Sendable {
 
     /// Whether this language's embedding model is present on this system.
     public func isAvailable(for language: TranscriptLanguage = .english) -> Bool {
+        guard consultsModel else { return false }
         #if !canImport(NaturalLanguage)
         return false
         #else

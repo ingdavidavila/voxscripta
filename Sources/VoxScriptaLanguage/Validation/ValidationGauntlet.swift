@@ -78,6 +78,19 @@ public struct ValidationReport: Hashable, Sendable, Codable {
 /// lexical polarity count and the semantic-distance check, which caught five
 /// of five measured negations.
 ///
+/// Only one of those two exists off Apple, and until it was measured that was
+/// an open risk rather than a known quantity. `EnglishRejectionCorpus` closed
+/// it, and the first run was not reassuring: with the embedding absent, seven
+/// of twenty-nine meaning-changing rewrites got through, every one of them
+/// negation spelled without a negative word — *hardly*, *far from*,
+/// *disagreed*, *denied*. Three of those seven also escaped *with* the
+/// embedding, so this was never only an off-Apple problem.
+///
+/// The English negation lexicon was extended until all twenty-nine were
+/// refused with the embedding gone, and none of the eight legitimate rewrites
+/// was blocked. English is admitted on that measurement now, rather than on
+/// the assumption that two defences must be enough.
+///
 /// Spanish has one. The Spanish sentence embedding scores a negation closer to
 /// its original than a paraphrase is — 0.335 mean against a 0.473 paraphrase —
 /// so no threshold separates them and the distance check is blind to the most
@@ -101,10 +114,14 @@ public enum PolishReadiness {
 
         switch language {
         case .english:
-            // Two defences, the embedding among them.
-            return SemanticSimilarity.catchesNegation(in: .english)
+            // Admitted on measurement, not on the embedding's presence. This
+            // returns true off Apple too, where the embedding does not exist
+            // — which is only defensible because EnglishRejectionCorpus shows
+            // the lexical checks hold on their own there.
+            return true
         case .spanish:
-            // One defence, measured. See SpanishRejectionCorpus.
+            // One defence, measured twice: SpanishRejectionCorpus, and again
+            // with the embedding forced absent, which changed no verdict.
             return true
         }
     }
@@ -242,6 +259,7 @@ public struct ValidationGauntlet: Validating {
         // ── 4. Polarity ─────────────────────────────────────────────────────
         results.append(lexiconBalance(
             check: .polarity, lexicon: SemanticLexicons.negations(for: language),
+            phrases: SemanticLexicons.negationPhrases(for: language),
             original: original, revised: revised,
             perWindow: thresholds.perWindowPolarity, noun: "negation"))
 
@@ -299,22 +317,31 @@ public struct ValidationGauntlet: Validating {
     private func lexiconBalance(
         check: ValidationCheck,
         lexicon: Set<String>,
+        phrases: [[String]] = [],
         original: [String],
         revised: [String],
         perWindow: Bool,
         noun: String
     ) -> CheckResult {
+        /// Single words and multi-word markers counted together, because they
+        /// are the same claim: how many times this text negates something.
+        func markers(in text: String) -> [String: Int] {
+            let tokens = TextTokenizer.tokens(text)
+            return SemanticLexicons.occurrences(tokens, in: lexicon)
+                .merging(SemanticLexicons.phraseOccurrences(tokens, in: phrases)) {
+                    $0 + $1
+                }
+        }
+
         if perWindow {
-            let before = SemanticLexicons.occurrences(
-                TextTokenizer.tokens(original.joined(separator: " ")), in: lexicon)
-            let after = SemanticLexicons.occurrences(
-                TextTokenizer.tokens(revised.joined(separator: " ")), in: lexicon)
+            let before = markers(in: original.joined(separator: " "))
+            let after = markers(in: revised.joined(separator: " "))
             return conservation(check: check, before: before, after: after, noun: noun)
         }
 
         for (index, pair) in zip(original, revised).enumerated() {
-            let before = SemanticLexicons.occurrences(TextTokenizer.tokens(pair.0), in: lexicon)
-            let after = SemanticLexicons.occurrences(TextTokenizer.tokens(pair.1), in: lexicon)
+            let before = markers(in: pair.0)
+            let after = markers(in: pair.1)
             guard before != after else { continue }
             let result = conservation(check: check, before: before, after: after, noun: noun)
             return CheckResult(check: check, passed: false,
