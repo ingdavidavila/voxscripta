@@ -542,3 +542,27 @@ class Capabilities {
     return null;
   }
 }
+
+
+/// One sign-up password requirement, and whether a password meets it.
+class PasswordRule {
+  const PasswordRule({
+    required this.id,
+    required this.demand,
+    required this.satisfied,
+  });
+
+  factory PasswordRule.fromJson(Map<String, Object?> json) => PasswordRule(
+        id: json['id'] as String? ?? '',
+        demand: json['demand'] as String? ?? '',
+        satisfied: json['satisfied'] as bool? ?? false,
+      );
+
+  /// Stable identifier, so a form keys off this rather than the wording.
+  final String id;
+
+  /// The requirement, phrased as what the person needs to do.
+  final String demand;
+
+  final bool satisfied;
+}

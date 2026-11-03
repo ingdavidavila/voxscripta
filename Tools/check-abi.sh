@@ -49,10 +49,11 @@ int main(void) {
         (void *)vs_recording_failure_copy,
         (void *)vs_recording_pause,     (void *)vs_recording_resume,
         (void *)vs_recording_finish,    (void *)vs_recording_discard,
+        (void *)vs_password_rules,      (void *)vs_email_looks_valid,
     };
     (void)used;
     /* One real call, so the library is actually loaded and initialized. */
-    return vs_abi_version() == 6 ? 0 : 1;
+    return vs_abi_version() == 7 ? 0 : 1;
 }
 C
 
@@ -60,4 +61,4 @@ cc -I "$ROOT/ffi" -o "$WORK/abi" "$WORK/abi.c" \
    -L "$BIN" -lVoxScriptaFFI -Wl,-rpath,"$BIN"
 
 "$WORK/abi"
-echo "ABI ok — all 31 symbols resolve and vs_abi_version() is 6"
+echo "ABI ok — all 33 symbols resolve and vs_abi_version() is 7"

@@ -1,7 +1,7 @@
 import 'dart:ffi';
 import 'package:ffi/ffi.dart';
 
-/// The thirty-one symbols of `ffi/voxscripta.h`, and nothing else.
+/// The thirty-three symbols of `ffi/voxscripta.h`, and nothing else.
 ///
 /// Hand-written rather than generated. ffigen would need libclang and a config
 /// file to produce a dozen declarations that change about once a year, and the
@@ -78,6 +78,10 @@ final class VoxScriptaBindings {
             int Function(int, Pointer<Pointer<Utf8>>)>('vs_recording_finish'),
         recordingDiscard = library
             .lookupFunction<Int32 Function(Int64), int Function(int)>('vs_recording_discard'),
+        passwordRules = library.lookupFunction<Pointer<Utf8> Function(Pointer<Utf8>),
+            Pointer<Utf8> Function(Pointer<Utf8>)>('vs_password_rules'),
+        emailLooksValid = library.lookupFunction<Int32 Function(Pointer<Utf8>),
+            int Function(Pointer<Utf8>)>('vs_email_looks_valid'),
         waveform = library.lookupFunction<
             Int32 Function(Pointer<Utf8>, Int32, Pointer<Pointer<Uint8>>,
                 Pointer<Int64>),
@@ -110,6 +114,8 @@ final class VoxScriptaBindings {
   final Pointer<Utf8> Function() capabilities;
   final int Function(Pointer<Utf8>, int, Pointer<Pointer<Uint8>>, Pointer<Int64>)
       waveform;
+  final Pointer<Utf8> Function(Pointer<Utf8>) passwordRules;
+  final int Function(Pointer<Utf8>) emailLooksValid;
   final Pointer<Utf8> Function() recordingDirectory;
   final Pointer<Utf8> Function() recordingNewPath;
   final int Function(Pointer<Utf8>) recordingStart;

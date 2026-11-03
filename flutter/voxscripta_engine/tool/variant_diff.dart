@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:voxscripta_engine/voxscripta_engine.dart';
 
@@ -18,7 +17,6 @@ void main(List<String> args) async {
     final polished = summary.forVariant(TranscriptVariant.polished);
     if (clean == null || polished == null) continue;
 
-    String text(TranscriptVariant v) => '';
     final cleanText = utf8.decode(await engine.export(
         projectPath: project.path,
         variant: TranscriptVariant.clean,
@@ -38,7 +36,6 @@ void main(List<String> args) async {
     print('  characters   clean ${cleanText.length}   '
         'polished ${polishedText.length}');
     print('');
-    text(TranscriptVariant.clean);
 
     checked += 1;
     if (checked >= 3) break;

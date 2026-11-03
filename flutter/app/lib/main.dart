@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 
 import 'package:voxscripta_engine/voxscripta_engine.dart';
 
+import 'src/auth/account_section.dart';
+import 'src/auth/auth_backend.dart';
+import 'src/auth/auth_gate.dart';
+import 'src/auth/auth_service.dart';
 import 'src/engine_host.dart';
 import 'src/library/library_model.dart';
 import 'src/library/library_screen.dart';
@@ -33,6 +37,11 @@ class VoxScriptaApp extends StatefulWidget {
 class _VoxScriptaAppState extends State<VoxScriptaApp> {
   final EngineHost _host = EngineHost();
 
+  /// Null until an account service is chosen; see `auth_backend.dart`. When it
+  /// is null the gate does not appear and Settings shows no account rows,
+  /// because there is genuinely nothing to sign in to.
+  final AuthService? _auth = configuredAuthService();
+
   @override
   void initState() {
     super.initState();
@@ -53,8 +62,15 @@ class _VoxScriptaAppState extends State<VoxScriptaApp> {
       debugShowCheckedModeBanner: false,
       theme: _theme(Brightness.light),
       darkTheme: _theme(Brightness.dark),
-      home: _home(),
+      home: AuthGate(auth: _auth, builder: (context, _) => _home()),
     );
+  }
+
+  /// The account rows for Settings, or nothing when no account service is
+  /// configured.
+  Widget? _accountSection() {
+    if (_auth case final auth?) return AccountSection(auth: auth);
+    return null;
   }
 
   Widget _home() {
@@ -90,7 +106,10 @@ class _VoxScriptaAppState extends State<VoxScriptaApp> {
         ),
         openSettings: (context) => Navigator.of(context).push(
           MaterialPageRoute<void>(
-            builder: (_) => SettingsScreen(model: SettingsModel.of(engine)),
+            builder: (_) => SettingsScreen(
+              model: SettingsModel.of(engine),
+              accountSection: _accountSection(),
+            ),
           ),
         ),
         openProject: (context, project) => Navigator.of(context).push(

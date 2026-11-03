@@ -9,6 +9,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:voxscripta/src/library/library_model.dart';
 import 'package:voxscripta/src/platform_traits.dart';
 import 'package:voxscripta/src/library/library_screen.dart';
+import 'package:voxscripta/src/auth/auth_service.dart';
+import 'package:voxscripta/src/auth/sign_in_screen.dart';
+import 'package:voxscripta/src/auth/sign_up_screen.dart';
 import 'package:voxscripta/src/processing/processing_model.dart';
 import 'package:voxscripta/src/recording/recording_model.dart';
 import 'package:voxscripta/src/recording/recording_screen.dart';
@@ -187,6 +190,51 @@ void main() {
     await expectLater(
         find.byType(SettingsScreen), matchesGoldenFile('previews/$name.png'));
   }
+
+  Future<void> renderAuth(
+    WidgetTester tester, {
+    required String name,
+    required Widget home,
+    required Size size,
+  }) async {
+    PlatformTraits.debugPointerOverride = size.width > 700;
+    addTearDown(() => PlatformTraits.debugPointerOverride = null);
+    tester.view
+      ..physicalSize = size
+      ..devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF3B6EA5)),
+        fontFamily: 'Preview',
+        useMaterial3: true,
+      ),
+      home: home,
+    ));
+    await tester.pumpAndSettle();
+    await expectLater(find.byType(Scaffold).first,
+        matchesGoldenFile('previews/$name.png'));
+  }
+
+  testWidgets('sign in, phone', (tester) async {
+    await renderAuth(tester,
+        name: 'auth-sign-in',
+        size: const Size(400, 860),
+        home: SignInScreen(auth: _PreviewAuth(), onSkip: (_) {}));
+  });
+
+  testWidgets('sign up, phone', (tester) async {
+    await renderAuth(tester,
+        name: 'auth-sign-up',
+        size: const Size(400, 900),
+        home: SignUpScreen(
+          auth: _PreviewAuth(),
+          emailCheck: (s) => s.contains('@'),
+          rules: _previewRules,
+        ));
+  });
 
   testWidgets('recording, phone', (tester) async {
     PlatformTraits.debugPointerOverride = false;
@@ -615,4 +663,51 @@ class _PreviewJobRecording implements Recording {
 
   @override
   void discard() {}
+}
+
+/// Password rules for the preview, in the engine's shape, part-way typed so
+/// the checklist shows both states.
+List<PasswordRule> _previewRules(String password) => [
+      PasswordRule(
+          id: 'length', demand: 'At least 8 characters',
+          satisfied: password.length >= 8),
+      PasswordRule(
+          id: 'uppercase', demand: 'One capital letter',
+          satisfied: password.contains(RegExp('[A-Z]'))),
+      PasswordRule(
+          id: 'number', demand: 'One number',
+          satisfied: password.contains(RegExp('[0-9]'))),
+      PasswordRule(
+          id: 'special', demand: 'One symbol, such as ! ? # or &',
+          satisfied: password.contains(RegExp(r'[^A-Za-z0-9\s]'))),
+    ];
+
+/// An account service that is not connected, which is the truthful state.
+class _PreviewAuth implements AuthService {
+  @override
+  AuthUser? get currentUser => null;
+  @override
+  Stream<AuthUser?> get changes => const Stream<AuthUser?>.empty();
+  @override
+  bool get supportsApple => true;
+  @override
+  bool get supportsGoogle => true;
+  @override
+  Future<AuthUser> signInWithApple() async => throw const AuthException('x');
+  @override
+  Future<AuthUser> signInWithGoogle() async => throw const AuthException('x');
+  @override
+  Future<AuthUser> signInWithPassword({
+    required String email, required String password,
+  }) async => throw const AuthException('x');
+  @override
+  Future<AuthUser> signUp({
+    required String email, required String password,
+  }) async => throw const AuthException('x');
+  @override
+  Future<void> sendPasswordReset(String email) async {}
+  @override
+  Future<void> signOut() async {}
+  @override
+  Future<void> deleteAccount() async {}
 }

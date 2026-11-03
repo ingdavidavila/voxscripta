@@ -22,7 +22,7 @@ class VoxScriptaEngine {
   /// The ABI this package was written against. A library announcing anything
   /// else is refused at open, rather than crashing later on a signature that
   /// moved — which is the whole reason the version exists.
-  static const int supportedAbiVersion = 6;
+  static const int supportedAbiVersion = 7;
 
   /// How often a running job is polled.
   ///
@@ -237,6 +237,41 @@ class VoxScriptaEngine {
       calloc.free(path);
       calloc.free(outBytes);
       calloc.free(outLength);
+    }
+  }
+
+  // ── Sign-up rules ────────────────────────────────────────────────────────
+
+  /// The password rules, each marked met or not.
+  ///
+  /// Read from the engine rather than reimplemented here: a password that
+  /// passed on a phone and failed on a desktop would be a bug, and one
+  /// definition is the only way to prevent it. All rules come back every
+  /// time, so a form can show the whole checklist filling in.
+  List<PasswordRule> passwordRules(String password) {
+    final text = password.toNativeUtf8();
+    try {
+      final json = _bindings.takeString(_bindings.passwordRules(text));
+      if (json == null) {
+        throw VoxScriptaException(
+            _bindings.lastError() ?? 'the password rules could not be read');
+      }
+      return (jsonDecode(json) as List<Object?>)
+          .cast<Map<String, Object?>>()
+          .map(PasswordRule.fromJson)
+          .toList(growable: false);
+    } finally {
+      calloc.free(text);
+    }
+  }
+
+  /// Whether a string could be an email address. Permissive by design.
+  bool emailLooksValid(String address) {
+    final text = address.toNativeUtf8();
+    try {
+      return _bindings.emailLooksValid(text) == 1;
+    } finally {
+      calloc.free(text);
     }
   }
 

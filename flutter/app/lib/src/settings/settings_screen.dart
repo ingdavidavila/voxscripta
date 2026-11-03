@@ -11,9 +11,14 @@ import 'settings_model.dart';
 /// inventing either the names or the numbers would be inventing a second
 /// engine.
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key, required this.model});
+  const SettingsScreen({super.key, required this.model, this.accountSection});
 
   final SettingsModel model;
+
+  /// The account rows, when this build has an account service. Supplied from
+  /// outside so that settings stays a view of the engine's configuration and
+  /// knows nothing about sign-in.
+  final Widget? accountSection;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -71,6 +76,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: 8),
       children: [
+        ? widget.accountSection,
         _Section(title: 'Silence detection', children: [
           _Slider(
             label: 'Threshold above noise',
@@ -190,8 +196,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _PolishSection(model: model),
         _Section(
           title: 'Storage and privacy',
-          footer: 'Everything runs on this machine. Nothing is uploaded, '
-              'nothing is sent to a service, and no account is needed.',
+          footer: widget.accountSection == null
+              ? 'Everything runs on this machine. Nothing is uploaded, '
+                  'nothing is sent to a service, and no account is needed.'
+              : 'Transcription runs on this machine. No audio and no '
+                  'transcript is uploaded, and the app transcribes with no '
+                  'account at all — an account only carries your email '
+                  'address, for signing in.',
           children: [
             _Switch(
               label: 'Keep working files',

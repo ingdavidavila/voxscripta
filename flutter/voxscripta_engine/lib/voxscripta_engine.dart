@@ -22,6 +22,7 @@ export 'src/model.dart'
         JobOptions,
         JobProgress,
         JobState,
+        PasswordRule,
         PolishCapability,
         PolishDisposition,
         PolishReview,

@@ -54,7 +54,8 @@ extern "C" {
  * 3 added vs_project_summary.
  * 4 added vs_capabilities.
  * 5 added the audio facts to vs_project_summary, and vs_waveform.
- * 6 added recording. */
+ * 6 added recording.
+ * 7 added the sign-up password rules. */
 int32_t vs_abi_version(void);
 
 /* ─── Structured data ──────────────────────────────────────────────────────
@@ -324,6 +325,30 @@ int32_t vs_recording_finish(int64_t handle, char **out_json);
  * and only because the user asked: §5 protects original files, and a recording
  * just thrown away is not one yet. */
 int32_t vs_recording_discard(int64_t handle);
+
+/* ─── Sign-up rules ────────────────────────────────────────────────────────
+ *
+ * Read rather than reimplemented: a password that passed on a phone and
+ * failed on a desktop would be a bug, and one definition prevents it.
+ *
+ * NOTE: these check composition, which is a weak measure of strength. What
+ * protects an account is rate limiting, breach-list rejection and a second
+ * factor, none of which lives on this side of the boundary. Whatever service
+ * holds the credentials should enforce its own rules too.
+ */
+
+/* Every rule, each marked met or not, as a JSON array. Caller releases.
+ *
+ *   [{"id": "length", "demand": "At least 8 characters", "satisfied": false},
+ *    {"id": "uppercase", ...}, {"id": "number", ...}, {"id": "special", ...}]
+ *
+ * All four are returned every time, not only the failures, so a form can show
+ * the whole checklist filling in as someone types. */
+char *vs_password_rules(const char *password);
+
+/* Whether a string could be an email address. 1 yes, 0 no. Permissive by
+ * design — only a delivered message proves an address works. */
+int32_t vs_email_looks_valid(const char *address);
 
 /* ─── Releasing what the library returned ──────────────────────────────── */
 

@@ -61,6 +61,15 @@ Legend: ✓ in the SwiftUI app · ABI column says whether the C ABI can serve it
 | Polish: on or off, and which backend | ✓ | ✓ · Flutter ✓, including which model would really run |
 | Default variant to show | ✓ | interface-side |
 | Keep intermediate files | ✓ | ✓ · Flutter ✓ |
+| **Accounts** | | |
+| Sign in with Apple | ✗ | ✗ — screen ✓ Flutter, no service |
+| Sign in with Google | ✗ | ✗ — screen ✓ Flutter, no service |
+| Email and password sign-in | ✗ | ✗ — screen ✓ Flutter, no service |
+| Sign up: email, password, password again | ✗ | ✗ — screen ✓ Flutter, no service |
+| Password rules: 8 characters, a capital, a number, a symbol | ✗ | ✓ `vs_password_rules` · Flutter ✓ |
+| Reveal the password | ✗ | interface-side · Flutter ✓ |
+| Forgotten password | ✗ | ✗ — screen ✓ Flutter, no service |
+| Delete the account from inside the app | ✗ | ✗ — screen ✓ Flutter, no service |
 | **Everywhere** | | |
 | A tooltip on every button saying what it does | ✓ | interface-side |
 | Dismissible errors carrying the engine's own words | ✓ | ✓ |
@@ -235,3 +244,52 @@ rather than left to be discovered:
   refused and no legitimate rewrite was blocked. Spanish was re-measured in the
   same configuration: twenty of twenty refused, and the embedding changed no
   verdict — confirming it was never doing the work there.
+
+
+## Accounts, 2026-11-03
+
+Accounts arrived as a request for "a login with apple google and a native with
+password", on every platform. What exists now, and what deliberately does not:
+
+**In the engine**, so that both interfaces agree:
+`VoxScriptaCore/Identity/PasswordPolicy.swift` holds the four rules — eight
+characters, one capital, one number, one symbol — and `EmailAddress` holds the
+shape check. They are exposed over the C ABI as `vs_password_rules` and
+`vs_email_looks_valid` (ABI 7). A password accepted on Android is accepted on
+the Mac because there is one definition of "accepted", not two.
+
+**In Flutter**: sign in, sign up, forgotten password, an account screen with
+sign-out and deletion, a launch gate, and the account rows in Settings. Each
+password field has its own reveal toggle, the checklist shows all four rules
+from the start rather than revealing them one failure at a time, and the two
+sign-up fields are compared untrimmed — a trailing space is a different
+password, and silently trimming it would lock someone out of an account they
+typed correctly twice.
+
+**Not in Flutter, by decision**: an account service.
+`lib/src/auth/auth_backend.dart` returns null, so the gate never appears and
+Settings shows no account rows in this build. `UnconfiguredAuthService` exists
+for tests and throws on every route. A stub that returned a fake user would let
+the whole flow look finished all the way to the library, and nobody would find
+out the accounts were imaginary until a second device failed to see them.
+
+**Not in SwiftUI at all yet.** The ✗ column above is honest: Mac and iPhone
+have the shared rules and none of the screens.
+
+Three things the account work changes outside the account screens, and all
+three are still outstanding:
+
+1. **The App Privacy declaration.** "Data Not Collected" stops being true the
+   moment an email address is stored. It becomes Contact Info → Email Address,
+   collected, linked to identity, used for app functionality. The transcription
+   side is unchanged and still local; the declaration has to say both.
+2. **The Android manifest** needs `INTERNET`, which it does not have, because
+   until now nothing in the app talked to anything.
+3. **The landing page's privacy policy** says there is no account. It will be
+   wrong as soon as a service is wired, and the store listings point at it.
+
+Guideline 5.1.1(i) is why the gate has "Not now" and why it takes no for an
+answer: the app transcribes with no account and no network, so it may not
+demand personal information for that. Guideline 5.1.1(v) is why deletion is a
+button on the account screen and not a page on a website. Guideline 4.8 is why
+Apple appears wherever Google does.

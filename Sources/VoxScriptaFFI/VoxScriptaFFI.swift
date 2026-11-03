@@ -53,14 +53,15 @@ import VoxScriptaExport
 /// exist, their word and segment counts, and what POLISH did. 4 adds
 /// `vs_capabilities`, which the settings screen needs. 5 adds the audio
 /// facts to `vs_project_summary` and `vs_waveform` beside it, for the
-/// processing screen. 6 adds recording. The previous version
+/// processing screen. 6 adds recording. 7 adds the sign-up password rules,
+/// so both interfaces accept exactly the same passwords. The previous version
 /// could run a job and read the result, which proved the boundary and was
 /// nowhere near enough to build an interface on — see `Docs/PARITY.md`.
 /// `vs_job_start` and `vs_export` each gained a JSON parameter rather than
 /// growing a second entry point beside them, because nothing has shipped
 /// against version 1 and a legacy variant kept forever costs more than a
 /// break that nobody can observe.
-private let abiVersion: Int32 = 6
+private let abiVersion: Int32 = 7
 
 // MARK: - Job states
 
@@ -653,4 +654,41 @@ public func vs_waveform(
     out_bytes.pointee = copyOut(data)
     out_length.pointee = Int64(data.count)
     return 0
+}
+
+/// The sign-up password rules, each marked met or not for `password`.
+///
+/// Read rather than reimplemented, for the reason every rule in this surface
+/// is: a password that passed on a phone and failed on a desktop would be a
+/// bug the user is right to report, and one definition is the only way to
+/// prevent it.
+///
+/// Returns a JSON array, caller releases it:
+///
+///     [{"id": "length", "demand": "At least 8 characters", "satisfied": false}, …]
+///
+/// Every rule is returned every time, not only the failures, so a form can
+/// show the whole checklist filling in as someone types.
+@_cdecl("vs_password_rules")
+public func vs_password_rules(
+    _ password: UnsafePointer<CChar>?
+) -> UnsafeMutablePointer<CChar>? {
+    setLastError(nil)
+    let text = password.map { String(cString: $0) } ?? ""
+    do {
+        return copyOut(try Wire.encode(PasswordPolicy.evaluate(text)))
+    } catch {
+        setLastError(describe(error))
+        return nil
+    }
+}
+
+/// Whether a string could be an email address. 1 yes, 0 no.
+///
+/// Deliberately permissive — the only authority on an address is whether mail
+/// to it arrives. See `EmailAddress` for why a stricter test would be worse.
+@_cdecl("vs_email_looks_valid")
+public func vs_email_looks_valid(_ address: UnsafePointer<CChar>?) -> Int32 {
+    guard let address else { return 0 }
+    return EmailAddress.looksValid(String(cString: address)) ? 1 : 0
 }
