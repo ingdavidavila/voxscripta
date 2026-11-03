@@ -1,6 +1,7 @@
 import Foundation
 import VoxScriptaCore
 import VoxScriptaDSP
+import VoxScriptaProject
 
 // Recording, for the interfaces that are not SwiftUI.
 //
@@ -85,7 +86,19 @@ public func vs_recording_new_path() -> UnsafeMutablePointer<CChar>? {
 public func vs_recording_start(
     _ destination_path: UnsafePointer<CChar>?
 ) -> Int64 {
+    recordingStart(destination_path, gate: entitlements)
+}
+
+/// The body of ``vs_recording_start``, with the paywall as a parameter. See
+/// ``jobStart(_:_:_:gate:)`` for why it is a parameter.
+func recordingStart(
+    _ destination_path: UnsafePointer<CChar>?,
+    gate: EntitlementStore
+) -> Int64 {
     setLastError(nil)
+    // The same wall as `vs_job_start`, and -3 for the same reason: recording
+    // audio the app will not then transcribe is not a useful half-measure.
+    if entitlementRefuses(.startRecording, in: gate) { return -3 }
     let requested = destination_path.map { String(cString: $0) } ?? ""
     let url = requested.isEmpty
         ? RecordingDestination.newRecordingURL()

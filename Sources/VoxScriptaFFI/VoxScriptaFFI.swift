@@ -61,7 +61,7 @@ import VoxScriptaExport
 /// growing a second entry point beside them, because nothing has shipped
 /// against version 1 and a legacy variant kept forever costs more than a
 /// break that nobody can observe.
-private let abiVersion: Int32 = 7
+private let abiVersion: Int32 = 8
 
 // MARK: - Job states
 
@@ -198,6 +198,11 @@ public func vs_last_error_copy() -> UnsafeMutablePointer<CChar>? {
 /// `vs_last_error_copy` says why. Returning immediately is the point: the work
 /// runs on this library's own executor and is observed through the getters.
 ///
+/// `-3` is the paywall: the trial has ended or the subscription has, and the
+/// message says so. It is its own code because an interface has to tell that
+/// case apart from a bad path — one offers a subscription, the other does
+/// not.
+///
 /// The original audio is referenced, never copied and never modified (§5).
 @_cdecl("vs_job_start")
 public func vs_job_start(
@@ -205,7 +210,25 @@ public func vs_job_start(
     _ project_path: UnsafePointer<CChar>?,
     _ options_json: UnsafePointer<CChar>?
 ) -> Int64 {
+    jobStart(audio_path, project_path, options_json, gate: entitlements)
+}
+
+/// The body of ``vs_job_start``, with the paywall as a parameter.
+///
+/// Split out so a test can prove the wall without touching a process-global
+/// one — which would make every other job test depend on the order the suite
+/// happened to run in, and on how many days ago this machine first ran the
+/// app.
+func jobStart(
+    _ audio_path: UnsafePointer<CChar>?,
+    _ project_path: UnsafePointer<CChar>?,
+    _ options_json: UnsafePointer<CChar>?,
+    gate: EntitlementStore
+) -> Int64 {
     setLastError(nil)
+    // The paywall, before anything else. Asked here rather than in each
+    // interface so that there is one answer and no caller can forget to ask.
+    if entitlementRefuses(.startJob, in: gate) { return -3 }
     guard let audio_path, let project_path else {
         setLastError("vs_job_start requires both an audio path and a project path")
         return -1

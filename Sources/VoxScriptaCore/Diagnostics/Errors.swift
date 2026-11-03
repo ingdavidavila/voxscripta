@@ -59,6 +59,12 @@ public enum VoxScriptaError: Error, Sendable, Equatable {
     case insufficientDiskSpace(needed: Int64, available: Int64)
     case ioFailure(path: String, reason: String)
 
+    // ── Entitlement ─────────────────────────────────────────────────────────
+    /// The trial has ended, or the subscription has, and this action starts
+    /// new work. Only ever raised for the actions in `GatedAction`: reading and
+    /// exporting what already exists are never refused for payment.
+    case notEntitled(reason: String)
+
     // ── Control flow ────────────────────────────────────────────────────────
     case cancelled
     /// A Phase 0 placeholder. Every occurrence is a scheduled implementation,
@@ -78,7 +84,8 @@ public enum VoxScriptaError: Error, Sendable, Equatable {
              .analysisFailed, .noSpeechDetected, .localeUnsupported, .modelAssetMissing,
              .microphoneDenied, .recordingFailed,
              .contextWindowExceeded, .validationRejected, .projectCorrupt, .schemaTooNew,
-             .insufficientDiskSpace, .cancelled, .notImplemented:
+             .insufficientDiskSpace, .notEntitled, .cancelled, .notImplemented:
+            // Retrying a paywall just hits the paywall again.
             return false
         }
     }
@@ -162,6 +169,11 @@ extension VoxScriptaError: LocalizedError {
             String(localized: "Needs \(needed.formatted(.byteCount(style: .file))) of free space; \(available.formatted(.byteCount(style: .file))) available.")
         case .ioFailure(let path, let reason):
             String(localized: "Could not read or write \(path): \(reason).")
+        case .notEntitled(let reason):
+            // The engine's own sentence, passed through: it already says what
+            // ended and what is still available, and rewording it here would
+            // put a second copy of that promise in a second place.
+            String(localized: "\(reason)")
         case .cancelled:
             String(localized: "Processing was cancelled.")
         case .notImplemented(let what):

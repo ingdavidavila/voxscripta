@@ -16,6 +16,7 @@ import 'package:voxscripta_engine/voxscripta_engine.dart';
 /// tree. Tests skip rather than fail when it is absent, so a checkout that has
 /// not built the engine yet is not a red suite.
 void main() {
+  _entitlementTests();
   final libraryPath = _findLibrary();
 
   group('VoxScriptaEngine', skip: libraryPath == null ? 'engine not built' : null, () {
@@ -370,4 +371,106 @@ String? _findLibrary() {
     if (File(candidate).existsSync()) return File(candidate).absolute.path;
   }
   return null;
+}
+
+void _entitlementTests() {
+  group('Entitlement', () {
+    Map<String, Object?> wire({
+      String state = 'trialing',
+      bool allows = true,
+      bool offer = true,
+      Object? daysRemaining = 2,
+      Object? secondsRemaining = 180000.0,
+      Object? period,
+      Object? through,
+      Object? lapsedSince,
+      Object? refusal,
+    }) =>
+        {
+          'state': state,
+          'allowsNewWork': allows,
+          'shouldOfferSubscription': offer,
+          'trialDays': 3,
+          'trialDaysRemaining': daysRemaining,
+          'trialSecondsRemaining': secondsRemaining,
+          'period': period,
+          'through': through,
+          'lapsedSince': lapsedSince,
+          'refusal': refusal,
+        };
+
+    test('a running trial reads back whole', () {
+      final entitlement = Entitlement.fromJson(wire());
+      expect(entitlement.state, EntitlementState.trialing);
+      expect(entitlement.allowsNewWork, isTrue);
+      expect(entitlement.trialDays, 3);
+      expect(entitlement.trialDaysRemaining, 2);
+      expect(entitlement.trialRemaining, const Duration(seconds: 180000));
+      expect(entitlement.refusal, isNull);
+    });
+
+    test('an expired trial carries the engine\'s own reason', () {
+      final entitlement = Entitlement.fromJson(wire(
+          state: 'trialExpired',
+          allows: false,
+          daysRemaining: null,
+          secondsRemaining: 0,
+          refusal: 'The 3-day trial has ended.'));
+      expect(entitlement.state, EntitlementState.trialExpired);
+      expect(entitlement.allowsNewWork, isFalse);
+      expect(entitlement.trialDaysRemaining, isNull);
+      expect(entitlement.refusal, contains('trial'));
+    });
+
+    test('a subscription carries its period and end date', () {
+      final ends = DateTime.utc(2027, 3, 1);
+      final entitlement = Entitlement.fromJson(wire(
+          state: 'subscribed',
+          offer: false,
+          daysRemaining: null,
+          secondsRemaining: null,
+          period: 'yearly',
+          through: ends.millisecondsSinceEpoch / 1000.0));
+      expect(entitlement.state, EntitlementState.subscribed);
+      expect(entitlement.period, BillingPeriod.yearly);
+      expect(entitlement.through!.isAtSameMomentAs(ends), isTrue);
+      expect(entitlement.shouldOfferSubscription, isFalse);
+    });
+
+    test('a lapse is dated', () {
+      final ended = DateTime.utc(2026, 11, 1, 12);
+      final entitlement = Entitlement.fromJson(wire(
+          state: 'subscriptionLapsed',
+          allows: false,
+          daysRemaining: null,
+          secondsRemaining: null,
+          lapsedSince: ended.millisecondsSinceEpoch / 1000.0));
+      expect(entitlement.state, EntitlementState.subscriptionLapsed);
+      expect(entitlement.lapsedSince!.isAtSameMomentAs(ended), isTrue);
+    });
+
+    test('an unknown state fails closed rather than open', () {
+      // The engine being newer than this package must not be a way to get
+      // free use of it.
+      final entitlement = Entitlement.fromJson(wire(state: 'somethingNew'));
+      expect(entitlement.state, EntitlementState.trialExpired);
+    });
+
+    test('every state the ABI documents is understood', () {
+      for (final name in [
+        'trialing',
+        'trialExpired',
+        'subscribed',
+        'subscriptionLapsed',
+      ]) {
+        expect(EntitlementState.fromWire(name).wireName, name);
+      }
+    });
+
+    test('an unknown billing period is null, not a guess', () {
+      expect(BillingPeriod.fromWire('weekly'), isNull);
+      expect(BillingPeriod.fromWire(null), isNull);
+      expect(BillingPeriod.fromWire('monthly'), BillingPeriod.monthly);
+    });
+  });
 }

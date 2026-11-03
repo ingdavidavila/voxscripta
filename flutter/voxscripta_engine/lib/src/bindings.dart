@@ -82,6 +82,14 @@ final class VoxScriptaBindings {
             Pointer<Utf8> Function(Pointer<Utf8>)>('vs_password_rules'),
         emailLooksValid = library.lookupFunction<Int32 Function(Pointer<Utf8>),
             int Function(Pointer<Utf8>)>('vs_email_looks_valid'),
+        entitlementState = library.lookupFunction<Pointer<Utf8> Function(),
+            Pointer<Utf8> Function()>('vs_entitlement_state'),
+        entitlementRecordSubscription =
+            library.lookupFunction<Int32 Function(Pointer<Utf8>),
+                int Function(Pointer<Utf8>)>('vs_entitlement_record_subscription'),
+        entitlementClearSubscription = library
+            .lookupFunction<Int32 Function(), int Function()>(
+                'vs_entitlement_clear_subscription'),
         waveform = library.lookupFunction<
             Int32 Function(Pointer<Utf8>, Int32, Pointer<Pointer<Uint8>>,
                 Pointer<Int64>),
@@ -116,6 +124,9 @@ final class VoxScriptaBindings {
       waveform;
   final Pointer<Utf8> Function(Pointer<Utf8>) passwordRules;
   final int Function(Pointer<Utf8>) emailLooksValid;
+  final Pointer<Utf8> Function() entitlementState;
+  final int Function(Pointer<Utf8>) entitlementRecordSubscription;
+  final int Function() entitlementClearSubscription;
   final Pointer<Utf8> Function() recordingDirectory;
   final Pointer<Utf8> Function() recordingNewPath;
   final int Function(Pointer<Utf8>) recordingStart;

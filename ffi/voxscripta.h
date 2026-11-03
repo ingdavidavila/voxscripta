@@ -350,6 +350,50 @@ char *vs_password_rules(const char *password);
  * design — only a delivered message proves an address works. */
 int32_t vs_email_looks_valid(const char *address);
 
+/* ─── The paywall ──────────────────────────────────────────────────────────
+ *
+ * Three days from first launch, then a subscription. The gate is enforced
+ * inside the library: vs_job_start and vs_recording_start both return -3 once
+ * it is up, so an interface cannot forget to ask. Nothing else is ever
+ * refused for payment — reading a transcript, copying it, exporting any
+ * format, reviewing polish, deleting a project and every setting all keep
+ * working, because that is the user's own work on the user's own disk.
+ *
+ * Verification is the caller's job and cannot be otherwise: the proof of a
+ * subscription is a StoreKit 2 transaction signed by Apple, a Play Billing
+ * purchase, or whatever a direct sale issues. Check it on that side and
+ * record the result here. */
+
+/* What this machine may do, as JSON. Caller releases.
+ *
+ *   {"state": "trialing", "allowsNewWork": true,
+ *    "shouldOfferSubscription": true, "trialDays": 3,
+ *    "trialDaysRemaining": 2, "trialSecondsRemaining": 123456.0,
+ *    "period": null, "through": null, "lapsedSince": null, "refusal": null}
+ *
+ * "state" is one of "trialing", "trialExpired", "subscribed",
+ * "subscriptionLapsed". Key off that, not off "refusal", which is English
+ * prose for callers that cannot localize. Every key is always present.
+ *
+ * Reading this moves the trial's high-water mark forward, which is what stops
+ * a clock set backwards from returning days already spent. */
+char *vs_entitlement_state(void);
+
+/* Records a subscription the caller has already verified. 0, or -1 with
+ * vs_last_error_copy set.
+ *
+ *   {"productID": "voxscripta.monthly", "period": "monthly",
+ *    "expires": 1764600000.0, "graceUntil": null}
+ *
+ * "period" is "monthly" or "yearly". "expires" and "graceUntil" are seconds
+ * since 1970; omit them when the store did not say, which is treated as
+ * open-ended — do not pass 0 to mean "unknown". */
+int32_t vs_entitlement_record_subscription(const char *subscription_json);
+
+/* Forgets the subscription: a refund, or a restore that found nothing. The
+ * trial clock is untouched, so a spent trial is not handed back. Returns 0. */
+int32_t vs_entitlement_clear_subscription(void);
+
 /* ─── Releasing what the library returned ──────────────────────────────── */
 
 void vs_bytes_free(uint8_t *bytes);

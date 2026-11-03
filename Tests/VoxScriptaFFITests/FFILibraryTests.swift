@@ -17,6 +17,7 @@ import VoxScriptaDSP
 /// screen silently empty rather than crash.
 @Suite("FFI library and options")
 struct FFILibraryTests {
+    init() { FFIEntitlementFixture.useAFreshTrial() }
 
     private func take(_ pointer: UnsafeMutablePointer<CChar>?) -> String? {
         guard let pointer else { return nil }
@@ -258,6 +259,7 @@ struct FFILibraryTests {
 /// `vs_project_summary`, which the transcript screen is built on.
 @Suite("FFI project summary")
 struct FFISummaryTests {
+    init() { FFIEntitlementFixture.useAFreshTrial() }
 
     private func take(_ pointer: UnsafeMutablePointer<CChar>?) -> String? {
         guard let pointer else { return nil }
@@ -468,6 +470,7 @@ struct FFICapabilityTests {
 /// The audio facts and the waveform, which the processing screen draws.
 @Suite("FFI waveform and audio facts")
 struct FFIWaveformTests {
+    init() { FFIEntitlementFixture.useAFreshTrial() }
 
     private func take(_ pointer: UnsafeMutablePointer<CChar>?) -> String? {
         guard let pointer else { return nil }

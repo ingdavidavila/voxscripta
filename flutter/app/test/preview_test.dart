@@ -12,6 +12,8 @@ import 'package:voxscripta/src/library/library_screen.dart';
 import 'package:voxscripta/src/auth/auth_service.dart';
 import 'package:voxscripta/src/auth/sign_in_screen.dart';
 import 'package:voxscripta/src/auth/sign_up_screen.dart';
+import 'package:voxscripta/src/paywall/paywall_screen.dart';
+import 'package:voxscripta/src/paywall/subscription_service.dart';
 import 'package:voxscripta/src/processing/processing_model.dart';
 import 'package:voxscripta/src/recording/recording_model.dart';
 import 'package:voxscripta/src/recording/recording_screen.dart';
@@ -217,6 +219,22 @@ void main() {
     await expectLater(find.byType(Scaffold).first,
         matchesGoldenFile('previews/$name.png'));
   }
+
+  testWidgets('paywall, phone', (tester) async {
+    await renderAuth(tester,
+        name: 'paywall',
+        size: const Size(400, 1000),
+        home: PaywallScreen(
+          entitlement: const Entitlement(
+            state: EntitlementState.trialExpired,
+            allowsNewWork: false,
+            shouldOfferSubscription: true,
+            trialDays: 3,
+          ),
+          service: _PreviewStore(),
+          onOpenLink: (_) {},
+        ));
+  });
 
   testWidgets('sign in, phone', (tester) async {
     await renderAuth(tester,
@@ -710,4 +728,37 @@ class _PreviewAuth implements AuthService {
   Future<void> signOut() async {}
   @override
   Future<void> deleteAccount() async {}
+}
+
+/// A store with plausible prices, for the preview only.
+class _PreviewStore implements SubscriptionService {
+  @override
+  Future<List<SubscriptionProduct>> products() async => const [
+        SubscriptionProduct(
+          id: 'voxscripta.monthly',
+          period: BillingPeriod.monthly,
+          title: 'Monthly',
+          price: '\u00a33.99',
+          priceDetail: 'per month',
+        ),
+        SubscriptionProduct(
+          id: 'voxscripta.yearly',
+          period: BillingPeriod.yearly,
+          title: 'Yearly',
+          price: '\u00a329.99',
+          priceDetail: 'per year \u2014 \u00a32.50 a month',
+          savingNote: 'Save 37%',
+        ),
+      ];
+
+  @override
+  Future<void> purchase(SubscriptionProduct product) async {}
+  @override
+  Future<void> restore() async {}
+  @override
+  Uri? get managementPage => null;
+  @override
+  Uri get termsOfUse => Uri.parse('https://example.com/terms');
+  @override
+  Uri get privacyPolicy => Uri.parse('https://example.com/privacy');
 }

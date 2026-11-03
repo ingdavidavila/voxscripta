@@ -11,6 +11,10 @@ import 'src/library/library_model.dart';
 import 'src/library/library_screen.dart';
 import 'src/platform_traits.dart';
 import 'src/import/import_sheet.dart';
+import 'src/paywall/entitlement_model.dart';
+import 'src/paywall/paywall_screen.dart';
+import 'src/paywall/subscription_service.dart';
+import 'src/paywall/trial_banner.dart';
 import 'src/processing/processing_model.dart';
 import 'src/processing/processing_screen.dart';
 import 'src/recording/recording_model.dart';
@@ -42,15 +46,36 @@ class _VoxScriptaAppState extends State<VoxScriptaApp> {
   /// because there is genuinely nothing to sign in to.
   final AuthService? _auth = configuredAuthService();
 
+  /// Null until a store is wired; see `paywall/subscription_service.dart`.
+  /// The engine enforces the wall either way, which is why that file says so
+  /// at length.
+  final SubscriptionService? _store = configuredSubscriptionService();
+
+  /// The trial, read from the engine. Built once the engine is open.
+  EntitlementModel? _entitlement;
+
   @override
   void initState() {
     super.initState();
-    _host.addListener(() => setState(() {}));
+    _host.addListener(_onHostChanged);
     _host.open();
+  }
+
+  /// Starts watching the trial as soon as there is an engine to ask.
+  void _onHostChanged() {
+    final engine = _host.engine;
+    if (_entitlement == null && engine != null) {
+      final model = EntitlementModel(engine)
+        ..addListener(() => setState(() {}));
+      _entitlement = model;
+      model.start();
+    }
+    setState(() {});
   }
 
   @override
   void dispose() {
+    _entitlement?.dispose();
     _host.dispose();
     super.dispose();
   }
@@ -66,6 +91,46 @@ class _VoxScriptaAppState extends State<VoxScriptaApp> {
     );
   }
 
+  /// The trial strip above the library, or nothing while the answer is
+  /// unknown or the user is subscribed.
+  Widget? _trialBanner() {
+    if (_entitlement?.entitlement case final entitlement?) {
+      return TrialBanner(
+        entitlement: entitlement,
+        onSubscribe: _showPaywall,
+      );
+    }
+    return null;
+  }
+
+  /// Shows the paywall if new work is blocked. Returns true when it did, which
+  /// means the caller should stop.
+  bool _walled(BuildContext context) {
+    final model = _entitlement;
+    if (model == null || model.allowsNewWork) return false;
+    _showPaywall(context);
+    return true;
+  }
+
+  void _showPaywall(BuildContext context) {
+    final entitlement = _entitlement?.entitlement;
+    if (entitlement == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PaywallScreen(
+          entitlement: entitlement,
+          service: _store,
+          // The engine is the authority, so a purchase is believed only once
+          // the engine has been told and asked again.
+          onSubscribed: (context) {
+            _entitlement?.refresh();
+            Navigator.of(context).pop();
+          },
+        ),
+      ),
+    );
+  }
+
   /// The account rows for Settings, or nothing when no account service is
   /// configured.
   Widget? _accountSection() {
@@ -77,7 +142,12 @@ class _VoxScriptaAppState extends State<VoxScriptaApp> {
     if (_host.engine case final engine?) {
       return LibraryScreen(
         model: LibraryModel.of(engine),
+        banner: _trialBanner(),
         openImporter: (context) async {
+          // The wall, before the file dialog. The engine refuses anyway, but
+          // asking someone to choose a file and then telling them no is a
+          // worse way to say the same thing.
+          if (_walled(context)) return;
           final choice = await ImportSheet.show(context);
           if (choice == null || !context.mounted) return;
           _startJob(
@@ -87,7 +157,9 @@ class _VoxScriptaAppState extends State<VoxScriptaApp> {
             displayName: _fileName(choice.audioPath),
           );
         },
-        openRecorder: (context) => Navigator.of(context).push(
+        openRecorder: (context) => _walled(context)
+            ? null
+            : Navigator.of(context).push(
           MaterialPageRoute<void>(
             builder: (_) => RecordingScreen(
               model: RecordingModel.of(engine),

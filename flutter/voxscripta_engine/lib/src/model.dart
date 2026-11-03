@@ -566,3 +566,132 @@ class PasswordRule {
 
   final bool satisfied;
 }
+
+// ── The paywall ────────────────────────────────────────────────────────────
+
+/// What a machine may do: the trial, or the subscription after it.
+///
+/// The engine decides this and enforces it; this is the shape it arrives in.
+/// Key off [state], never off [refusal] — that is English prose the engine
+/// supplies for callers that cannot localize, and it is the engine's own
+/// wording so that the SwiftUI app and this one say the same thing.
+enum EntitlementState {
+  /// The trial is running.
+  trialing('trialing'),
+
+  /// The trial ran out and nothing was bought.
+  trialExpired('trialExpired'),
+
+  /// Paid up.
+  subscribed('subscribed'),
+
+  /// Paid once, not any more — a cancellation that ran out, or a card that
+  /// failed past the end of the store's own grace period.
+  subscriptionLapsed('subscriptionLapsed');
+
+  const EntitlementState(this.wireName);
+
+  final String wireName;
+
+  static EntitlementState fromWire(String name) => values.firstWhere(
+        (state) => state.wireName == name,
+        // An unknown state means the engine is newer than this package. Fail
+        // closed: pretending an unrecognised state allows work would be the
+        // one mistake here that costs money.
+        orElse: () => EntitlementState.trialExpired,
+      );
+}
+
+/// How a subscription is billed.
+enum BillingPeriod {
+  monthly('monthly'),
+  yearly('yearly');
+
+  const BillingPeriod(this.wireName);
+
+  final String wireName;
+
+  static BillingPeriod? fromWire(String? name) => name == null
+      ? null
+      : values.where((period) => period.wireName == name).firstOrNull;
+}
+
+/// This machine's entitlement, as the engine reports it.
+class Entitlement {
+  const Entitlement({
+    required this.state,
+    required this.allowsNewWork,
+    required this.shouldOfferSubscription,
+    required this.trialDays,
+    this.trialDaysRemaining,
+    this.trialRemaining,
+    this.period,
+    this.through,
+    this.lapsedSince,
+    this.refusal,
+  });
+
+  factory Entitlement.fromJson(Map<String, Object?> json) {
+    final seconds = (json['trialSecondsRemaining'] as num?)?.toDouble();
+    return Entitlement(
+      state: EntitlementState.fromWire(json['state'] as String? ?? ''),
+      allowsNewWork: json['allowsNewWork'] as bool? ?? false,
+      shouldOfferSubscription: json['shouldOfferSubscription'] as bool? ?? true,
+      trialDays: (json['trialDays'] as num?)?.toInt() ?? 0,
+      trialDaysRemaining: (json['trialDaysRemaining'] as num?)?.toInt(),
+      trialRemaining:
+          seconds == null ? null : Duration(seconds: seconds.round()),
+      period: BillingPeriod.fromWire(json['period'] as String?),
+      through: _dateFrom(json['through']),
+      lapsedSince: _dateFrom(json['lapsedSince']),
+      refusal: json['refusal'] as String?,
+    );
+  }
+
+  /// Epoch seconds from the engine, as a local `DateTime`.
+  ///
+  /// Local rather than UTC because every use of these is a date shown to
+  /// somebody — when a subscription renews, when one lapsed — and a renewal
+  /// date off by a time zone is a support ticket. Compare instants with
+  /// `isAtSameMomentAs`, since Dart's `==` also compares the zone flag.
+  static DateTime? _dateFrom(Object? value) => value == null
+      ? null
+      : DateTime.fromMillisecondsSinceEpoch(
+          ((value as num).toDouble() * 1000).round());
+
+  final EntitlementState state;
+
+  /// Whether a transcription or a recording may start.
+  ///
+  /// Reading, copying, exporting, reviewing polish and every setting are never
+  /// refused for payment, so this governs exactly two buttons.
+  final bool allowsNewWork;
+
+  /// Whether the interface should be showing a way to subscribe.
+  ///
+  /// True during the trial too: a wall that appears for the first time on the
+  /// morning of day four, unannounced, reads as a bait-and-switch.
+  final bool shouldOfferSubscription;
+
+  /// How long the trial is, for showing "3 days" without hardcoding it.
+  final int trialDays;
+
+  /// Whole days left, rounded up, or null when not in a trial. Rounded up so
+  /// the last few hours do not read as "0 days" while the app still works.
+  final int? trialDaysRemaining;
+
+  final Duration? trialRemaining;
+
+  /// The billing period, when subscribed.
+  final BillingPeriod? period;
+
+  /// When paid access ends, or null for open-ended.
+  final DateTime? through;
+
+  /// When access ended, when lapsed.
+  final DateTime? lapsedSince;
+
+  /// The engine's own sentence for why new work is refused, or null when it is
+  /// not. Prefer localized wording keyed off [state]; this is the fallback.
+  final String? refusal;
+}

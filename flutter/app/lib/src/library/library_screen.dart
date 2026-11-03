@@ -15,9 +15,14 @@ class LibraryScreen extends StatefulWidget {
     this.openSettings,
     this.openRecorder,
     this.openImporter,
+    this.banner,
   });
 
   final LibraryModel model;
+
+  /// A strip above the list — the trial's state, when there is one to report.
+  /// Supplied from outside so the library knows nothing about the paywall.
+  final Widget? banner;
 
   /// Opens a project's transcript. Injected rather than built here so the
   /// library's tests do not need an engine to open a row.
@@ -99,7 +104,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
               const SizedBox(width: 4),
             ],
           ),
-          body: _body(model),
+          body: widget.banner == null
+              ? _body(model)
+              : Column(
+                  children: [
+                    widget.banner!,
+                    Expanded(child: _body(model)),
+                  ],
+                ),
         ),
       ),
     );

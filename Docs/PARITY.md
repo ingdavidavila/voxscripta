@@ -70,6 +70,15 @@ Legend: ✓ in the SwiftUI app · ABI column says whether the C ABI can serve it
 | Reveal the password | ✗ | interface-side · Flutter ✓ |
 | Forgotten password | ✗ | ✗ — screen ✓ Flutter, no service |
 | Delete the account from inside the app | ✗ | ✗ — screen ✓ Flutter, no service |
+| **The paywall** | | |
+| 3-day trial from first launch | ✗ | ✓ `vs_entitlement_state` · Flutter ✓ |
+| A clock set backwards does not extend it | ✗ | ✓ — high-water mark in the engine |
+| New transcriptions and recording refused after it | ✗ | ✓ — `vs_job_start`/`vs_recording_start` return -3 |
+| Reading, copying and exporting never refused | ✓ | ✓ — not in `GatedAction` |
+| Trial countdown shown before the wall, not only after | ✗ | interface-side · Flutter ✓ |
+| Subscription screen with price, period and required links | ✗ | interface-side · Flutter ✓ |
+| Buying a subscription | ✗ | ✗ — screen ✓ Flutter, no store |
+| Restoring a purchase | ✗ | ✗ — screen ✓ Flutter, no store |
 | **Everywhere** | | |
 | A tooltip on every button saying what it does | ✓ | interface-side |
 | Dismissible errors carrying the engine's own words | ✓ | ✓ |
@@ -293,3 +302,79 @@ answer: the app transcribes with no account and no network, so it may not
 demand personal information for that. Guideline 5.1.1(v) is why deletion is a
 button on the account screen and not a page on a website. Guideline 4.8 is why
 Apple appears wherever Google does.
+
+
+## The paywall, 2026-11-03
+
+Three days from first launch, then a monthly or yearly subscription. Three
+decisions shaped it, and all three were the user's:
+
+**What the wall blocks: new work only.** Starting a transcription and starting
+a recording. Nothing else — reading any variant, copying it, exporting txt, md,
+docx, srt or vtt, reviewing which polish edits were accepted, deleting a
+project, and every setting all keep working forever. `GatedAction` has exactly
+two cases and a test asserts that it has exactly two, so widening the wall is a
+deliberate act with a failing test attached. The reason is partly trust and
+partly the brief: §5 says the original audio is never touched, and a wall that
+held somebody's finished transcripts would be holding the only copy of work
+they did during the trial.
+
+**What they buy: a subscription**, monthly or yearly. Prices come from the
+store as formatted strings, never as numbers formatted here, because Apple and
+Google already localize them per territory and a hardcoded price is wrong for
+most of the world.
+
+**How the trial is measured: our own clock, no card.** `EntitlementStore` keeps
+a JSON record beside the library. It is leaky and the leak is documented rather
+than papered over: deleting the file, reinstalling, or a new user account on
+the same machine all start a fresh trial. What it does stop is the easy abuse —
+a clock set backwards — because `Entitlement` measures against the latest
+instant the machine ever reported and that mark only ever rises. Winding the
+clock *forward* spends the trial permanently, which is the safe direction to be
+wrong in. A trial that genuinely could not be reset would need either the
+store's own introductory offer, which demands a payment method on day zero, or
+a server of ours, whose absence is the whole premise of the application.
+
+### Where it is enforced
+
+In the engine, at `vs_job_start` and `vs_recording_start`, which both return
+`-3` with the engine's own sentence. Not in the interfaces. A paywall checked
+only by the Flutter app is one the SwiftUI app, the CLI and the next platform
+each have to remember separately, and one of them will not. Both entry points
+take their gate as a parameter so a test can prove the wall without a
+process-global one — otherwise every job test would depend on how many days ago
+the test machine first ran the app.
+
+### What this does not need
+
+A server. StoreKit 2 transactions are signed by Apple and verifiable on the
+device, offline; Play Billing purchases likewise. So unlike the account work,
+the paywall drags no network dependency into an application whose premise is
+that it needs none. Verification happens on the platform side and the outcome
+is recorded through `vs_entitlement_record_subscription` — which means the wall
+is exactly as strong as that platform code, and the ABI documents it that way.
+
+### Outstanding, and one of them is urgent
+
+1. **No store is wired, and the engine walls anyway.** A release build shipped
+   in this state stops transcribing on day four with no way to pay.
+   `configuredSubscriptionService()` returns null and the paywall screen says
+   so in as many words. This is the consequence of putting the wall in the
+   engine where no interface can forget it, and it must be closed before any
+   build ships. `VOXSCRIPTA_ENTITLEMENT` forces a state in debug builds.
+2. **Four purchase implementations**, not one: StoreKit 2 for iOS and macOS
+   (Guideline 3.1.1 forbids anything else), Play Billing for Android (Play's
+   Payments policy, same), your own for direct Windows and Linux downloads, and
+   Microsoft Store IAP if it ships there.
+3. **App Review has to get past the wall** (Guideline 2.1). A reviewer who
+   installs on day one is inside the trial, so this is survivable, but a
+   re-review of an update on a device that already has a spent record is not.
+   Apple's sandbox accounts plus a reviewer note are the usual answer.
+4. **Products to configure** in App Store Connect and the Play Console, with
+   price tiers per territory, plus the Terms of Use URL — Apple requires an
+   EULA link on the paywall itself, and it is a required field on
+   `SubscriptionService` for that reason, not an optional one.
+5. **The landing page** says nothing about a price. It claims a free local app.
+6. **SwiftUI has none of it.** Mac and iPhone get the engine's wall — jobs will
+   be refused with the engine's own message — but no banner, no paywall and no
+   way to buy. That is the next thing to build.

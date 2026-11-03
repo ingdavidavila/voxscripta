@@ -22,7 +22,7 @@ class VoxScriptaEngine {
   /// The ABI this package was written against. A library announcing anything
   /// else is refused at open, rather than crashing later on a signature that
   /// moved — which is the whole reason the version exists.
-  static const int supportedAbiVersion = 7;
+  static const int supportedAbiVersion = 8;
 
   /// How often a running job is polled.
   ///
@@ -274,6 +274,65 @@ class VoxScriptaEngine {
       calloc.free(text);
     }
   }
+
+  // ── The paywall ──────────────────────────────────────────────────────────
+
+  /// What this machine may do: the trial, or the subscription after it.
+  ///
+  /// Read from the engine for the same reason the password rules are: the
+  /// trial clock has to mean the same thing in both interfaces, and a clock
+  /// implemented twice would disagree about a machine that slept through the
+  /// deadline. The engine also enforces it — `start` and `startRecording`
+  /// refuse on their own — so this is for *showing* the state, not for
+  /// deciding it.
+  ///
+  /// Reading it moves the trial's high-water mark forward, which is what stops
+  /// a clock set backwards from returning days already spent.
+  Entitlement entitlement() {
+    final json = _bindings.takeString(_bindings.entitlementState());
+    if (json == null) {
+      throw VoxScriptaException(
+          _bindings.lastError() ?? 'the entitlement could not be read');
+    }
+    return Entitlement.fromJson(jsonDecode(json) as Map<String, Object?>);
+  }
+
+  /// Records a subscription the platform has already verified.
+  ///
+  /// Verification cannot happen here. The proof is a StoreKit 2 transaction
+  /// signed by Apple or a Play Billing purchase, both of which live on the
+  /// platform side of the channel; this records the outcome. The wall is
+  /// therefore exactly as strong as the code that calls this.
+  void recordSubscription({
+    required String productID,
+    required BillingPeriod period,
+    DateTime? expires,
+    DateTime? graceUntil,
+  }) {
+    final payload = jsonEncode({
+      'productID': productID,
+      'period': period.wireName,
+      if (expires != null)
+        'expires': expires.millisecondsSinceEpoch / 1000.0,
+      if (graceUntil != null)
+        'graceUntil': graceUntil.millisecondsSinceEpoch / 1000.0,
+    });
+    final text = payload.toNativeUtf8();
+    try {
+      if (_bindings.entitlementRecordSubscription(text) != 0) {
+        throw VoxScriptaException(
+            _bindings.lastError() ?? 'the subscription could not be recorded');
+      }
+    } finally {
+      calloc.free(text);
+    }
+  }
+
+  /// Forgets the subscription: a refund, or a restore that found nothing.
+  ///
+  /// The trial clock is untouched, so this does not hand back a trial that has
+  /// already been spent.
+  void clearSubscription() => _bindings.entitlementClearSubscription();
 
   // ── Recording ────────────────────────────────────────────────────────────
 

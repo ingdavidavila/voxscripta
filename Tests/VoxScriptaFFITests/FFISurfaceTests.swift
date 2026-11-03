@@ -18,6 +18,7 @@ import VoxScriptaProject
 /// exercised the contract it is meant to pin.
 @Suite("FFI surface")
 struct FFISurfaceTests {
+    init() { FFIEntitlementFixture.useAFreshTrial() }
 
     /// Reads an owned C string and releases it, which is the whole caller
     /// protocol in one function.
@@ -38,7 +39,7 @@ struct FFISurfaceTests {
 
     @Test("The ABI announces a version")
     func version() {
-        #expect(vs_abi_version() == 7)
+        #expect(vs_abi_version() == 8)
     }
 
     @Test("An unknown handle is reported, not crashed on")

@@ -14,7 +14,10 @@ export 'src/recording.dart'
 export 'src/model.dart'
     show
         AudioFacts,
+        BillingPeriod,
         Capabilities,
+        Entitlement,
+        EntitlementState,
         ExportFormat,
         ExportOptions,
         FlaggedSentence,

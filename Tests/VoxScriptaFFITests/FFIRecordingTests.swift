@@ -15,6 +15,7 @@ import VoxScriptaDSP
 /// with a microphone.
 @Suite("FFI recording")
 struct FFIRecordingTests {
+    init() { FFIEntitlementFixture.useAFreshTrial() }
 
     private func take(_ pointer: UnsafeMutablePointer<CChar>?) -> String? {
         guard let pointer else { return nil }
