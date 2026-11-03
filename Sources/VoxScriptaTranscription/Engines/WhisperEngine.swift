@@ -45,11 +45,7 @@ public actor WhisperEngine: TranscriptionEngine {
     /// An environment variable first, so a benchmark can point at a specific
     /// model without editing anything, then the project's own models folder.
     public static func defaultModelURL() -> URL {
-        if let override = ProcessInfo.processInfo.environment["VOXSCRIPTA_WHISPER_MODEL"] {
-            return URL(filePath: override)
-        }
-        return URL(filePath: FileManager.default.currentDirectoryPath)
-            .appending(path: "build/models/ggml-base.bin")
+        ModelSearch.locate("ggml-base.bin", environmentKey: "VOXSCRIPTA_WHISPER_MODEL")
     }
 
     // MARK: - Capabilities

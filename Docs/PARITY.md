@@ -108,15 +108,18 @@ same principle runs through the screen: no default is written in Dart, and
 setting a value *back* to the engine's default removes the override rather than
 pinning today's number forever.
 
-**A gap `vs_capabilities` exposed on the real machine.**
-`LlamaModelHost.defaultModelURL()` resolves `build/models/polish.gguf` relative
-to the *working directory*. That is right for the command line and wrong for a
-packaged application, whose working directory is not the project. So a shipped
-Flutter app on Windows or Linux would report "no bundled model" even with the
-GGUF sitting beside the executable. `VOXSCRIPTA_LLAMA_MODEL` overrides it, so
-nothing is blocked — but packaging has to set that, or the default has to learn
-to look beside the executable the way `EngineHost` already does for the library
-itself.
+**A gap `vs_capabilities` exposed on the real machine, since fixed.** Both
+engines resolved their model by joining `build/models/<name>` onto the
+*working directory* — right for a command line run from the project root, and
+wrong for every packaged application. A shipped Flutter app would have
+reported "no bundled model" with the GGUF sitting beside its executable, and
+POLISH would have been quietly absent with no error anywhere.
+
+`ModelSearch` in `VoxScriptaCore` now answers it once for both engines: an
+environment override, then beside the executable, then an Apple bundle's
+`Resources`, then the development tree found by walking up rather than
+assuming a depth. On this machine the symptom went from `bundled model: none`
+to `bundled model: llama.cpp, polish.gguf`.
 
 ABI 5 added what the processing screen draws: the audio facts on
 `vs_project_summary` — duration, speech regions, the speech spans, how many

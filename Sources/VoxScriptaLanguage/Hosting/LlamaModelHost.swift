@@ -50,11 +50,7 @@ public actor LlamaModelHost: LanguageModelHosting {
     static let contextTokens = 4096
 
     public static func defaultModelURL() -> URL {
-        if let override = ProcessInfo.processInfo.environment["VOXSCRIPTA_LLAMA_MODEL"] {
-            return URL(filePath: override)
-        }
-        return URL(filePath: FileManager.default.currentDirectoryPath)
-            .appending(path: "build/models/polish.gguf")
+        ModelSearch.locate("polish.gguf", environmentKey: "VOXSCRIPTA_LLAMA_MODEL")
     }
 
     public func isReady() async -> Bool { model != nil }
