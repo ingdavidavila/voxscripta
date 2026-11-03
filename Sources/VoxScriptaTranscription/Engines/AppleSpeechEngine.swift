@@ -32,7 +32,6 @@ public actor AppleSpeechEngine: TranscriptionEngine {
         EngineCapabilities(
             supportsWordTimestamps: true,
             supportsDiarization: false,
-            supportsTranslation: false,
             supportedLocales: Set(await SpeechTranscriber.supportedLocales.map { $0.identifier(.bcp47) }),
             maximumChunkDuration: nil
         )

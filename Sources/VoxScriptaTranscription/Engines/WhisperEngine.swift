@@ -54,10 +54,6 @@ public actor WhisperEngine: TranscriptionEngine {
         EngineCapabilities(
             supportsWordTimestamps: true,
             supportsDiarization: false,
-            // Whisper can translate to English, which the pipeline does not ask
-            // for yet. Declared because it is true of the engine, not because
-            // anything calls it.
-            supportsTranslation: true,
             supportedLocales: Self.supportedLocales,
             // Whisper's encoder is trained on 30-second windows. Longer spans
             // are handled internally by sliding, but the chunk planner should
@@ -138,6 +134,10 @@ public actor WhisperEngine: TranscriptionEngine {
         params.greedy.best_of = 1
         params.n_threads = threads
         params.token_timestamps = true
+        // Whisper can translate to English. Vox Scripta does not: a
+        // transcript is a record of what was said, and silently returning it
+        // in another language would make it something else. Set explicitly
+        // rather than left to the default, because this is a decision.
         params.translate = false
         params.no_timestamps = false
         params.print_progress = false

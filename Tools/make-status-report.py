@@ -770,9 +770,6 @@ table([
      "Semantic distance abstains, named entities fall back to capitalized tokens, "
      "content words fall back to surface forms. English loses the second of its "
      "two defences against a reversed meaning.", "A decision"],
-    ["Translation does not exist",
-     "<font face='Courier'>TranscriptionOptions.translate</font> is declared and "
-     "ignored.", "Small"],
     ["Android C++ core is a spike",
      "568 lines cross-compile for four ABIs and pass 13 checks; nothing has been "
      "executed on a device. It is no longer the plan of record.", "Superseded"],
