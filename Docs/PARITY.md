@@ -65,6 +65,23 @@ Legend: ✓ in the SwiftUI app · ABI column says whether the C ABI can serve it
 | A tooltip on every button saying what it does | ✓ | interface-side |
 | Dismissible errors carrying the engine's own words | ✓ | ✓ |
 
+## A reporting bug worth recording, 2026-11-02
+
+The polished variant reported far fewer words than the clean one — on a real
+recording, 13 against clean's 37. It looked like polish deleting a third of a
+transcript, which would have been the most serious defect in the project.
+
+It was the count. `Transcript.wordCount` summed the per-word *timing* arrays,
+and POLISH empties those for every sentence it rewrites, because the timings
+describe the spoken words and the rewritten text no longer matches them. So
+the count counted only the sentences polish happened to leave alone. The text
+was intact throughout — 38 words against clean's 37, which is what a
+readability pass should look like.
+
+Every caller of that figure is a display string: the variant picker, "Copied
+13 words" after a copy, the footer of a Markdown export. It now counts the
+text, so the variants are comparable, which is the only reason to show it.
+
 ## Progress, 2026-11-01
 
 ABI 2 closed the library and the settings. Twelve symbols became seventeen,

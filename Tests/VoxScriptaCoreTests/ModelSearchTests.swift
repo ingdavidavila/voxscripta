@@ -95,3 +95,61 @@ struct ModelSearchTests {
         #expect(found.lastPathComponent == name)
     }
 }
+
+/// The word count, which is a display figure on every screen that shows it.
+@Suite("Transcript word count")
+struct TranscriptWordCountTests {
+
+    private func segment(_ text: String, timedWords: Int) -> TranscriptSegment {
+        TranscriptSegment(
+            originalStart: .zero, originalEnd: .seconds(1), text: text,
+            words: (0..<timedWords).map {
+                Word(text: "w\($0)", originalStart: .zero, originalEnd: .zero,
+                     confidence: 1)
+            })
+    }
+
+    private func transcript(_ segments: [TranscriptSegment],
+                            variant: TranscriptVariant = .clean) -> Transcript {
+        Transcript(variant: variant, segments: segments, provenance: Provenance())
+    }
+
+    @Test("Counts the words in the text")
+    func countsTheText() {
+        let t = transcript([segment("one two three", timedWords: 3),
+                            segment("four five", timedWords: 2)])
+        #expect(t.wordCount == 5)
+    }
+
+    @Test("A polished segment with its timings dropped still counts")
+    func timingsDroppedStillCounts() {
+        // This is the bug this count had. POLISH empties `words` for every
+        // sentence it rewrites, so counting the timing array counted only the
+        // sentences it left alone — on a real recording, 13 against 38.
+        let t = transcript([
+            segment("the harbour was quiet that morning", timedWords: 0),
+            segment("nobody had arrived", timedWords: 0),
+        ], variant: .polished)
+        #expect(t.wordCount == 9)
+    }
+
+    @Test("A variant that rewrites some sentences stays comparable")
+    func mixedSegmentsAreComparable() {
+        // The number exists so a reader can compare variants. If rewritten
+        // sentences vanished from it, polish would look like deletion.
+        let clean = transcript([segment("we did not approve it", timedWords: 5),
+                                segment("the server is down", timedWords: 4)])
+        let polished = transcript([
+            segment("We did not approve it.", timedWords: 0),
+            segment("the server is down", timedWords: 4),
+        ], variant: .polished)
+        #expect(clean.wordCount == 9)
+        #expect(polished.wordCount == 9)
+    }
+
+    @Test("Empty text counts as nothing, not as its timings")
+    func emptyTextIsZero() {
+        #expect(transcript([segment("", timedWords: 4)]).wordCount == 0)
+        #expect(transcript([]).wordCount == 0)
+    }
+}
