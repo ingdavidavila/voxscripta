@@ -89,20 +89,24 @@ With an account service:
 
 ## The privacy policy itself
 
-Still **unwritten and unhosted**, and it is the single item blocking the most:
+**Written**, at `Docs/privacy-policy.md`. Still **unhosted**, which is what
+actually blocks:
 the iOS submission, the Play submission, and the paywall — Guideline 3.1.2
 requires a Privacy Policy link on the subscription screen itself, which is why
 `StoreKitSubscriptionService` takes the URL as a required argument rather than
 an optional one.
 
-To write it, three facts are still needed and none of them can be inferred:
+Two placeholders remain in it, both marked in the source and both trivial to
+fill once decided:
 
-1. A **contact email** for the policy. The developer's personal address is on
-   file in this project but has deliberately not been used, because putting it
-   on a public page is a decision rather than a detail.
-2. The **country** whose law governs, for the governing-law clause.
-3. The **URL** it will live at. GitHub Pages on the existing repository would
-   serve it at no cost.
+1. The **contact address**, currently `privacy@example.com`. A published
+   policy's address gets scraped within days, so a dedicated address on a
+   domain you control beats a personal mailbox.
+2. The **state**, for the governing-law clause. United States is settled;
+   American governing-law clauses name a state as well.
+
+And it still needs **a URL**. GitHub Pages on this repository serves it at no
+cost, and both store listings want the address rather than the text.
 
 The text itself is short, because the app does so little: it collects nothing
 in current builds, and an email address if accounts are ever wired.
