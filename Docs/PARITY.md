@@ -556,7 +556,7 @@ order. Both compare values rather than requiring I/O, so both are the same
 shape of work as the two already done.
 
 
-### A defect the suite found on its first run
+### A defect the suite found on its first run — since fixed
 
 `TranscriptMerger::normalize` does not agree with the Swift original on
 non-ASCII text, and `normalize` is how the merger decides two chunks overlap.
@@ -592,7 +592,34 @@ Latin-1 Supplement (U+00C0–U+00FF) and General Punctuation (U+2000–U+206F)
 explicitly, which is bounded, needs no dependency, and closes every case
 above.
 
-The six cases sit in `MergerParityTests` inside `withKnownIssue`, so the suite
-is green while the defect stands and **fails the moment it is fixed** — which
-is when someone should delete the wrapper and move them into the agreeing
-list.
+**Fixed on the Windows machine, 2026-11-04** (`8f69be1`). `core/unicode_lite`
+decodes UTF-8 and keeps a code point when it is a letter or a number, with any
+combining marks that follow, dropping everything else — a category test rather
+than the punctuation blocklist that would have aged badly. Malformed UTF-8
+becomes U+FFFD and is dropped, which is what Swift does after repair. All six
+cases now agree and the `withKnownIssue` wrapper is gone.
+
+### What 25 probes then found
+
+Having a working comparison, it was worth asking where the port's tables
+actually end. Twenty-five probes across Greek (including the final-sigma
+context), Cyrillic, Turkish dotted capital İ, Vietnamese, Hebrew, Arabic,
+Thai, katakana, hiragana, Hangul, CJK, fullwidth Latin, Devanagari, Georgian,
+decomposed combining marks, superscript and circled and Roman numerals,
+Arabic-Indic digits and an emoji.
+
+**Twenty-three agree.** Including the ones most likely to catch a hand-built
+table out: Swift's `isNumber` is true for `²`, `①` and `Ⅷ` — three different
+Unicode number categories — and the port matches on all of them.
+
+Two diverge, both Latin Extended-B case pairs the port's own notes predicted:
+
+| Input | Swift | C++ |
+| --- | --- | --- |
+| `Ǆ` U+01C4 | `ǆ` U+01C6 | unchanged |
+| `Ʒ` U+01B7 | `ʒ` U+0292 | unchanged |
+
+Ǆ is a Croatian and Serbian digraph; Ʒ is IPA and Skolt Sami. Neither is
+likely in a transcript this app sees soon, which is why they are recorded
+rather than treated as urgent — but they are recorded, because "unlikely" is
+exactly how the apostrophe got missed.

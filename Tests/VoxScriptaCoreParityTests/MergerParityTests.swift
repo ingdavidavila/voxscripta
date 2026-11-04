@@ -15,21 +15,24 @@ import VoxScriptaCxxShim
 @Suite("Transcript merger parity")
 struct MergerParityTests {
 
-    /// Text both normalizers handle identically today.
+    /// The cases that used to diverge, now held.
+    ///
+    /// These were wrapped in `withKnownIssue` while the C++ port normalized
+    /// bytes and Swift normalized Unicode. The port now decodes UTF-8 and
+    /// applies a category test — letter or number, plus trailing combining
+    /// marks — rather than a punctuation blocklist, so they agree and the
+    /// wrapper is gone.
     static let agreeing: [String] = [
         "hello", "Hello", "HELLO", "hello, world!", "it's",
-        "caf\u{00E9}",   // café — already lower case, so the bytes survive
-        "ni\u{00F1}o",
         "one two", "42", "",
-    ]
-
-    /// Text they do **not** agree on. See `normalizeDiverges` below.
-    static let diverging: [String] = [
+        "caf\u{00E9}",
+        "ni\u{00F1}o",
         "it\u{2019}s",
         "don\u{2019}t",
         "CAF\u{00C9}",
         "NI\u{00D1}O",
         "\u{00BF}Qu\u{00E9}?",
+        "\u{00A1}Hola!",
         "a\u{2014}b",
     ]
 
@@ -44,42 +47,75 @@ struct MergerParityTests {
                 "\(debugging(text)): Swift \(debugging(swift)), C++ \(debugging(cxx))")
     }
 
-    /// A real defect, recorded rather than hidden.
+    /// Scripts and cases beyond the six, to find where the tables end.
     ///
-    /// Swift normalizes with full Unicode: `lowercased()` then keep anything
-    /// `isLetter || isNumber`. The C++ port works on bytes — it lower-cases
-    /// ASCII, drops ASCII punctuation, and keeps every byte ≥ 0x80 exactly as
-    /// it found it. So they part company in two ways:
+    /// The port's letter and number tables cover the common blocks and its
+    /// case folding is explicit per range, so somewhere there is a letter it
+    /// drops that Swift keeps. Better to know where than to meet it in a
+    /// transcript. Reported as one list rather than one failure per case, so
+    /// the gaps can be read together.
+    static let probes: [String] = [
+        "\u{039F}\u{0394}\u{039F}\u{03A3}",       // ΟΔΟΣ — final sigma context
+        "\u{03A3}\u{03A3}",                         // ΣΣ
+        "\u{041C}\u{041E}\u{0421}\u{041A}\u{0412}\u{0410}",  // МОСКВА
+        "\u{1E9E}",                                  // ẞ capital sharp s
+        "STRA\u{00DF}E",
+        "\u{0130}stanbul",                           // İ Turkish dotted capital
+        "VI\u{1EC6}T",                               // Vietnamese, Latin Extended Additional
+        "\u{05E9}\u{05DC}\u{05D5}\u{05DD}",       // שלום Hebrew
+        "\u{0645}\u{0631}\u{062D}\u{0628}\u{0627}", // مرحبا Arabic
+        "\u{0E2A}\u{0E27}\u{0E31}\u{0E2A}\u{0E14}\u{0E35}", // สวัสดี Thai
+        "\u{30AB}\u{30BF}\u{30AB}\u{30CA}",       // カタカナ
+        "\u{3072}\u{3089}\u{304C}\u{306A}",       // ひらがな
+        "\u{D55C}\u{AD6D}\u{C5B4}",                // 한국어
+        "\u{4E2D}\u{6587}",                         // 中文
+        "\u{FF21}\u{FF22}\u{FF23}",                      // ＡＢＣ fullwidth
+        "e\u{0301}",                                 // e + combining acute
+        "\u{0928}\u{092E}\u{0938}\u{094D}\u{0924}\u{0947}", // नमस्ते Devanagari
+        "\u{10E5}\u{10D0}\u{10E0}\u{10D7}",       // ქართ Georgian
+        "\u{00B2}",                                  // ² superscript two
+        "\u{2460}",                                  // ① circled one
+        "\u{2167}",                                  // Ⅷ roman numeral
+        "\u{0661}\u{0662}",                         // ١٢ Arabic-Indic digits
+        "caf\u{00E9} \u{1F44D}",                    // emoji, both should drop
+    ]
+
+    /// Latin Extended-B case pairs the port does not fold.
     ///
-    ///  * **Non-ASCII punctuation survives in C++.** U+2019, the typographic
-    ///    apostrophe, is the one that matters: recognisers emit it constantly,
-    ///    so "don’t" normalizes to "dont" on Apple and "don’t" everywhere
-    ///    else. Spanish ¿ and ¡ and the em dash behave the same way.
-    ///  * **Accented capitals are not lower-cased in C++.** "NIÑO" becomes
-    ///    "niño" on Apple and "niÑo" elsewhere.
+    /// The only two gaps found in 25 probes spanning Greek, Cyrillic,
+    /// Turkish, Vietnamese, Hebrew, Arabic, Thai, kana, Hangul, CJK,
+    /// fullwidth, Devanagari, Georgian, combining marks and the wider number
+    /// categories. Everything else agrees.
     ///
-    /// Why it is not merely cosmetic: `normalize` is how the merger decides
-    /// two chunks overlap. Within one platform the comparison is at least
-    /// self-consistent, but the C++ rule **fails to match** a word that
-    /// carries punctuation against the same word without it — a seam where
-    /// one chunk ends "hola" and the next begins "¡hola" deduplicates on
-    /// Apple and does not off it. The visible result is a duplicated word at
-    /// a chunk boundary, on Windows and Android, in exactly the languages
-    /// this app went to the trouble of measuring.
-    ///
-    /// Not fixed here. Exact parity with Swift's Unicode semantics is not
-    /// reachable in plain C++ without a Unicode table, and `core/` is being
-    /// worked on from the Windows machine — a conflict there would cost more
-    /// than this test saves. `withKnownIssue` keeps the suite honest: it goes
-    /// green while the defect stands and fails the moment it is fixed, which
-    /// is when someone should delete this and move these cases above.
-    @Test("normalize diverges on non-ASCII, which is a defect", arguments: diverging)
-    func normalizeDiverges(text: String) {
-        withKnownIssue("C++ normalize is byte-based; Swift is Unicode-aware") {
+    /// Ǆ is a Croatian and Serbian Latin digraph; Ʒ is IPA and Skolt Sami.
+    /// Neither is likely in a transcript this app will see soon, which is why
+    /// they are recorded rather than treated as urgent — but they are
+    /// recorded, because "unlikely" is how the apostrophe got missed.
+    @Test("Latin Extended-B digraphs are not folded", arguments: [
+        "\u{01C4}",   // Ǆ → Swift ǆ U+01C6
+        "\u{01B7}",   // Ʒ → Swift ʒ U+0292
+    ])
+    func latinExtendedBDiverges(text: String) {
+        withKnownIssue("C++ case folding does not cover these Latin Extended-B pairs") {
             let (swift, cxx) = normalized(text)
             #expect(swift == cxx,
                     "\(debugging(text)): Swift \(debugging(swift)), C++ \(debugging(cxx))")
         }
+    }
+
+    @Test("probe: 23 scripts and number categories agree")
+    func probeTheTables() {
+        var gaps: [String] = []
+        for text in Self.probes {
+            let (swift, cxx) = normalized(text)
+            if swift != cxx {
+                gaps.append("\(debugging(text)) → Swift \(debugging(swift)) | C++ \(debugging(cxx))")
+            }
+        }
+        let summary = gaps.isEmpty
+            ? "no gaps"
+            : "\(gaps.count) of \(Self.probes.count) diverge:\n" + gaps.joined(separator: "\n")
+        #expect(gaps.isEmpty, "\(summary)")
     }
 
     private func debugging(_ s: String) -> String {
