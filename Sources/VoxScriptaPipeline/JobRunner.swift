@@ -3,7 +3,6 @@ import VoxScriptaCore
 import VoxScriptaDSP
 import VoxScriptaTranscription
 import VoxScriptaLanguage
-import VoxScriptaMLX
 import VoxScriptaProject
 
 /// A point at which the runner will deliberately kill the process.
@@ -91,9 +90,83 @@ public struct JobProgressReport: Sendable {
 /// planner can reason about.
 public struct JobRunner: Sendable {
     private let engineFactory: @Sendable () -> any TranscriptionEngine
+    private let gate: EntitlementStore
 
-    public init(engineFactory: @escaping @Sendable () -> any TranscriptionEngine = { AppleSpeechEngine() }) {
-        self.engineFactory = engineFactory
+    /// - Parameter gate: the trial and subscription record consulted before
+    ///   any work starts. Defaults to this machine's real one.
+    ///
+    ///   It is a parameter so a test can supply a record it owns. Without
+    ///   that, every pipeline test would start failing three days after the
+    ///   machine running them first ran the app — a suite that measures the
+    ///   calendar rather than the code.
+    public init(
+        engineFactory: (@Sendable () -> any TranscriptionEngine)? = nil,
+        gate: EntitlementStore = EntitlementStore()
+    ) {
+        self.engineFactory = engineFactory ?? Self.defaultEngine
+        self.gate = gate
+    }
+
+    /// The recogniser used when the caller names none.
+    ///
+    /// Apple's where it exists, because it is the one the word error rates in
+    /// this project were measured with, and whisper.cpp everywhere else —
+    /// which was measured against it on the same audio before being relied on.
+    public static let defaultEngine: @Sendable () -> any TranscriptionEngine = {
+        #if canImport(Speech)
+        AppleSpeechEngine()
+        #else
+        WhisperEngine()
+        #endif
+    }
+
+    /// The decoder used for the one pass that turns a source file into
+    /// canonical 16 kHz mono float PCM.
+    ///
+    /// AVFoundation where it exists and FFmpeg everywhere else. Unlike the
+    /// engines, these two are not an approximation of each other:
+    /// `PortableDecoderTests` holds them to the same samples on the same files
+    /// — 0 samples of offset, and 1.4e-5 peak difference on WAV — so which one
+    /// ran is not something a later stage can tell.
+    public static let defaultDecoder: @Sendable () -> any CanonicalDecoding = {
+        #if canImport(AVFoundation)
+        CanonicalDecoder()
+        #else
+        PortableDecoder()
+        #endif
+    }
+
+    /// Languages worth probing: one locale per language the text stages
+    /// support, restricted to models already on the machine, plus whatever the
+    /// user actually chose.
+    ///
+    /// One per language rather than per locale — nine English variants would
+    /// cost nine probes to learn the same thing. The user's own choice is
+    /// always included even if its model is not installed yet, because asking
+    /// for it is consent to fetch it.
+    static func probeCandidates(for requested: String) async -> [String] {
+        #if canImport(Speech)
+        // Apple ships one model per locale, fetched on demand, so a locale with
+        // nothing installed is not worth probing — and probing it would start a
+        // download the user never asked for.
+        let installed = await AppleSpeechEngine.installedLocaleIdentifiers()
+        #else
+        // whisper.cpp is a single multilingual model: every language the text
+        // stages support is already on disk the moment the model is, so there
+        // is nothing to filter by and nothing a probe could trigger.
+        let installed = Set(TranscriptLanguage.allCases.flatMap(\.offeredLocales))
+        #endif
+        var candidates: [String] = [requested]
+        for language in TranscriptLanguage.allCases {
+            let already = candidates.contains {
+                TranscriptLanguage(localeIdentifier: $0) == language
+            }
+            guard !already,
+                  let match = language.offeredLocales.first(where: installed.contains)
+            else { continue }
+            candidates.append(match)
+        }
+        return candidates
     }
 
     public func run(
@@ -101,7 +174,16 @@ public struct JobRunner: Sendable {
         options: JobOptions = JobOptions(),
         progress: @escaping @Sendable (JobProgressReport) -> Void = { _ in }
     ) async throws -> Transcript {
-        let options = resolved(options, for: project)
+        // The paywall, before the source is even resolved.
+        //
+        // Here rather than in each interface. The SwiftUI app, the CLI and
+        // the C ABI all come through this one method, and the first version
+        // of this wall lived only in `vs_job_start` — which meant Mac and
+        // iPhone, the platforms that can actually ship, were never behind it
+        // at all. One gate, and nothing can forget to ask.
+        try gate.require(.startJob)
+
+        var options = resolved(options, for: project)
         let package = project.package
         let (sourceURL, release) = try project.resolveSource()
         defer { release() }
@@ -117,7 +199,9 @@ public struct JobRunner: Sendable {
             // transcription hash, so taking them from ambient defaults would make
             // simply reopening a project re-transcribe it.
             locale: project.manifest.locale,
-            concurrency: project.manifest.concurrency)
+            concurrency: project.manifest.concurrency,
+            cleanDescription: Self.describe(options.clean),
+            polishDescription: Self.describe(options.polish))
 
         let plan = try await ResumePlanner().plan(for: project, inputs: inputs)
 
@@ -174,7 +258,8 @@ public struct JobRunner: Sendable {
         if startStage <= .decode {
             try await advance(project, .analyzing, progress, 0.0, "Decoding audio")
             try crashIfRequested(options, .decode, .before)
-            _ = try await CanonicalDecoder().decode(url: sourceURL, to: package.canonicalAudioURL) { p in
+            _ = try await Self.defaultDecoder().decode(
+                url: sourceURL, to: package.canonicalAudioURL) { p in
                 progress(JobProgressReport(state: .analyzing, fraction: p * 0.05, detail: "Decoding audio"))
             }
             try await project.store.setStageHash(.decode, to: inputs.hash(for: .decode))
@@ -235,6 +320,58 @@ public struct JobRunner: Sendable {
             chunkPlan = try AtomicFile.readJSON(ChunkPlan.self, from: package.chunkPlanURL)
         }
 
+        // ── Language ────────────────────────────────────────────────────────
+        // Settled before transcription rather than checked after it. Getting
+        // this wrong does not produce a bad transcript, it produces an empty
+        // one, and the cost of being sure is a fraction of a second: a
+        // twenty-second sample across the installed languages, at 120× real
+        // time.
+        //
+        // Only runs when the project has not already fixed a language. A
+        // reopened project keeps the locale it was built with, because the
+        // locale is part of the content hash and re-detecting could silently
+        // invalidate completed work.
+        if options.transcription.detectLanguage, project.manifest.detectedLocale == nil {
+            let candidates = await Self.probeCandidates(for: options.transcription.locale)
+            if candidates.count > 1 {
+                try await advance(project, .transcribing, progress, 0.12, "Detecting language")
+                let outcome = await LanguageProbe.detect(
+                    in: package.canonicalAudioURL,
+                    speech: silenceMap.speechRegions.map(\.range),
+                    candidates: candidates,
+                    options: options.transcription,
+                    makeEngine: engineFactory)
+
+                // The scores go into the progress line. A detection that
+                // picks the wrong language is worse than none, so what it saw
+                // has to be visible rather than buried.
+                let summary = outcome.scores
+                    .map { String(format: "%@ %dw×%.2f", $0.locale, $0.words, $0.confidence) }
+                    .joined(separator: ", ")
+
+                if let detected = outcome.locale {
+                    options.transcription.locale = detected
+                    // The text stages follow the detected language, not the
+                    // one the project was created with.
+                    options = Self.applyingLanguage(to: options)
+                    try await project.recordDetectedLocale(detected)
+                    try await advance(project, .transcribing, progress, 0.13,
+                                      "Language: \(detected) (\(summary))")
+                } else {
+                    // Inconclusive. The user's own setting stands, and the
+                    // project is not marked as detected so a later run with
+                    // more models installed can try again.
+                    try await advance(project, .transcribing, progress, 0.13,
+                                      "Language undetermined (\(summary))")
+                }
+            }
+        }
+
+        // Frozen once the language is settled: everything below runs
+        // concurrently and must capture a value that cannot change under it.
+        let crashPoint = options.crashPoint
+        let transcription = options.transcription
+
         // ── Transcription ───────────────────────────────────────────────────
         try await advance(project, .transcribing, progress, 0.12, "Transcribing")
         let engine = engineFactory()
@@ -279,7 +416,7 @@ public struct JobRunner: Sendable {
                     try await project.store.commitChunkResult(record, resultData: data, to: url)
 
                     let n = await committedCount.increment()
-                    if let crash = options.crashPoint, crash.stage == .transcription,
+                    if let crash = crashPoint, crash.stage == .transcription,
                        let after = crash.afterChunks, n >= after {
                         Self.die("transcription after \(n) chunks")
                     }
@@ -302,13 +439,43 @@ public struct JobRunner: Sendable {
 
         // ── Merge ───────────────────────────────────────────────────────────
         try await advance(project, .merging, progress, 0.82, "Assembling transcript")
-        let transcript = try TranscriptMerger().merge(
+        var transcript = try TranscriptMerger().merge(
             chunks: results, plan: chunkPlan, silenceMap: silenceMap,
             provenance: Provenance(
                 engineID: engine.identifier,
                 silenceParameterHash: inputs.hash(for: .silence),
                 chunkParameterHash: inputs.hash(for: .chunking),
                 concurrency: options.transcription.concurrency))
+
+        // Before anything is written as a result, check it is one. A
+        // recording in the wrong language does not make the engine fail — it
+        // returns no words, and an empty transcript is otherwise
+        // indistinguishable from success. This is the only place that
+        // difference can still be seen.
+        if let finding = LanguageDetection.diagnose(
+            text: transcript.plainText(),
+            locale: options.transcription.locale,
+            speechDuration: silenceMap.speechDuration) {
+            switch finding {
+            case .noWordsRecognized(let locale, _):
+                throw VoxScriptaError.noWordsRecognized(locale: locale)
+            // Carried on the first segment rather than on the transcript:
+            // warnings are a segment field, and adding one to Transcript would
+            // change the persisted shape of every existing project. The
+            // finding describes the whole transcript, which is what the
+            // wording says.
+            case .tooFewWords(_, let words, let speechSeconds):
+                if !transcript.segments.isEmpty {
+                    transcript.segments[0].warnings.append(
+                        .fewWordsForSpeech(words: words, speechSeconds: Int(speechSeconds)))
+                }
+            case .languageMismatch(let locale, let detected, _):
+                if !transcript.segments.isEmpty {
+                    transcript.segments[0].warnings.append(
+                        .languageLooksWrong(transcribedAs: locale, detected: detected))
+                }
+            }
+        }
 
         try AtomicFile.writeJSON(transcript, to: package.transcriptURL)
         try AtomicFile.write(Data(transcript.plainText().utf8),
@@ -387,7 +554,65 @@ public struct JobRunner: Sendable {
         var resolved = options
         resolved.transcription.locale = project.manifest.locale
         resolved.transcription.concurrency = project.manifest.concurrency
-        return resolved
+
+        // The text stages work in the language the audio was transcribed in,
+        // derived here rather than left to each caller. The app set it from
+        // its own settings and the CLI never set it at all, so every CLI run
+        // polished Spanish with English prompts and validated it against
+        // English lexicons — which is not a weakness of Spanish polish, it is
+        // not having run Spanish polish.
+        return Self.applyingLanguage(to: resolved)
+    }
+
+    /// A stable textual form of the clean settings, for the stage hash.
+    ///
+    /// Written out by hand rather than taken from `hashValue`, which Swift
+    /// seeds per process and would therefore invalidate every stage on every
+    /// launch.
+    static func describe(_ p: CleanParameters) -> String {
+        "\(p.language.rawValue),\(p.removeFillers),\(p.collapseRepetitions),"
+            + "\(p.repairPunctuation),\(p.normalizeCapitalization),"
+            + "\(p.terminateSentences),\(p.maximumStutterGap.nanoseconds),"
+            // Every field, so that changing any of them re-runs the stage.
+            // A parameter left out here is a setting that appears to do
+            // nothing, which this file has already shipped once.
+            + "\(p.confidenceFloor.map { String($0) } ?? "none")"
+    }
+
+    static func describe(_ p: PolishParameters?) -> String {
+        guard let p else { return "none" }
+        let t = p.thresholds
+        return "\(p.language.rawValue),\(p.promptVersion),\(p.windowSize),"
+            + "\(p.contextSentences),\(p.retryOnRejection),"
+            + "\(t.maximumSemanticDistance),\(t.minimumLengthRatio),"
+            + "\(t.maximumLengthRatio),\(t.minimumContentWordOverlap),"
+            + "\(t.maximumContentWordInjection),\(t.perWindowPolarity)"
+    }
+
+    /// Points the text stages at the language of `transcription.locale`.
+    ///
+    /// Applied twice: once from the manifest, and again after the language
+    /// probe, because the probe changes the locale and everything downstream
+    /// has to follow it. Deriving it only the first time meant a detected
+    /// Spanish recording was still polished with English prompts and
+    /// validated against English lexicons.
+    static func applyingLanguage(to options: JobOptions) -> JobOptions {
+        var options = options
+        guard let language = TranscriptLanguage(localeIdentifier: options.transcription.locale)
+        else {
+            // No lexicons for this language. Clean would apply another
+            // language's filler list and polish would validate against the
+            // wrong negations, so polish does not run.
+            options.polish = nil
+            return options
+        }
+        options.clean.language = language
+        options.polish?.language = language
+        options.polish?.promptVersion = PolishPrompt.version(for: language)
+        // A language whose defences have not been measured does not get a
+        // polish pass, whatever the caller asked for.
+        if !PolishReadiness.isValidated(language) { options.polish = nil }
+        return options
     }
 
     private func stageInputs(for project: Project, options: JobOptions) async throws -> StageInputs {
@@ -402,7 +627,9 @@ public struct JobRunner: Sendable {
             // transcription hash, so taking them from ambient defaults would make
             // simply reopening a project re-transcribe it.
             locale: project.manifest.locale,
-            concurrency: project.manifest.concurrency)
+            concurrency: project.manifest.concurrency,
+            cleanDescription: Self.describe(options.clean),
+            polishDescription: Self.describe(options.polish))
     }
 
     /// Reads a produced variant back from a completed project.

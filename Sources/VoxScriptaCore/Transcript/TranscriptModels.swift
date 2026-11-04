@@ -30,6 +30,13 @@ public enum SegmentWarning: Hashable, Sendable, Codable {
     case transcriptionGap
     /// Polished output failed validation and fell back to the clean text.
     case polishFellBack(reasons: [String])
+    /// The transcript does not read as the language it was transcribed as.
+    ///
+    /// Carried on the transcript rather than thrown, because the text is still
+    /// readable and the reader is better placed than the app to judge it.
+    case languageLooksWrong(transcribedAs: String, detected: String)
+    /// Far fewer words than the detected speech accounts for.
+    case fewWordsForSpeech(words: Int, speechSeconds: Int)
     /// Polished output was accepted only after a retry.
     case polishRetried
 }
@@ -147,7 +154,22 @@ public struct Transcript: Sendable, Codable {
     }
 
     public var isEmpty: Bool { segments.isEmpty }
-    public var wordCount: Int { segments.reduce(0) { $0 + $1.words.count } }
+    /// How many words the transcript contains.
+    ///
+    /// Counted from the text, not from the per-word timings, and the
+    /// distinction is not academic. POLISH empties the timing array for every
+    /// sentence it rewrites — the timings describe the spoken words and the
+    /// rewritten text no longer matches them — so counting timings counted
+    /// only the sentences polish happened to leave alone.
+    ///
+    /// On a real recording that read 13 against the 38 words actually in the
+    /// file, and every caller of this is a display string: "1,702 words" under
+    /// the variant picker, "Copied 13 words" after a copy, the footer of a
+    /// Markdown export. All of them want the number a reader would get by
+    /// counting.
+    public var wordCount: Int {
+        segments.reduce(0) { $0 + $1.text.split(whereSeparator: \.isWhitespace).count }
+    }
 
     /// The span from the first segment's start to the last segment's end.
     public var timeRange: TimeRange? {
@@ -162,12 +184,14 @@ public struct Transcript: Sendable, Codable {
     }
 
     /// Plain text with paragraph breaks derived from measured pauses.
+    /// The transcript as readable prose, broken into paragraphs.
+    ///
+    /// Breaks come from the pauses the speaker actually left, found in the
+    /// word timings, rather than from wherever the engine happened to end a
+    /// segment. See ``Paragraphs`` — a segment per sentence and a segment per
+    /// hundred words are both normal, and only one of them produces readable
+    /// text without this.
     public func plainText(using p: SilenceParameters = .default) -> String {
-        var out = ""
-        for (i, seg) in segments.enumerated() {
-            if i > 0 { out += seg.startsParagraph(using: p) ? "\n\n" : " " }
-            out += seg.text
-        }
-        return out
+        Paragraphs.split(self, using: p).joined(separator: "\n\n")
     }
 }

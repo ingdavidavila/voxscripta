@@ -2,7 +2,7 @@ import Testing
 import Foundation
 import VoxScriptaCore
 import VoxScriptaPipeline
-@testable import VoxScriptaApp
+@testable import VoxScriptaUI
 
 /// The mechanism behind "the UI never looks frozen".
 ///

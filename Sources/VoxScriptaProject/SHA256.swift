@@ -1,5 +1,11 @@
 import Foundation
+#if canImport(CryptoKit)
 import CryptoKit
+#else
+// swift-crypto, which is the same API without the system framework behind
+// it. Apple's is preferred where it exists because it is hardware-backed.
+import Crypto
+#endif
 
 /// Incremental SHA-256, so large files hash without being loaded.
 struct SHA256Streaming {

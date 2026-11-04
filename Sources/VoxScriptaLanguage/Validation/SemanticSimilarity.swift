@@ -1,5 +1,8 @@
 import Foundation
+#if canImport(NaturalLanguage)
 import NaturalLanguage
+#endif
+import VoxScriptaCore
 
 /// Sentence-level semantic distance, on device.
 ///
@@ -9,32 +12,104 @@ import NaturalLanguage
 ///
 /// A class because loading the model costs real time and it is reused across
 /// every window of a transcript.
+///
+/// The model is per language, and the languages do not behave alike. See
+/// ``catchesNegation(in:)`` — this is not a detail that can be papered over
+/// with a different threshold.
 public final class SemanticSimilarity: @unchecked Sendable {
     private let lock = NSLock()
-    private var embedding: NLEmbedding?
-    private var loaded = false
+    #if canImport(NaturalLanguage)
+    private var embeddings: [TranscriptLanguage: NLEmbedding?] = [:]
+    #endif
 
-    public init() {}
+    /// Whether this instance will consult a model at all.
+    private let consultsModel: Bool
+
+    public init() { consultsModel = true }
+
+    private init(consultsModel: Bool) { self.consultsModel = consultsModel }
 
     public static let shared = SemanticSimilarity()
+
+    /// Behaves as though no embedding model exists.
+    ///
+    /// For reproducing the off-Apple configuration on a Mac, which is the only
+    /// way to measure it: Windows, Linux and Android have no `NLEmbedding`,
+    /// and a claim about how the gauntlet behaves there cannot honestly be
+    /// made from a machine where the model is present. The rejection corpora
+    /// use it to answer whether the lexical checks hold on their own.
+    public static let unavailable = SemanticSimilarity(consultsModel: false)
+
+    /// Whether this language's embedding separates a negated sentence from its
+    /// original well enough for distance alone to catch a meaning inversion.
+    ///
+    /// English: yes, and decisively. Measured over five negation pairs, the
+    /// distances ran 0.727 to 1.020 against a 0.72 rejection threshold — five
+    /// of five caught.
+    ///
+    /// Spanish: no. The same five pairs translated ran 0.274 to 0.479, none
+    /// caught. They score *closer* than Spanish paraphrases do (0.473), so the
+    /// model barely encodes negation at all and no threshold separates the two
+    /// populations. Lowering the threshold would reject every legitimate
+    /// rewrite before it caught a single inversion.
+    ///
+    /// The consequence is structural rather than numeric: in Spanish the
+    /// lexical polarity check is the only defence against a flipped sentence,
+    /// where in English it is one of two. ``ValidationGauntlet`` must not treat
+    /// a passing distance as evidence of preserved polarity in a language where
+    /// this returns false.
+    public static func catchesNegation(in language: TranscriptLanguage) -> Bool {
+        switch language {
+        case .english: true
+        case .spanish: false
+        }
+    }
+
+    #if canImport(NaturalLanguage)
+    private static func nlLanguage(for language: TranscriptLanguage) -> NLLanguage {
+        switch language {
+        case .english: .english
+        case .spanish: .spanish
+        }
+    }
+    #endif
+
+    #if canImport(NaturalLanguage)
+    /// Loads on first use per language. Caller must hold `lock`.
+    private func model(for language: TranscriptLanguage) -> NLEmbedding? {
+        if let cached = embeddings[language] { return cached }
+        let loaded = NLEmbedding.sentenceEmbedding(for: Self.nlLanguage(for: language))
+        embeddings[language] = loaded
+        return loaded
+    }
+    #endif
 
     /// Distance between two sentences, or `nil` when no model is available.
     ///
     /// Returning `nil` rather than a default matters: a missing model must make
     /// the check abstain visibly, not silently pass everything.
-    public func distance(_ a: String, _ b: String) -> Double? {
+    public func distance(_ a: String, _ b: String,
+                         in language: TranscriptLanguage = .english) -> Double? {
+        guard consultsModel else { return nil }
         // The lock is held across the query, not merely across loading.
         // `NLEmbedding` is not documented as thread-safe, and calling it
         // concurrently from parallel tests aborts the process — which presents as
         // a signal 6 with no failing assertion, so it is worth being explicit.
+        #if !canImport(NaturalLanguage)
+        // There are no sentence embeddings off Apple's platforms, so this
+        // says so rather than returning a number it cannot justify. The
+        // gauntlet is already built to abstain visibly on `nil`.
+        //
+        // The cost is real and is recorded in PolishReadiness: English loses
+        // the second of its two defences against a reversed meaning and
+        // keeps only the lexical polarity count, which is what Spanish has
+        // always relied on alone.
+        return nil
+        #else
         lock.lock()
         defer { lock.unlock() }
 
-        if !loaded {
-            embedding = NLEmbedding.sentenceEmbedding(for: .english)
-            loaded = true
-        }
-        guard let model = embedding else { return nil }
+        guard let model = model(for: language) else { return nil }
         // Case-folded before embedding. Capitalization moves this model's
         // distance almost as far as a meaning inversion does — measured at 0.86
         // for "david met sarah chen" against "David met Sarah Chen" — and fixing
@@ -47,17 +122,21 @@ public final class SemanticSimilarity: @unchecked Sendable {
 
         let d = model.distance(between: trimmedA, and: trimmedB)
         return d.isFinite ? d : nil
+        #endif
     }
 
-    /// Whether the embedding model is present on this system.
-    public var isAvailable: Bool {
+    /// Whether this language's embedding model is present on this system.
+    public func isAvailable(for language: TranscriptLanguage = .english) -> Bool {
+        guard consultsModel else { return false }
+        #if !canImport(NaturalLanguage)
+        return false
+        #else
         lock.lock()
-        if !loaded {
-            embedding = NLEmbedding.sentenceEmbedding(for: .english)
-            loaded = true
-        }
-        let available = embedding != nil
-        lock.unlock()
-        return available
+        defer { lock.unlock() }
+        return model(for: language) != nil
+        #endif
     }
+
+    /// Kept for call sites that predate multi-language support.
+    public var isAvailable: Bool { isAvailable(for: .english) }
 }

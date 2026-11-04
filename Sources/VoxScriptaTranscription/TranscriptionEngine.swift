@@ -6,7 +6,6 @@ import VoxScriptaCore
 public struct EngineCapabilities: Hashable, Sendable {
     public let supportsWordTimestamps: Bool
     public let supportsDiarization: Bool
-    public let supportsTranslation: Bool
     /// Locales the engine can transcribe. Apple covers roughly 30; Whisper 100+.
     public let supportedLocales: Set<String>
     /// Longest span the engine accepts in one call, or `nil` for no limit.
@@ -15,13 +14,11 @@ public struct EngineCapabilities: Hashable, Sendable {
     public init(
         supportsWordTimestamps: Bool,
         supportsDiarization: Bool = false,
-        supportsTranslation: Bool = false,
         supportedLocales: Set<String>,
         maximumChunkDuration: MediaTime? = nil
     ) {
         self.supportsWordTimestamps = supportsWordTimestamps
         self.supportsDiarization = supportsDiarization
-        self.supportsTranslation = supportsTranslation
         self.supportedLocales = supportedLocales
         self.maximumChunkDuration = maximumChunkDuration
     }
@@ -31,8 +28,6 @@ public struct EngineCapabilities: Hashable, Sendable {
 public struct TranscriptionOptions: Hashable, Sendable {
     public var locale: String
     public var requestWordTimestamps: Bool
-    /// Translate to English rather than transcribing in-language, where supported.
-    public var translate: Bool
     /// How many chunks may be in flight at once.
     ///
     /// Defaults to 4, set from measurement on an M5 rather than from reasoning.
@@ -57,19 +52,26 @@ public struct TranscriptionOptions: Hashable, Sendable {
     ///   ``Provenance``.
     public var concurrency: Int
     public var maxAttemptsPerChunk: Int
+    /// Work out the language from the audio instead of trusting `locale`.
+    ///
+    /// On by default, because the alternative failed silently: a recording in
+    /// a language the app was not set to produced an empty transcript that
+    /// looked like a finished one. Restricted to models already installed, so
+    /// detection never triggers a download.
+    public var detectLanguage: Bool
 
     public init(
         locale: String = "en-US",
         requestWordTimestamps: Bool = true,
-        translate: Bool = false,
         concurrency: Int = 4,
-        maxAttemptsPerChunk: Int = 3
+        maxAttemptsPerChunk: Int = 3,
+        detectLanguage: Bool = true
     ) {
         self.locale = locale
         self.requestWordTimestamps = requestWordTimestamps
-        self.translate = translate
         self.concurrency = Swift.max(1, concurrency)
         self.maxAttemptsPerChunk = Swift.max(1, maxAttemptsPerChunk)
+        self.detectLanguage = detectLanguage
     }
 
     public static let `default` = TranscriptionOptions()

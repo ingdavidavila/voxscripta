@@ -1,0 +1,6 @@
+// Written out rather than left to SwiftPM, which would build an umbrella
+// module over every header here.
+module CSQLite {
+    header "sqlite3.h"
+    export *
+}

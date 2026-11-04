@@ -1,6 +1,8 @@
 import Foundation
+#if canImport(AVFoundation)
 import AVFoundation
 import UniformTypeIdentifiers
+#endif
 import VoxScriptaCore
 
 /// Streams a source file into the canonical 16 kHz mono float PCM representation.
@@ -21,7 +23,18 @@ public protocol CanonicalDecoding: Sendable {
         to destination: URL,
         progress: @Sendable (Double) -> Void
     ) async throws -> Int64
+
+    /// The source's duration, without decoding it.
+    ///
+    /// A protocol requirement rather than a convenience on each type, because
+    /// project creation needs it and must not care which decoder it got.
+    func duration(of url: URL) throws -> MediaTime
 }
+
+#if canImport(AVFoundation)
+// The AVFoundation decoder is Apple's alone. Elsewhere ``PortableDecoder``
+// conforms to the same protocol on top of FFmpeg, and reads the same
+// containers — measured against this one, bin for bin.
 
 /// Decodes any AVFoundation-supported container to canonical PCM.
 ///
@@ -339,3 +352,4 @@ final class SampleWriter {
         try? handle.close()
     }
 }
+#endif

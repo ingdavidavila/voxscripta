@@ -157,6 +157,18 @@ public struct ProjectStore: Sendable {
         return bytes
     }
 
+    /// Where projects live when nobody says otherwise.
+    ///
+    /// Here rather than in an interface because it is a rule, and a rule in one
+    /// interface is a rule the other cannot see — the SwiftUI app and the
+    /// Flutter app have to agree about where the library is or they are two
+    /// applications. `Docs/PARITY.md` is the contract this serves.
+    public static var defaultLibraryDirectory: URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory,
+                                            in: .userDomainMask)[0]
+        return base.appending(path: "VoxScripta/Projects")
+    }
+
     /// Deletes a project package.
     ///
     /// Moves it to the Trash rather than unlinking, so a mistaken delete is
@@ -177,6 +189,7 @@ public struct ProjectStore: Sendable {
             throw VoxScriptaError.projectCorrupt(
                 reason: "\(url.lastPathComponent) is not a VoxScripta project")
         }
+        #if canImport(Darwin)
         var trashed: NSURL?
         do {
             try FileManager.default.trashItem(at: url, resultingItemURL: &trashed)
@@ -184,7 +197,42 @@ public struct ProjectStore: Sendable {
             throw VoxScriptaError.ioFailure(path: url.path, reason: error.localizedDescription)
         }
         return trashed as URL?
+        #else
+        // There is no system Trash to hand this to, so the promise is kept
+        // locally: the project is moved into a Deleted folder beside the
+        // library rather than removed. Deletion stays recoverable, which is
+        // the property the tests check and the one a user actually relies on.
+        return try Self.moveToDeletedFolder(url)
+        #endif
     }
+
+#if !canImport(Darwin)
+    /// Stands in for the Trash on platforms that have none.
+    ///
+    /// Deliberately not the XDG trash specification: that needs a `.trashinfo`
+    /// file per entry and a volume-aware location, and getting it half right
+    /// would leave entries the desktop cannot restore. A folder this app owns
+    /// is honest about what it is, and "Show in folder" can open it.
+    private static func moveToDeletedFolder(_ url: URL) throws -> URL? {
+        let deleted = url.deletingLastPathComponent().appending(path: "Deleted")
+        do {
+            try FileManager.default.createDirectory(at: deleted,
+                                                    withIntermediateDirectories: true)
+            var destination = deleted.appending(path: url.lastPathComponent)
+            var suffix = 2
+            while FileManager.default.fileExists(atPath: destination.path) {
+                destination = deleted.appending(
+                    path: "\(url.deletingPathExtension().lastPathComponent) (\(suffix))."
+                        + url.pathExtension)
+                suffix += 1
+            }
+            try FileManager.default.moveItem(at: url, to: destination)
+            return destination
+        } catch {
+            throw VoxScriptaError.ioFailure(path: url.path, reason: error.localizedDescription)
+        }
+    }
+#endif
 
     /// Deletes leftover `.tmp` files from an interrupted atomic write.
     ///
@@ -199,7 +247,16 @@ public struct ProjectStore: Sendable {
         }
     }
 
+    /// A bookmark that survives the app relaunching, and the file moving.
+    ///
+    /// The two platforms spell security scope differently. macOS asks for it
+    /// explicitly with `.withSecurityScope`; on iOS that option does not
+    /// exist, because a bookmark to a file the user picked is already scoped —
+    /// `startAccessingSecurityScopedResource` works on a plain bookmark there.
+    /// Same guarantee, different spelling, so the difference is confined to
+    /// this one function and its counterpart in `resolveSource`.
     private static func makeBookmark(for url: URL) throws -> Data {
+        #if os(macOS)
         do {
             return try url.bookmarkData(options: [.withSecurityScope],
                                         includingResourceValuesForKeys: nil, relativeTo: nil)
@@ -208,6 +265,19 @@ public struct ProjectStore: Sendable {
             // bookmark still resolves and still tracks the file if it moves.
             return try url.bookmarkData(includingResourceValuesForKeys: nil, relativeTo: nil)
         }
+        #elseif canImport(Darwin)
+        return try url.bookmarkData(includingResourceValuesForKeys: nil, relativeTo: nil)
+        #else
+        // Bookmarks are an Apple idea. Off those platforms the reference is
+        // the path, stored in the same field — so the manifest's shape does
+        // not change and a project written here opens here.
+        //
+        // What it cannot do is follow a file that moves, which a bookmark
+        // can. ``resolveSource`` reports that as the source being
+        // unavailable, which is true and is what the interface already
+        // explains.
+        return Data(url.path.utf8)
+        #endif
     }
 }
 
@@ -221,6 +291,18 @@ public struct Project: Sendable {
         self.package = package
         self.manifest = manifest
         self.store = store
+    }
+
+    /// Records the locale the language probe settled on.
+    ///
+    /// Written to the manifest so a reopened project does not detect again:
+    /// the locale feeds the content hash, and a second detection that
+    /// disagreed would invalidate work that is already finished and correct.
+    public func recordDetectedLocale(_ locale: String) throws {
+        var updated = manifest
+        updated.detectedLocale = locale
+        updated.locale = locale
+        try AtomicFile.writeJSON(updated, to: package.manifestURL)
     }
 
     /// Resolves the original audio to a readable URL.
@@ -237,8 +319,16 @@ public struct Project: Sendable {
             return (url, {})
 
         case .bookmark(let data):
+            #if canImport(Darwin)
             var stale = false
-            guard let url = try? URL(resolvingBookmarkData: data, options: [.withSecurityScope],
+            #if os(macOS)
+            let scopedOptions: URL.BookmarkResolutionOptions = [.withSecurityScope]
+            #else
+            // Not available on iOS, and not needed: a document bookmark there
+            // already carries scope.
+            let scopedOptions: URL.BookmarkResolutionOptions = []
+            #endif
+            guard let url = try? URL(resolvingBookmarkData: data, options: scopedOptions,
                                      relativeTo: nil, bookmarkDataIsStale: &stale) else {
                 guard let plain = try? URL(resolvingBookmarkData: data, options: [],
                                            relativeTo: nil, bookmarkDataIsStale: &stale),
@@ -252,6 +342,18 @@ public struct Project: Sendable {
             }
             let scoped = url.startAccessingSecurityScopedResource()
             return (url, { if scoped { url.stopAccessingSecurityScopedResource() } })
+            #else
+            // The reference is a path here — see ``makeBookmark``. A project
+            // carried over from a Mac holds a real bookmark instead, which
+            // this cannot decode, so it is reported as unavailable rather
+            // than misread as a path.
+            guard let path = String(data: data, encoding: .utf8),
+                  path.hasPrefix("/"),
+                  FileManager.default.fileExists(atPath: path) else {
+                throw VoxScriptaError.sourceUnavailable(path: manifest.source.displayName)
+            }
+            return (URL(filePath: path), {})
+            #endif
         }
     }
 

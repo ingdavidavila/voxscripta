@@ -13,6 +13,13 @@ public struct CleanParameters: Hashable, Sendable, Codable {
     public var normalizeCapitalization: Bool
     /// Add a full stop before a long pause when one is missing.
     public var terminateSentences: Bool
+    /// Which language's lexicons CLEAN applies.
+    ///
+    /// Part of the parameters, and therefore part of the content hash, so
+    /// changing it re-runs CLEAN rather than leaving a transcript cleaned by
+    /// another language's rules.
+    public var language: TranscriptLanguage
+
     /// Longest gap between two identical words still treated as a stutter.
     ///
     /// A speaker who repeats a word deliberately leaves a longer gap than a
@@ -20,27 +27,83 @@ public struct CleanParameters: Hashable, Sendable, Codable {
     /// from "no, no, that is different".
     public var maximumStutterGap: MediaTime
 
+    /// Segments the engine was less sure of than this are dropped, or `nil`
+    /// to keep everything.
+    ///
+    /// This exists because recording in the app made an old behaviour
+    /// impossible to ignore. Asked to transcribe room tone the engine does
+    /// not return nothing — it returns confident-looking sentences that were
+    /// never said. Four seconds of an empty room before the speaker started
+    /// produced "George, you kill the state! Why, sister, stop, stop." Every
+    /// stage downstream then treats that as something a person said.
+    ///
+    /// The two populations separate cleanly. Measured over 67 segments from
+    /// six recordings — two read aloud, two conversational, one Spanish
+    /// monologue, one made in the app — real speech never scored below
+    /// 0.8168, and that was a mumbled aside. Invented text from noise never
+    /// scored above 0.58. Nothing at all landed in between.
+    ///
+    /// ``defaultConfidenceFloor`` sits in that empty band, deliberately
+    /// nearer the noise than the speech: the cost of keeping a line of
+    /// nonsense is that someone reads it and deletes it, and the cost of
+    /// dropping a real one is that they never learn it was said.
+    ///
+    /// Confidence is the only signal used, though it is not the only one
+    /// available — every invented segment here was also very short, and
+    /// every real one that scored low was long. Length would make the rule
+    /// sharper and also make it guess, so it is left out until something
+    /// measured says it is needed.
+    public var confidenceFloor: Double?
+
     public init(
         removeFillers: Bool = true,
         collapseRepetitions: Bool = true,
         repairPunctuation: Bool = true,
         normalizeCapitalization: Bool = true,
         terminateSentences: Bool = true,
-        maximumStutterGap: MediaTime = .milliseconds(300)
+        language: TranscriptLanguage = .english,
+        maximumStutterGap: MediaTime = .milliseconds(300),
+        confidenceFloor: Double? = CleanParameters.defaultConfidenceFloor
     ) {
         self.removeFillers = removeFillers
         self.collapseRepetitions = collapseRepetitions
         self.repairPunctuation = repairPunctuation
         self.normalizeCapitalization = normalizeCapitalization
         self.terminateSentences = terminateSentences
+        self.language = language
         self.maximumStutterGap = maximumStutterGap
+        self.confidenceFloor = confidenceFloor
+    }
+
+    /// Halfway into the empty band between invented text and real speech,
+    /// biased towards keeping speech: 0.07 above the highest score any
+    /// invented segment reached, 0.17 below the lowest any real one did.
+    public static let defaultConfidenceFloor = 0.65
+
+    /// Decoded leniently so a project written before `language` existed still
+    /// opens. The synthesized decoder would fail on the missing key and make
+    /// every earlier project unreadable — a mistake this codebase has already
+    /// made once, with the manifest.
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        removeFillers = try c.decodeIfPresent(Bool.self, forKey: .removeFillers) ?? true
+        collapseRepetitions = try c.decodeIfPresent(Bool.self, forKey: .collapseRepetitions) ?? true
+        repairPunctuation = try c.decodeIfPresent(Bool.self, forKey: .repairPunctuation) ?? true
+        normalizeCapitalization =
+            try c.decodeIfPresent(Bool.self, forKey: .normalizeCapitalization) ?? true
+        terminateSentences = try c.decodeIfPresent(Bool.self, forKey: .terminateSentences) ?? true
+        language = try c.decodeIfPresent(TranscriptLanguage.self, forKey: .language) ?? .english
+        maximumStutterGap =
+            try c.decodeIfPresent(MediaTime.self, forKey: .maximumStutterGap) ?? .milliseconds(300)
+        confidenceFloor = try c.decodeIfPresent(Double.self, forKey: .confidenceFloor)
+            ?? Self.defaultConfidenceFloor
     }
 
     public static let `default` = CleanParameters()
 
     /// Punctuation and capitalization only; no words are ever deleted.
     public static let conservative = CleanParameters(
-        removeFillers: false, collapseRepetitions: false)
+        removeFillers: false, collapseRepetitions: false, confidenceFloor: nil)
 }
 
 public protocol CleanProcessing: Sendable {
@@ -83,6 +146,28 @@ public struct CleanProcessor: CleanProcessing {
             // the reader still sees where transcription failed.
             if original.warnings.contains(.transcriptionGap) {
                 segments.append(original)
+                continue
+            }
+
+            // Dropped before anything else is done to it: cleaning a sentence
+            // that is about to be discarded would put edits in the log for
+            // text no reader will ever see.
+            if let floor = parameters.confidenceFloor,
+               let confidence = original.confidence,
+               // Compared as Float, which is what the engine reports. Widening
+               // it first makes 0.65 arrive as 0.6499999761581421, so a score
+               // sitting exactly on the floor would fall below it.
+               confidence < Float(floor),
+               !original.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                edits.append(CleanEdit(
+                    segmentID: original.id, kind: .lowConfidenceDropped,
+                    original: original.text,
+                    // The score goes in the replacement field rather than a
+                    // new one, so the log keeps a shape every existing
+                    // project can still be read with.
+                    replacement: "confidence \(String(format: "%.4f", Double(confidence)))"
+                        + " below floor \(String(format: "%.2f", floor))",
+                    at: original.originalStart))
                 continue
             }
 
@@ -157,8 +242,11 @@ public struct CleanProcessor: CleanProcessing {
         var out: [Word] = []
         out.reserveCapacity(words.count)
 
-        for word in words {
-            if parameters.removeFillers, DisfluencyLexicon.isFiller(word.text) {
+        for (index, word) in words.enumerated() {
+            let following = index + 1 < words.count ? words[index + 1].text : nil
+            if parameters.removeFillers,
+               DisfluencyLexicon.isFiller(word.text, in: parameters.language,
+                                          following: following) {
                 edits.append(CleanEdit(segmentID: segmentID, kind: .disfluencyRemoved,
                                        original: word.text, replacement: "",
                                        at: word.originalStart))
@@ -178,7 +266,8 @@ public struct CleanProcessor: CleanProcessing {
             }
 
             if parameters.collapseRepetitions, let previous = out.last,
-               Self.isStutter(previous, word, within: parameters.maximumStutterGap) {
+               Self.isStutter(previous, word, within: parameters.maximumStutterGap,
+                              language: parameters.language) {
                 edits.append(CleanEdit(segmentID: segmentID, kind: .repetitionCollapsed,
                                        original: "\(previous.text) \(word.text)",
                                        replacement: word.text, at: word.originalStart))
@@ -201,10 +290,19 @@ public struct CleanProcessor: CleanProcessing {
     }
 
     /// Whether `second` is a stumble over `first` rather than a deliberate repeat.
-    static func isStutter(_ first: Word, _ second: Word, within maximumGap: MediaTime) -> Bool {
+    static func isStutter(_ first: Word, _ second: Word, within maximumGap: MediaTime,
+                          language: TranscriptLanguage) -> Bool {
+        // A repeat across a sentence boundary is not a stumble. `normalize`
+        // strips punctuation before comparing, which made the full stop in
+        // "platero. Platero" invisible and collapsed the first word of the
+        // following sentence. Found on real audio; it costs a real word every
+        // time a sentence ends on the word the next one begins with.
+        guard !Self.endsSentence(first.text) else { return false }
+
         let a = DisfluencyLexicon.normalize(first.text)
         let b = DisfluencyLexicon.normalize(second.text)
-        guard !a.isEmpty, a == b, DisfluencyLexicon.mayCollapseRepetition(of: a) else { return false }
+        guard !a.isEmpty, a == b,
+              DisfluencyLexicon.mayCollapseRepetition(of: a, in: language) else { return false }
 
         let gap = second.originalStart - first.originalEnd
         // Timings can be absent or degenerate; fall back to the token rule alone

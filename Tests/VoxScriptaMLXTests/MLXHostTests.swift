@@ -70,7 +70,8 @@ struct MLXHostTests {
         let output = try await host.rewrite(
             sentences: ["uh so i think we should probably start on monday"],
             context: PolishContext(),
-            instructions: PolishPrompt.instructions)
+            instructions: PolishPrompt.instructions,
+            language: .english)
 
         #expect(output.count == 1)
         let revised = output[0]
@@ -97,7 +98,8 @@ struct MLXHostTests {
             "david met with sarah chen on tuesday",
         ]
         let output = try await host.rewrite(sentences: cases, context: PolishContext(),
-                                            instructions: PolishPrompt.instructions)
+                                            instructions: PolishPrompt.instructions,
+                                            language: .english)
         #expect(output.count == cases.count)
         for (input, revised) in zip(cases, output) {
             print("  - \(input)\n  + \(revised)")

@@ -72,19 +72,42 @@ public enum AtomicFile {
     private static func fsyncFile(at url: URL) throws {
         let handle = try FileHandle(forWritingTo: url)
         defer { try? handle.close() }
+        #if canImport(Darwin)
         // F_FULLFSYNC asks the drive to flush its own write cache too. On macOS a
         // plain fsync(2) can return before the data is durable.
         if fcntl(handle.fileDescriptor, F_FULLFSYNC) == -1 {
             try handle.synchronize()
         }
+        #else
+        // No F_FULLFSYNC outside Darwin, and none is needed for the same
+        // reason: fsync(2) on Linux is already specified to flush the write
+        // cache, which is exactly the guarantee macOS withholds from it.
+        try handle.synchronize()
+        #endif
     }
 
     /// Flushes a directory entry, so the rename itself is durable.
+    ///
+    /// POSIX only, and not because the call is unavailable on Windows but
+    /// because the idea is: a directory cannot be opened as a file handle
+    /// there, and NTFS offers no equivalent of flushing one. The durable
+    /// rename Windows does offer is `MoveFileEx` with `MOVEFILE_WRITE_THROUGH`,
+    /// which is a property of the *move* rather than a separate flush — and
+    /// `FileManager` does not expose it, so reaching it means replacing the
+    /// rename in ``write(_:to:)`` with a `WinSDK` call.
+    ///
+    /// Until that is done the gap is real and is stated rather than papered
+    /// over: on Windows the data is flushed (``fsyncFile(at:)`` above still
+    /// runs) but the rename itself may reach disk out of order after a power
+    /// loss. The failure that allows is a project missing its newest artifact,
+    /// not a half-written one, because the data flush is the part that is kept.
     private static func fsyncDirectory(at url: URL) throws {
+        #if canImport(Darwin) || canImport(Glibc) || canImport(Musl)
         let descriptor = open(url.path, O_RDONLY)
         guard descriptor >= 0 else { return }
         defer { close(descriptor) }
         _ = fsync(descriptor)
+        #endif
     }
 }
 

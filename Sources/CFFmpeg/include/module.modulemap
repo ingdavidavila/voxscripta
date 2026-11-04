@@ -1,0 +1,7 @@
+// Written out rather than left to SwiftPM, which builds an umbrella module and
+// then refuses the layout because FFmpeg's headers live in directories beside
+// this one. Naming the single shim header avoids the umbrella entirely.
+module CFFmpeg {
+    header "CFFmpeg.h"
+    export *
+}

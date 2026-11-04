@@ -18,7 +18,6 @@ public struct WhisperKitEngine: TranscriptionEngine {
         EngineCapabilities(
             supportsWordTimestamps: true,
             supportsDiarization: false,
-            supportsTranslation: true,
             supportedLocales: [],
             maximumChunkDuration: nil
         )

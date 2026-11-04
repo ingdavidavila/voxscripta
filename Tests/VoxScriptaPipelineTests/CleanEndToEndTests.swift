@@ -56,7 +56,8 @@ actor CleanRunCache {
 
         var options = JobOptions()
         options.transcription.concurrency = 1
-        _ = try await JobRunner().run(project: project, options: options)
+        _ = try await JobRunner(gate: EntitlementFixture.freshTrial())
+            .run(project: project, options: options)
 
         let output = Output(
             verbatim: try JobRunner.transcript(.verbatim, from: project.package),
@@ -80,7 +81,7 @@ struct CleanEndToEndTests {
         #expect(!before.isEmpty)
 
         // Fillers the engine actually produced are gone.
-        let fillersAfter = after.filter { DisfluencyLexicon.isFiller($0) }
+        let fillersAfter = after.filter { DisfluencyLexicon.isFiller($0, in: .english) }
         #expect(fillersAfter.isEmpty, "fillers survived CLEAN: \(fillersAfter)")
         #expect(after.count < before.count, "CLEAN removed nothing from disfluent speech")
 

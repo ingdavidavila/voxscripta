@@ -20,6 +20,13 @@ public struct CleanEdit: Sendable, Codable, Equatable {
         case whitespaceNormalized
         /// A terminal full stop was added before a long pause.
         case sentenceTerminated
+        /// A whole segment was dropped for scoring below the confidence floor.
+        ///
+        /// The only edit that removes a sentence rather than a word, which is
+        /// why it is logged with its full text and its score: the verbatim
+        /// transcript still holds it, and this says exactly what was taken out
+        /// of the clean one and on what evidence.
+        case lowConfidenceDropped
     }
 
     public let segmentID: SegmentID
@@ -56,5 +63,10 @@ public struct CleanResult: Sendable {
     /// How many words CLEAN removed.
     public var wordsRemoved: Int {
         edits.count { $0.kind == .disfluencyRemoved || $0.kind == .repetitionCollapsed }
+    }
+
+    /// How many segments the confidence floor discarded.
+    public var segmentsDropped: Int {
+        edits.count { $0.kind == .lowConfidenceDropped }
     }
 }

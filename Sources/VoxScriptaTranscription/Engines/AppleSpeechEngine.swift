@@ -1,3 +1,7 @@
+#if canImport(Speech)
+// Apple's recogniser, and so Apple's alone. ``WhisperEngine`` conforms to the
+// same protocol everywhere else, and was measured against this one on the
+// same audio.
 import Foundation
 import AVFoundation
 import CoreMedia
@@ -28,7 +32,6 @@ public actor AppleSpeechEngine: TranscriptionEngine {
         EngineCapabilities(
             supportsWordTimestamps: true,
             supportsDiarization: false,
-            supportsTranslation: false,
             supportedLocales: Set(await SpeechTranscriber.supportedLocales.map { $0.identifier(.bcp47) }),
             maximumChunkDuration: nil
         )
@@ -40,6 +43,26 @@ public actor AppleSpeechEngine: TranscriptionEngine {
     }
 
     // MARK: - Preparation
+
+    /// Locales whose models are already on this Mac.
+    ///
+    /// The language probe is restricted to these. Probing a locale that is
+    /// merely *supported* would make the OS download a speech model as a side
+    /// effect of opening a file, which is not a thing an app should do while
+    /// someone waits — and not a thing this app should do at all without
+    /// being asked.
+    public static func installedLocaleIdentifiers() async -> Set<String> {
+        Set(await SpeechTranscriber.installedLocales.map { $0.identifier(.bcp47) })
+    }
+
+    /// Every locale this engine can transcribe, as BCP-47 identifiers.
+    ///
+    /// Asked of the system rather than listed, because which locales exist is
+    /// not a compile-time fact — it varies by OS version and by what the user
+    /// has installed.
+    public static func supportedLocaleIdentifiers() async -> Set<String> {
+        Set(await SpeechTranscriber.supportedLocales.map { $0.identifier(.bcp47) })
+    }
 
     public func prepare(locale localeIdentifier: String) async throws {
         let locale = Locale(identifier: localeIdentifier)
@@ -376,3 +399,4 @@ final class CanonicalSampleReader {
         }
     }
 }
+#endif

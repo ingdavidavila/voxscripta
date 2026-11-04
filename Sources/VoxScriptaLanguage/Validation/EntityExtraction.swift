@@ -1,5 +1,7 @@
 import Foundation
+#if canImport(NaturalLanguage)
 import NaturalLanguage
+#endif
 import VoxScriptaCore
 
 /// Extracts the things POLISHED must not alter.
@@ -51,8 +53,16 @@ public enum EntityExtraction {
     }
 
     /// Entities the tagger recognizes, joined across multi-word names.
+    ///
+    /// Empty off Apple's platforms, where there is no tagger. The check does
+    /// not disappear with it: ``entityVocabulary`` also collects capitalized
+    /// tokens, which is a weaker signal but catches the case that matters —
+    /// a name dropped or swapped between the original and the rewrite.
     static func namedEntities(in text: String) -> [String] {
         guard !text.isEmpty else { return [] }
+        #if !canImport(NaturalLanguage)
+        return []
+        #else
         let tagger = NLTagger(tagSchemes: [.nameType])
         tagger.string = text
 
@@ -73,6 +83,7 @@ public enum EntityExtraction {
             return true
         }
         return out
+        #endif
     }
 
     /// Words that are capitalized in English without being proper nouns.
@@ -116,9 +127,10 @@ public enum EntityExtraction {
     /// Strict equality on this set is what catches §14's example: "approximately
     /// 1,000" is *plausible* where "500" was said, which is precisely why a fuzzy
     /// comparison would let it through.
-    public static func numbers(in text: String) -> [String: Int] {
+    public static func numbers(in text: String,
+                               language: TranscriptLanguage = .english) -> [String: Int] {
         var counts: [String: Int] = [:]
-        for token in TextTokenizer.comparableTokens(text)
+        for token in TextTokenizer.comparableTokens(text, in: language)
         where token.allSatisfy(\.isNumber) && !token.isEmpty {
             counts[token, default: 0] += 1
         }
@@ -126,10 +138,31 @@ public enum EntityExtraction {
     }
 
     /// Lemmatized content words, for overlap scoring.
-    public static func contentWords(in text: String) -> Set<String> {
+    public static func contentWords(in text: String,
+                                    language: TranscriptLanguage = .english) -> Set<String> {
         guard !text.isEmpty else { return [] }
+        #if !canImport(NaturalLanguage)
+        // No lemmatizer, so the surface forms stand in. The check this feeds
+        // compares which content words appear on each side, and that still
+        // works — what is lost is matching "running" to "run", so a rewrite
+        // that only changes inflection reads as a content change and is
+        // rejected. Stricter than the Apple path, not looser, which is the
+        // right direction for a check that guards meaning.
+        var out: Set<String> = []
+        for token in TextTokenizer.tokens(text) {
+            let key = SemanticLexicons.normalize(token)
+            if !key.isEmpty, !SemanticLexicons.stopWords(for: language).contains(key) {
+                out.insert(key)
+            }
+        }
+        return out
+        #else
         let tagger = NLTagger(tagSchemes: [.lemma])
         tagger.string = text
+        // Told rather than guessed. A short Spanish sentence is routinely
+        // detected as Portuguese or Italian, and the wrong lemmatizer turns
+        // real content words into unknowns.
+        tagger.setLanguage(nlLanguage(for: language), range: text.startIndex..<text.endIndex)
 
         var out: Set<String> = []
         tagger.enumerateTags(
@@ -140,9 +173,22 @@ public enum EntityExtraction {
             // surface form so a rare proper noun still counts as content.
             let lemma = tag?.rawValue ?? String(text[range])
             let key = SemanticLexicons.normalize(lemma)
-            if !key.isEmpty, !SemanticLexicons.stopWords.contains(key) { out.insert(key) }
+            if !key.isEmpty, !SemanticLexicons.stopWords(for: language).contains(key) {
+                out.insert(key)
+            }
             return true
         }
         return out
+        #endif
     }
+
+    #if canImport(NaturalLanguage)
+    /// Maps to the tagger's language tag.
+    static func nlLanguage(for language: TranscriptLanguage) -> NLLanguage {
+        switch language {
+        case .english: .english
+        case .spanish: .spanish
+        }
+    }
+    #endif
 }

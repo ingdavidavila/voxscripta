@@ -63,7 +63,7 @@ struct CancellationTests {
         let project = try await makeProject(in: tmp)
 
         let engine = await slowEngine()
-        let runner = JobRunner(engineFactory: { engine })
+        let runner = JobRunner(engineFactory: { engine }, gate: EntitlementFixture.freshTrial())
         let options: JobOptions = {
             var o = JobOptions()
             o.transcription.concurrency = 1
@@ -93,13 +93,25 @@ struct CancellationTests {
         #expect(completed.count < records.count, "cancellation did not actually stop the run")
     }
 
+    /// Polls until at least one chunk is durably recorded as completed.
+    static func waitForCommittedChunk(in project: Project, timeout: Duration) async throws {
+        let deadline = ContinuousClock.now + timeout
+        while ContinuousClock.now < deadline {
+            let committed = try await project.store.loadChunkRecords()
+                .contains { $0.state == .completed }
+            if committed { return }
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        Issue.record("no chunk was committed within \(timeout)")
+    }
+
     @Test("Resuming a cancelled job finishes it without redoing completed chunks")
     func resumeAfterCancel() async throws {
         let tmp = try TempDirectory()
         let project = try await makeProject(in: tmp)
 
         let engine = await slowEngine()
-        let runner = JobRunner(engineFactory: { engine })
+        let runner = JobRunner(engineFactory: { engine }, gate: EntitlementFixture.freshTrial())
         let options: JobOptions = {
             var o = JobOptions()
             o.transcription.concurrency = 1
@@ -112,7 +124,12 @@ struct CancellationTests {
                 Task { await watcher.observe(report) }
             }
         }
-        try await watcher.waitFor(2, timeout: .seconds(60))
+        // Waiting on progress reports is not the same as waiting on a
+        // committed chunk: two reports can arrive before the first chunk
+        // reaches the store, and then there is nothing for resume to skip.
+        // Under load that race loses, which made this test flaky. Wait for the
+        // commit itself, which is the condition the assertion actually needs.
+        try await Self.waitForCommittedChunk(in: project, timeout: .seconds(60))
         task.cancel()
         _ = try? await task.value
 
@@ -124,7 +141,7 @@ struct CancellationTests {
         // planner, so the same path handles both.
         let reopened = try await ProjectStore().open(at: project.package.root)
         let resumeEngine = MockTranscriptionEngine()
-        let transcript = try await JobRunner(engineFactory: { resumeEngine })
+        let transcript = try await JobRunner(engineFactory: { resumeEngine }, gate: EntitlementFixture.freshTrial())
             .run(project: reopened, options: options)
 
         #expect(transcript.isMonotonic)
@@ -149,7 +166,7 @@ struct CancellationTests {
         let engine = await slowEngine()
 
         let task = Task {
-            try await JobRunner(engineFactory: { engine })
+            try await JobRunner(engineFactory: { engine }, gate: EntitlementFixture.freshTrial())
                 .run(project: project, options: JobOptions())
         }
         try await Task.sleep(for: .milliseconds(200))

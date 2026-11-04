@@ -1,0 +1,255 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		18C15E85BBD52D4743B532CD /* VoxScriptaiOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20A75D69BB38B3E37BDFD839 /* VoxScriptaiOSApp.swift */; };
+		4F5E0CB29363AEC5672DE29D /* VoxScriptaUI in Frameworks */ = {isa = PBXBuildFile; productRef = 05B4C13CEE8FCA4F3D850987 /* VoxScriptaUI */; };
+		5DDACE626236C425C2055E25 /* en.lproj in Resources */ = {isa = PBXBuildFile; fileRef = C21398BBBF4F166D213BFDEA /* en.lproj */; };
+		B1150DCB5028B8B051B4AFC9 /* es.lproj in Resources */ = {isa = PBXBuildFile; fileRef = AF4A3B9EDD821B77A1EA3F3C /* es.lproj */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		85673086EF6CFD3A1F8591AF /* Vox Scripta.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Vox Scripta.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		20A75D69BB38B3E37BDFD839 /* VoxScriptaiOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoxScriptaiOSApp.swift; sourceTree = "<group>"; };
+		1126D461F13F13732FA1C607 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		C21398BBBF4F166D213BFDEA /* en.lproj */ = {isa = PBXFileReference; lastKnownFileType = folder; name = en.lproj; path = ../Resources/Localization/en.lproj; sourceTree = SOURCE_ROOT; };
+		AF4A3B9EDD821B77A1EA3F3C /* es.lproj */ = {isa = PBXFileReference; lastKnownFileType = folder; name = es.lproj; path = ../Resources/Localization/es.lproj; sourceTree = SOURCE_ROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		69BE8A4D8E4D9DA4E7DB3928 = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4F5E0CB29363AEC5672DE29D /* VoxScriptaUI in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		69F8D45498D7E20DA99BB780 = {
+			isa = PBXGroup;
+			children = (
+				DB89E782D488330EABE72BF7 /* VoxScripta */,
+				328EC33DF3954DC9B83FA285 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		DB89E782D488330EABE72BF7 /* VoxScripta */ = {
+			isa = PBXGroup;
+			children = (
+				20A75D69BB38B3E37BDFD839 /* VoxScriptaiOSApp.swift */,
+				1126D461F13F13732FA1C607 /* Info.plist */,
+				C21398BBBF4F166D213BFDEA /* en.lproj */,
+				AF4A3B9EDD821B77A1EA3F3C /* es.lproj */,
+			);
+			path = VoxScripta;
+			sourceTree = "<group>";
+		};
+		328EC33DF3954DC9B83FA285 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				85673086EF6CFD3A1F8591AF /* Vox Scripta.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		0E8A3AD980EC179856012B7E /* VoxScripta */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B483F6EB73610DE752E457A0;
+			buildPhases = (
+				4E57AE888889001C06A4F7E8,
+				69BE8A4D8E4D9DA4E7DB3928,
+				D6C9E8A172005E68A1DD674F,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = VoxScripta;
+			packageProductDependencies = (
+				05B4C13CEE8FCA4F3D850987 /* VoxScriptaUI */,
+			);
+			productName = VoxScripta;
+			productReference = 85673086EF6CFD3A1F8591AF /* Vox Scripta.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		98F54143AB4E86B28C3AFEE0 = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2700;
+				LastUpgradeCheck = 2700;
+				TargetAttributes = {
+					0E8A3AD980EC179856012B7E = {
+						CreatedOnToolsVersion = 27.1;
+					};
+				};
+			};
+			buildConfigurationList = 41A2CC2D5321B7BB2E956CA5;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				es,
+				Base,
+			);
+			mainGroup = 69F8D45498D7E20DA99BB780;
+			packageReferences = (
+				4B2C8A9ED36C04F6D64573E1 /* XCLocalSwiftPackageReference ".." */,
+			);
+			productRefGroup = 328EC33DF3954DC9B83FA285 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				0E8A3AD980EC179856012B7E /* VoxScripta */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		D6C9E8A172005E68A1DD674F = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5DDACE626236C425C2055E25 /* en.lproj in Resources */,
+				B1150DCB5028B8B051B4AFC9 /* es.lproj in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		4E57AE888889001C06A4F7E8 = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				18C15E85BBD52D4743B532CD /* VoxScriptaiOSApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		D08DD63EED508AD30D0CB0B4 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_NO_COMMON_BLOCKS = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		811CB99F7A296F7846C18A7F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_NO_COMMON_BLOCKS = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 6.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		7082CC0B6FC1282FCEABD07A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = VoxScripta/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.2.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.voxscripta.app;
+				PRODUCT_NAME = "Vox Scripta";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		639A7CA24D39909E713B47F7 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = VoxScripta/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.2.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.voxscripta.app;
+				PRODUCT_NAME = "Vox Scripta";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		41A2CC2D5321B7BB2E956CA5 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D08DD63EED508AD30D0CB0B4 /* Debug */,
+				811CB99F7A296F7846C18A7F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B483F6EB73610DE752E457A0 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7082CC0B6FC1282FCEABD07A /* Debug */,
+				639A7CA24D39909E713B47F7 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		4B2C8A9ED36C04F6D64573E1 /* XCLocalSwiftPackageReference ".." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ..;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		05B4C13CEE8FCA4F3D850987 /* VoxScriptaUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = VoxScriptaUI;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 98F54143AB4E86B28C3AFEE0 /* Project object */;
+}

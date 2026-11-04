@@ -2,6 +2,7 @@
 // VoxScripta — local-first transcription for Apple Silicon.
 
 import PackageDescription
+import Foundation
 
 /// Every target compiles under the Swift 6 language mode. Strict concurrency is
 /// therefore on by default and data-race safety is a compile error, not a warning.
@@ -10,9 +11,43 @@ let strict: [SwiftSetting] = [
     .enableUpcomingFeature("ExistentialAny"),
 ]
 
+/// Where Tools/build-engines.sh leaves the native engines, and what to link.
+///
+/// Declared once because both C targets link the same set: llama.cpp and
+/// whisper.cpp share a single ggml, installed into one prefix, so there is one
+/// backend in the binary rather than two copies of the same symbols.
+///
+/// Unsafe flags are allowed because this is a root package and nothing depends
+/// on it. If that ever changes, these become an xcframework.
+let engineLinkerSettings: [LinkerSetting] = [
+    // Per platform, because the two are built by the same script into
+    // different prefixes: `Tools/build-engines.sh` for the Mac and
+    // `Tools/build-engines.sh linux-musl` for Linux. One hardcoded `host`
+    // path meant a Linux link looked for Mach-O archives.
+    .unsafeFlags(["-Lbuild/engines/host/prefix/lib"],
+                 .when(platforms: [.macOS, .iOS])),
+    .unsafeFlags(["-Lbuild/engines/linux-musl/prefix/lib"],
+                 .when(platforms: [.linux, .android])),
+    .linkedLibrary("whisper"),
+    .linkedLibrary("llama"),
+    .linkedLibrary("ggml"),
+    .linkedLibrary("ggml-base"),
+    .linkedLibrary("ggml-cpu"),
+    .linkedLibrary("c++"),
+    .linkedLibrary("ggml-metal", .when(platforms: [.macOS, .iOS])),
+    .linkedLibrary("ggml-blas", .when(platforms: [.macOS, .iOS])),
+    .linkedFramework("Accelerate", .when(platforms: [.macOS, .iOS])),
+    .linkedFramework("Metal", .when(platforms: [.macOS, .iOS])),
+    .linkedFramework("MetalKit", .when(platforms: [.macOS, .iOS])),
+    .linkedFramework("CoreFoundation", .when(platforms: [.macOS, .iOS])),
+]
+
 let package = Package(
     name: "VoxScripta",
-    platforms: [.macOS("26.0")],
+    // iOS carries the same minimum as macOS because the app depends on
+    // SpeechAnalyzer and FoundationModels, both of which arrived in the 26
+    // releases. There is no older version this could run on.
+    platforms: [.macOS("26.0"), .iOS("26.0")],
     products: [
         .library(name: "VoxScriptaCore", targets: ["VoxScriptaCore"]),
         .library(name: "VoxScriptaCoreCxx", targets: ["VoxScriptaCoreCxx"]),
@@ -26,6 +61,14 @@ let package = Package(
         .library(name: "VoxScriptaPipeline", targets: ["VoxScriptaPipeline"]),
         .library(name: "VoxScriptaTestSupport", targets: ["VoxScriptaTestSupport"]),
         .executable(name: "VoxScriptaApp", targets: ["VoxScriptaApp"]),
+        // The interface as a library, so an Xcode app target can consume it.
+        // SwiftPM cannot produce an .app for iOS, so the iOS app is a thin
+        // shell around this; the macOS executable below is the same shell.
+        .library(name: "VoxScriptaUI", targets: ["VoxScriptaUI"]),
+        // Dynamic because Dart FFI opens a shared library at runtime:
+        // libVoxScriptaFFI.dylib on a Mac, .so on Linux and Android, .dll on
+        // Windows. Nothing links it statically.
+        .library(name: "VoxScriptaFFI", type: .dynamic, targets: ["VoxScriptaFFI"]),
         .executable(name: "voxscripta-cli", targets: ["voxscripta-cli"]),
         .executable(name: "corpus-gen", targets: ["corpus-gen"]),
     ],
@@ -38,6 +81,10 @@ let package = Package(
         // leaves the implementation to the consumer, which is what its
         // #adaptHuggingFaceTokenizer macro exists to bridge.
         .package(url: "https://github.com/huggingface/swift-transformers", from: "1.3.0"),
+        // Already in the graph transitively; declared because this package
+        // now uses it directly. It is CryptoKit's API on the platforms that
+        // have no CryptoKit.
+        .package(url: "https://github.com/apple/swift-crypto.git", from: "3.0.0"),
     ],
     targets: [
         // ── The portable core (P1 of the React Native migration) ────────────
@@ -45,6 +92,88 @@ let package = Package(
         // for Android. The Swift modules above it are being ported into this
         // one target by target; until that finishes both implementations exist
         // and VoxScriptaCoreParityTests holds them to the same answers.
+        // whisper.cpp, reached through a header shim. The static libraries
+        // come from Tools/build-whisper.sh rather than from SwiftPM, because
+        // whisper.cpp no longer ships a Package.swift and because CMake is
+        // what the Android NDK, Visual Studio and Linux all want anyway.
+        .target(
+            name: "CWhisper",
+            path: "Sources/CWhisper",
+            sources: ["shim.c"],
+            cSettings: [.headerSearchPath("include")],
+            linkerSettings: engineLinkerSettings
+        ),
+        // llama.cpp, for POLISH off Apple's platforms. It shares the ggml that
+        // Tools/build-engines.sh installs, so both engines are one copy of the
+        // backend rather than two definitions of the same symbols.
+        .target(
+            name: "CLlama",
+            path: "Sources/CLlama",
+            sources: ["shim.c"],
+            cSettings: [.headerSearchPath("include")],
+            linkerSettings: engineLinkerSettings
+        ),
+        // SQLite, compiled from the official amalgamation. Apple ships a
+        // SQLite3 module and nothing else does — the static Linux SDK has no
+        // libsqlite3 at all — so one known version is built from source for
+        // every target. See Sources/CSQLite/README.md.
+        .target(
+            name: "CSQLite",
+            path: "Sources/CSQLite",
+            sources: ["sqlite3.c"],
+            cSettings: [
+                .headerSearchPath("include"),
+                // What this project uses and nothing more: no loadable
+                // extensions, which is also one less way into the process.
+                .define("SQLITE_ENABLE_COLUMN_METADATA", to: "1"),
+                .define("SQLITE_OMIT_LOAD_EXTENSION", to: "1"),
+                .define("SQLITE_THREADSAFE", to: "1"),
+                .define("SQLITE_DQS", to: "0"),
+            ]
+        ),
+        // FFmpeg, for decoding where AVFoundation does not exist. Shared
+        // libraries, built LGPL-only by Tools/build-ffmpeg.sh: the licence is
+        // then satisfied by shipping them beside the binary, replaceable,
+        // which static linking would not be.
+        .target(
+            name: "CFFmpeg",
+            path: "Sources/CFFmpeg",
+            sources: ["shim.c"],
+            cSettings: [.headerSearchPath("include")],
+            linkerSettings: [
+                .unsafeFlags([
+                    "-Lbuild/ffmpeg/host/prefix/lib",
+                    // So a test or the app finds the dylibs without them
+                    // being installed system-wide. The Swift driver wants
+                    // -Xlinker pairs here; a -Wl, form is rejected outright.
+                    "-Xlinker", "-rpath", "-Xlinker",
+                    FileManager.default.currentDirectoryPath + "/build/ffmpeg/host/prefix/lib",
+                ], .when(platforms: [.macOS, .iOS])),
+                // No rpath on the static path: there is nothing to find at
+                // run time because everything is in the binary.
+                .unsafeFlags(["-Lbuild/ffmpeg/linux-musl/prefix/lib"],
+                             .when(platforms: [.linux, .android])),
+                // FFmpeg's own dependencies, which a shared build resolves for
+                // itself and a static one hands to whoever links it. Both are
+                // in the Static Linux SDK's sysroot; zlib is what the mov
+                // demuxer uses for compressed headers.
+                .linkedLibrary("z", .when(platforms: [.linux, .android])),
+                .linkedLibrary("bz2", .when(platforms: [.linux, .android])),
+                .linkedLibrary("avformat"),
+                .linkedLibrary("avcodec"),
+                .linkedLibrary("avutil"),
+                .linkedLibrary("swresample"),
+            ]
+        ),
+        // miniaudio, kept for device IO — recording, which is the backend
+        // after this one. It decodes too, but FFmpeg does that now, and two
+        // decode paths would be two behaviours to keep agreeing.
+        .target(
+            name: "CMiniaudio",
+            path: "Sources/CMiniaudio",
+            sources: ["miniaudio_impl.c"],
+            cSettings: [.headerSearchPath("include")]
+        ),
         .target(
             name: "VoxScriptaCoreCxx",
             path: "core",
@@ -58,15 +187,22 @@ let package = Package(
         .target(name: "VoxScriptaCore", swiftSettings: strict),
 
         // ── Deterministic audio ─────────────────────────────────────────────
-        .target(name: "VoxScriptaDSP", dependencies: ["VoxScriptaCore"], swiftSettings: strict),
+        .target(name: "VoxScriptaDSP",
+                dependencies: ["VoxScriptaCore", "CFFmpeg", "CMiniaudio"],
+                swiftSettings: strict),
 
         // ── Model-facing layers ─────────────────────────────────────────────
         .target(name: "VoxScriptaTranscription",
-                dependencies: ["VoxScriptaCore", "VoxScriptaDSP"], swiftSettings: strict),
-        .target(name: "VoxScriptaLanguage", dependencies: ["VoxScriptaCore"], swiftSettings: strict),
+                dependencies: ["VoxScriptaCore", "VoxScriptaDSP", "CWhisper"],
+                swiftSettings: strict),
+        .target(name: "VoxScriptaLanguage", dependencies: ["VoxScriptaCore", "CLlama"],
+                swiftSettings: strict),
 
         // ── Support layers ──────────────────────────────────────────────────
-        .target(name: "VoxScriptaProject", dependencies: ["VoxScriptaCore"], swiftSettings: strict),
+        .target(name: "VoxScriptaProject",
+                dependencies: ["VoxScriptaCore", "CSQLite",
+                               .product(name: "Crypto", package: "swift-crypto")],
+                swiftSettings: strict),
         .target(name: "VoxScriptaExport", dependencies: ["VoxScriptaCore"], swiftSettings: strict),
         .target(name: "VoxScriptaBench", dependencies: ["VoxScriptaCore"], swiftSettings: strict),
 
@@ -93,8 +229,7 @@ let package = Package(
         // that knows the pipeline's shape; everything below it is independent.
         .target(name: "VoxScriptaPipeline",
                 dependencies: ["VoxScriptaCore", "VoxScriptaDSP", "VoxScriptaTranscription",
-                               "VoxScriptaLanguage", "VoxScriptaMLX", "VoxScriptaProject",
-                               "VoxScriptaBench"],
+                               "VoxScriptaLanguage", "VoxScriptaProject", "VoxScriptaBench"],
                 swiftSettings: strict),
 
         // ── Test support ────────────────────────────────────────────────────
@@ -109,11 +244,33 @@ let package = Package(
         // ── Application ─────────────────────────────────────────────────────
         // A thin SwiftUI shell. All logic lives below it, so the app target holds
         // views, view models and nothing else.
-        .executableTarget(
-            name: "VoxScriptaApp",
+        .target(
+            name: "VoxScriptaUI",
+            // VoxScriptaMLX is declared here rather than inherited: the app is
+            // the layer that ships the safetensors and registers them with
+            // PolishBackendResolver, and it used to reach MLX only by accident,
+            // through VoxScriptaPipeline, which no longer depends on it so that
+            // the pipeline can cross-compile.
             dependencies: ["VoxScriptaCore", "VoxScriptaDSP", "VoxScriptaTranscription",
                            "VoxScriptaLanguage", "VoxScriptaProject", "VoxScriptaPipeline",
-                           "VoxScriptaExport"],
+                           "VoxScriptaExport", "VoxScriptaMLX"],
+            swiftSettings: strict),
+
+        // The C ABI the Flutter interface calls. It depends on the pipeline and
+        // the exporters and adds no rules of its own — deliberately, since a
+        // rule that lived here would be a rule the SwiftUI interface could not
+        // see.
+        .target(
+            name: "VoxScriptaFFI",
+            dependencies: ["VoxScriptaCore", "VoxScriptaDSP", "VoxScriptaProject",
+                           "VoxScriptaPipeline", "VoxScriptaExport"],
+            swiftSettings: strict),
+
+        // Nothing but @main. Everything it shows lives in VoxScriptaUI, which
+        // the iOS app target consumes the same way.
+        .executableTarget(
+            name: "VoxScriptaApp",
+            dependencies: ["VoxScriptaUI"],
             swiftSettings: strict),
 
         // ── Tools ───────────────────────────────────────────────────────────
@@ -147,8 +304,15 @@ let package = Package(
                     dependencies: ["VoxScriptaLanguage", "VoxScriptaTestSupport"], swiftSettings: strict),
         .testTarget(name: "VoxScriptaProjectTests",
                     dependencies: ["VoxScriptaProject", "VoxScriptaTestSupport"], swiftSettings: strict),
+        // Against the UI library rather than the executable: the executable
+        // is now only @main, and a test bundle cannot link one anyway.
         .testTarget(name: "VoxScriptaAppTests",
-                    dependencies: ["VoxScriptaApp", "VoxScriptaPipeline"], swiftSettings: strict),
+                    dependencies: ["VoxScriptaUI", "VoxScriptaPipeline"], swiftSettings: strict),
+        .testTarget(name: "VoxScriptaFFITests",
+                    dependencies: ["VoxScriptaFFI", "VoxScriptaCore", "VoxScriptaProject",
+                                   "VoxScriptaTranscription", "VoxScriptaPipeline",
+                                   "VoxScriptaLanguage", "VoxScriptaDSP"],
+                    swiftSettings: strict),
         .testTarget(name: "VoxScriptaPipelineTests",
                     dependencies: ["VoxScriptaPipeline", "VoxScriptaTestSupport"], swiftSettings: strict),
         // Holds the C++ port and the Swift original to the same answers.

@@ -36,7 +36,8 @@ public enum TextTokenizer {
     /// This is the form in which a transcript should be compared to another
     /// transcript — it removes differences of notation without removing
     /// differences of content.
-    public static func comparableTokens(_ text: String) -> [String] {
-        SpokenNumbers.canonicalize(tokens(text))
+    public static func comparableTokens(_ text: String,
+                                        in language: TranscriptLanguage = .english) -> [String] {
+        SpokenNumbers.canonicalize(tokens(text), in: language)
     }
 }

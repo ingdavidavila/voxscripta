@@ -9,6 +9,45 @@ set -euo pipefail
 
 CONFIG="${1:-debug}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+# The version comes from the source rather than being repeated here. Two copies
+# of a version number drift, and this one is stamped into every transcript's
+# provenance, where being wrong misattributes the work.
+VERSION="$(sed -n 's/.*static let version = "\(.*\)".*/\1/p' \
+    "$ROOT/Sources/VoxScriptaCore/VoxScripta.swift")"
+[ -n "$VERSION" ] || { echo "could not read the version from VoxScripta.swift" >&2; exit 1; }
+# Monotonic build number: how many commits exist.
+BUILD="$(git -C "$ROOT" rev-list --count HEAD 2>/dev/null || echo 1)"
+# Checked before the build rather than during it. Since Swift 6.4 made the
+# Xcode build system the default, SwiftPM compiles mlx-swift's .metal sources
+# itself, so a missing toolchain fails several minutes in with a wall of
+# compiler invocations instead of the one line that says what to do. The
+# toolchain is also dropped by every Xcode update, so this is not a rare case —
+# it has happened twice in this project.
+if ! xcrun -sdk macosx metal --version >/dev/null 2>&1; then
+    echo "The Metal toolchain is missing, which an Xcode update will do." >&2
+    echo "Reinstall it and run this again:" >&2
+    echo "    xcodebuild -downloadComponent MetalToolchain" >&2
+    exit 1
+fi
+
+# Same reasoning for whisper.cpp: the engine target links its static libraries,
+# so without them the build fails at the linker with a list of missing symbols
+# rather than a line saying which script to run. They are not in the repository
+# because they are build output.
+if [ ! -f "$ROOT/build/engines/host/prefix/lib/libwhisper.a" ]; then
+    echo "The native engines have not been built, and the app links against them." >&2
+    echo "Build them once and run this again:" >&2
+    echo "    Tools/build-engines.sh" >&2
+    exit 1
+fi
+if [ ! -d "$ROOT/build/ffmpeg/host/prefix/lib" ]; then
+    echo "FFmpeg has not been built, and the portable decoder links against it." >&2
+    echo "Build it once and run this again:" >&2
+    echo "    Tools/build-ffmpeg.sh" >&2
+    exit 1
+fi
+
 BIN="$(swift build --package-path "$ROOT" -c "$CONFIG" --show-bin-path)"
 APP="$ROOT/build/VoxScripta.app"
 
@@ -34,6 +73,15 @@ if [ ! -f "$ROOT/build/mlx.metallib" ]; then
     "$ROOT/Tools/build-metallib.sh"
 fi
 cp "$ROOT/build/mlx.metallib" "$APP/Contents/MacOS/mlx.metallib"
+
+# Translations. Checked first: an untranslated string falls back to English and
+# looks deliberate, so the only way to catch one is to compare the table against
+# the catalogues before shipping.
+"$ROOT/Tools/check-localization.sh"
+for lproj in "$ROOT"/Resources/Localization/*.lproj; do
+    [ -d "$lproj" ] || continue
+    cp -R "$lproj" "$APP/Contents/Resources/"
+done
 
 # Resource bundles from dependencies (tokenizer data, and so on).
 for bundle in "$BIN"/*.bundle; do
@@ -61,10 +109,14 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleExecutable</key><string>VoxScripta</string>
     <key>CFBundleIconFile</key><string>VoxScripta</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>0.1.0</string>
-    <key>CFBundleVersion</key><string>1</string>
+    <key>CFBundleDevelopmentRegion</key><string>en</string>
+    <key>CFBundleLocalizations</key>
+    <array><string>en</string><string>es</string></array>
+    <key>CFBundleShortVersionString</key><string>$VERSION</string>
+    <key>CFBundleVersion</key><string>$BUILD</string>
     <key>LSMinimumSystemVersion</key><string>26.0</string>
     <key>NSHighResolutionCapable</key><true/>
+    <key>NSMicrophoneUsageDescription</key><string>Vox Scripta records audio so it can transcribe it. Recordings are saved on this device and are never uploaded.</string>
     <key>NSHumanReadableCopyright</key><string>Local-first transcription. Your audio never leaves this Mac.</string>
 </dict>
 </plist>
@@ -78,9 +130,57 @@ cat > "$ROOT/build/VoxScripta.entitlements" <<ENT
 <dict>
     <key>com.apple.security.app-sandbox</key><false/>
     <key>com.apple.security.files.user-selected.read-only</key><true/>
+    <!-- Recording in the app needs the microphone, and the hardened runtime
+         denies it without this. It grants input only: there is still no
+         network, no camera, and no address book. -->
+    <key>com.apple.security.device.audio-input</key><true/>
 </dict>
 </plist>
 ENT
+
+# FFmpeg ships as shared libraries, which is what keeps its LGPL licence
+# satisfiable: they sit in the bundle where they can be replaced. The linker
+# wrote absolute paths into the build directory, so without this the installed
+# app launches only on the machine that built it, and only until that directory
+# is cleaned.
+FFMPEG_LIB="$ROOT/build/ffmpeg/host/prefix/lib"
+if [ -d "$FFMPEG_LIB" ]; then
+    mkdir -p "$APP/Contents/Frameworks"
+    # The real files, not the version symlinks, and then one symlink each so
+    # the names the binary asks for resolve.
+    find "$FFMPEG_LIB" -maxdepth 1 -name '*.dylib' -type f -exec cp {} "$APP/Contents/Frameworks/" \;
+    find "$FFMPEG_LIB" -maxdepth 1 -name '*.dylib' -type l -exec cp -R {} "$APP/Contents/Frameworks/" \;
+
+    for lib in "$APP/Contents/Frameworks/"*.dylib; do
+        [ -f "$lib" ] && [ ! -L "$lib" ] || continue
+        install_name_tool -id "@rpath/$(basename "$lib")" "$lib" 2>/dev/null
+        # They reference each other by the same absolute paths.
+        deps="$(otool -L "$lib" | awk 'NR>1 {print $1}' | grep "^$FFMPEG_LIB" || true)"
+        # Collected first rather than piped: a library with no siblings among
+        # these — libavutil has none — makes grep exit 1, and with pipefail
+        # that would kill the script.
+        for dep in $deps; do
+            install_name_tool -change "$dep" "@rpath/$(basename "$dep")" "$lib" 2>/dev/null
+        done
+    done
+
+    exe_deps="$(otool -L "$APP/Contents/MacOS/VoxScripta" | awk 'NR>1 {print $1}' \
+        | grep "^$FFMPEG_LIB" || true)"
+    for dep in $exe_deps; do
+        install_name_tool -change "$dep" "@rpath/$(basename "$dep")" \
+            "$APP/Contents/MacOS/VoxScripta"
+    done
+    install_name_tool -add_rpath "@executable_path/../Frameworks" \
+        "$APP/Contents/MacOS/VoxScripta" 2>/dev/null || true
+
+    # Signed before the app, for the same reason the metallib is: codesign
+    # refuses to seal a bundle containing unsigned nested code.
+    for lib in "$APP/Contents/Frameworks/"*.dylib; do
+        [ -f "$lib" ] && [ ! -L "$lib" ] || continue
+        codesign --force --sign - "$lib"
+    done
+    echo "  bundled FFmpeg:   $(ls "$APP/Contents/Frameworks/"*.dylib 2>/dev/null | wc -l | tr -d ' ') libraries (LGPL v2.1)"
+fi
 
 # The metallib lives beside the executable because that is the first place MLX
 # looks. codesign treats anything in Contents/MacOS as nested code and refuses to

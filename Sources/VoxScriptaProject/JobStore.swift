@@ -1,5 +1,7 @@
 import Foundation
-import SQLite3
+// The vendored amalgamation rather than Apple's SQLite3 module, so every
+// platform compiles the same known version. See Sources/CSQLite/README.md.
+import CSQLite
 import VoxScriptaCore
 
 /// Which pipeline stage a recorded input hash belongs to.

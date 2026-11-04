@@ -1,5 +1,7 @@
 import Foundation
+#if canImport(Accelerate)
 import Accelerate
+#endif
 import VoxScriptaCore
 
 /// How the analyzer slices the signal.
@@ -151,7 +153,14 @@ public struct FrameAnalyzer: FrameAnalyzing {
                 rms[frame] = Self.dBFS(Self.rootMeanSquare(slice))
                 zcr[frame] = Self.zeroCrossingRate(slice)
 
-                vDSP_vmul(slice.baseAddress!, 1, window, 1, &windowed, 1, vDSP_Length(windowed.count))
+                #if canImport(Accelerate)
+                vDSP_vmul(slice.baseAddress!, 1, window, 1, &windowed,
+                          1, vDSP_Length(windowed.count))
+                #else
+                window.withUnsafeBufferPointer {
+                    PortableDSP.multiply(slice, $0, into: &windowed)
+                }
+                #endif
                 let copyCount = Swift.min(windowed.count, fftSize)
                 padded.withUnsafeMutableBufferPointer { dst in
                     dst.update(repeating: 0)
@@ -176,9 +185,13 @@ public struct FrameAnalyzer: FrameAnalyzing {
     public static let minimumDB: Float = -120
 
     static func rootMeanSquare(_ buffer: UnsafeBufferPointer<Float>) -> Float {
+        #if canImport(Accelerate)
         var result: Float = 0
         vDSP_rmsqv(buffer.baseAddress!, 1, &result, vDSP_Length(buffer.count))
         return result
+        #else
+        return PortableDSP.rootMeanSquare(buffer)
+        #endif
     }
 
     static func dBFS(_ amplitude: Float) -> Float {
@@ -222,38 +235,59 @@ public struct FrameAnalyzer: FrameAnalyzing {
     }
 
     private func hannWindow(count: Int) -> [Float] {
+        #if canImport(Accelerate)
         var w = [Float](repeating: 0, count: count)
         vDSP_hann_window(&w, vDSP_Length(count), Int32(vDSP_HANN_DENORM))
         return w
+        #else
+        return PortableDSP.hannWindow(count: count)
+        #endif
     }
 }
 
-/// A real-to-complex FFT with a reusable setup.
+/// A real-to-complex FFT.
 ///
-/// A class because it owns an Accelerate setup that must be destroyed exactly once.
+/// Accelerate where it exists, because it is faster and because every
+/// threshold downstream was calibrated against it. Elsewhere
+/// ``PortableDSP/powerSpectrum(of:into:)``, which reproduces vDSP's scaling
+/// and packing rather than the textbook's — and is held to it by
+/// `PortableDSPParityTests`, so the platforms that cannot check it are
+/// running the version that was checked here.
 final class RealFFT {
-    private let setup: FFTSetup
     private let size: Int
+
+    #if canImport(Accelerate)
+    /// A class because it owns an Accelerate setup that must be destroyed
+    /// exactly once.
+    private let setup: FFTSetup
     private let log2n: vDSP_Length
+    #endif
 
     init(size: Int) throws {
         precondition(size.nonzeroBitCount == 1, "FFT size must be a power of two")
         self.size = size
+        #if canImport(Accelerate)
         self.log2n = vDSP_Length(log2(Double(size)))
         guard let setup = vDSP_create_fftsetup(log2n, FFTRadix(kFFTRadix2)) else {
             throw VoxScriptaError.analysisFailed(stage: "frame analysis",
                                                reason: "could not create the FFT setup")
         }
         self.setup = setup
+        #endif
     }
 
+    #if canImport(Accelerate)
     deinit { vDSP_destroy_fftsetup(setup) }
+    #endif
 
     /// Computes the magnitude-squared spectrum of `input` into `output`.
     func powerSpectrum(of input: [Float], into output: inout [Float]) {
         precondition(input.count == size)
         precondition(output.count == size / 2)
 
+        #if !canImport(Accelerate)
+        PortableDSP.powerSpectrum(of: input, into: &output)
+        #else
         var real = [Float](repeating: 0, count: size / 2)
         var imaginary = [Float](repeating: 0, count: size / 2)
 
@@ -269,5 +303,6 @@ final class RealFFT {
                 vDSP_zvmags(&split, 1, &output, 1, vDSP_Length(size / 2))
             }
         }
+        #endif
     }
 }

@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(NaturalLanguage)
+import NaturalLanguage
+#endif
 import VoxScriptaCore
 
 /// Whether a polished window was accepted, and how.
@@ -90,19 +93,40 @@ public struct PolishParameters: Hashable, Sendable, Codable {
     public var promptVersion: String
     /// Retry a rejected window once with stricter instructions.
     public var retryOnRejection: Bool
+    /// Which language's lexicons the validator applies.
+    ///
+    /// Part of the parameters, so it is part of the content hash and a change
+    /// re-runs POLISH rather than leaving text validated against another
+    /// language's negation list.
+    public var language: TranscriptLanguage
 
     public init(
         windowSize: Int = 1,
         contextSentences: Int = 2,
         thresholds: ValidationThresholds = .default,
         promptVersion: String = PolishPrompt.version,
-        retryOnRejection: Bool = true
+        retryOnRejection: Bool = true,
+        language: TranscriptLanguage = .english
     ) {
         self.windowSize = Swift.max(1, windowSize)
         self.contextSentences = Swift.max(0, contextSentences)
         self.thresholds = thresholds
         self.promptVersion = promptVersion
         self.retryOnRejection = retryOnRejection
+        self.language = language
+    }
+
+    /// Lenient, so projects written before `language` existed still open.
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        windowSize = try c.decodeIfPresent(Int.self, forKey: .windowSize) ?? 1
+        contextSentences = try c.decodeIfPresent(Int.self, forKey: .contextSentences) ?? 2
+        thresholds =
+            try c.decodeIfPresent(ValidationThresholds.self, forKey: .thresholds) ?? .default
+        promptVersion =
+            try c.decodeIfPresent(String.self, forKey: .promptVersion) ?? PolishPrompt.version
+        retryOnRejection = try c.decodeIfPresent(Bool.self, forKey: .retryOnRejection) ?? true
+        language = try c.decodeIfPresent(TranscriptLanguage.self, forKey: .language) ?? .english
     }
 
     public static let `default` = PolishParameters()
@@ -140,10 +164,19 @@ public struct PolishProcessor: PolishProcessing {
         host: any LanguageModelHosting,
         progress: @escaping @Sendable (Double) -> Void = { _ in }
     ) async throws -> PolishResult {
-        // Segments carry timing and identity, so they are the unit of work. From
-        // this engine they arrive roughly sentence-sized, which is what §14 asks
-        // for, and using them directly keeps the mapping back to audio exact.
-        let units = clean.segments.enumerated().filter { !$0.element.text.isEmpty }
+        // Segments carry timing and identity, so they anchor the work. They do
+        // not reliably arrive one sentence at a time, though, and that
+        // assumption used to be load-bearing: measured on the same script,
+        // Apple's transcriber returns nine segments in English and one in
+        // Spanish. A 75-word segment handed to the model as a single unit
+        // defeats the whole reason windowSize is 1 — merging and shifting
+        // become possible again, and a rejection costs the paragraph rather
+        // than the sentence.
+        //
+        // So a segment holding more than one sentence is split for polishing
+        // and rejoined afterwards. A segment already holding one is untouched,
+        // which keeps English byte-identical to before.
+        let units = Self.polishUnits(in: clean.segments, language: parameters.language)
         guard !units.isEmpty else {
             return PolishResult(transcript: clean, sentences: [])
         }
@@ -156,7 +189,7 @@ public struct PolishProcessor: PolishProcessing {
             try Task.checkCancellation()
             progress(Double(windowIndex) / Double(windowCount))
 
-            let originals = window.map(\.element.text)
+            let originals = window.map(\.text)
             let context = Self.context(around: window, in: units,
                                        count: parameters.contextSentences)
 
@@ -167,10 +200,13 @@ public struct PolishProcessor: PolishProcessing {
             for (offset, unit) in window.enumerated() {
                 let revised = outcome.sentences.indices.contains(offset)
                     ? outcome.sentences[offset]
-                    : unit.element.text
-                polishedText[unit.element.id] = revised
+                    : unit.text
+                // Sentences of the same segment are rejoined in order.
+                let existing = polishedText[unit.segmentID] ?? ""
+                let separator = existing.isEmpty ? "" : " "
+                polishedText[unit.segmentID] = existing + separator + revised
                 records.append(PolishedSentence(
-                    segmentID: unit.element.id, original: unit.element.text,
+                    segmentID: unit.segmentID, original: unit.text,
                     revised: revised, report: outcome.report,
                     disposition: outcome.disposition))
             }
@@ -230,9 +266,11 @@ public struct PolishProcessor: PolishProcessing {
         do {
             let revised = try await host.rewrite(
                 sentences: originals, context: context,
-                instructions: PolishPrompt.instructions)
+                instructions: PolishPrompt.instructions(for: parameters.language),
+                language: parameters.language)
             let report = try validator.validate(
-                original: originals, revised: revised, thresholds: parameters.thresholds)
+                original: originals, revised: revised,
+                language: parameters.language, thresholds: parameters.thresholds)
             if report.passed {
                 return WindowOutcome(sentences: revised, report: report, disposition: .accepted)
             }
@@ -245,9 +283,12 @@ public struct PolishProcessor: PolishProcessing {
             // Retry, naming what went wrong.
             let retried = try await host.rewrite(
                 sentences: originals, context: context,
-                instructions: PolishPrompt.retryInstructions(violations: report.failureReasons))
+                instructions: PolishPrompt.retryInstructions(violations: report.failureReasons,
+                                                             language: parameters.language),
+                language: parameters.language)
             let retryReport = try validator.validate(
-                original: originals, revised: retried, thresholds: parameters.thresholds)
+                original: originals, revised: retried,
+                language: parameters.language, thresholds: parameters.thresholds)
             if retryReport.passed {
                 return WindowOutcome(sentences: retried, report: retryReport,
                                      disposition: .acceptedAfterRetry)
@@ -268,9 +309,54 @@ public struct PolishProcessor: PolishProcessing {
     }
 
     /// Read-only sentences either side of a window.
+    /// One sentence of one segment: the unit POLISH actually rewrites.
+    struct PolishUnit: Sendable {
+        let offset: Int
+        let segmentID: SegmentID
+        let text: String
+    }
+
+    /// Splits segments into sentences, leaving single-sentence segments alone.
+    ///
+    /// `NLTokenizer` is told the language rather than left to detect it. A
+    /// short Spanish sentence is routinely detected as Portuguese, and the
+    /// wrong tokenizer splits in the wrong places.
+    static func polishUnits(in segments: [TranscriptSegment],
+                            language: TranscriptLanguage) -> [PolishUnit] {
+        var units: [PolishUnit] = []
+        for segment in segments where !segment.text.isEmpty {
+            for sentence in sentences(of: segment.text, language: language) {
+                units.append(PolishUnit(offset: units.count,
+                                        segmentID: segment.id,
+                                        text: sentence))
+            }
+        }
+        return units
+    }
+
+    static func sentences(of text: String, language: TranscriptLanguage) -> [String] {
+        #if !canImport(NaturalLanguage)
+        // Core's own splitter, which the paragraph builder already uses. It
+        // breaks on a terminator followed by whitespace and nothing cleverer,
+        // so an abbreviation can split a sentence in two. For POLISH that
+        // costs a smaller unit of work, never a changed word, because each
+        // unit is rewritten on its own and reassembled in order.
+        return Paragraphs.sentences(in: text)
+        #else
+        let tokenizer = NLTokenizer(unit: .sentence)
+        tokenizer.string = text
+        tokenizer.setLanguage(EntityExtraction.nlLanguage(for: language))
+        let found = tokenizer.tokens(for: text.startIndex..<text.endIndex)
+            .map { text[$0].trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        // A tokenizer that finds nothing must not silently drop the segment.
+        return found.isEmpty ? [text] : found
+        #endif
+    }
+
     private static func context(
-        around window: [(offset: Int, element: TranscriptSegment)],
-        in units: [(offset: Int, element: TranscriptSegment)],
+        around window: [PolishUnit],
+        in units: [PolishUnit],
         count: Int
     ) -> PolishContext {
         guard count > 0, let first = window.first, let last = window.last else {
@@ -280,9 +366,10 @@ public struct PolishProcessor: PolishProcessing {
         guard let start = positions.firstIndex(of: first.offset),
               let end = positions.firstIndex(of: last.offset) else { return PolishContext() }
 
-        let before = units[Swift.max(0, start - count)..<start].map(\.element.text)
-        let after = units[Swift.min(end + 1, units.count)
-                          ..< Swift.min(end + 1 + count, units.count)].map(\.element.text)
+        let before = units[Swift.max(0, start - count)..<start].map(\.text)
+        let lower = Swift.min(end + 1, units.count)
+        let upper = Swift.min(end + 1 + count, units.count)
+        let after = units[lower..<upper].map(\.text)
         return PolishContext(preceding: Array(before), following: Array(after))
     }
 }

@@ -1,0 +1,4 @@
+/* Vox Scripta — mensajes de permiso del sistema. */
+
+/* NSMicrophoneUsageDescription */
+"NSMicrophoneUsageDescription" = "Vox Scripta graba audio para poder transcribirlo. Las grabaciones se guardan en este dispositivo y nunca se suben a ningún sitio.";

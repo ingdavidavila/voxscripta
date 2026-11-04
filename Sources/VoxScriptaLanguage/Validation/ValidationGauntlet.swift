@@ -25,6 +25,16 @@ public enum ValidationCheck: String, Sendable, Codable, CaseIterable {
     /// Length ratio and content-word overlap must stay in bounds, which is what
     /// catches summarization.
     case extentBounds
+    /// A word must not lose its diacritics.
+    ///
+    /// Found by running real Spanish audio through the pipeline: the model
+    /// returned "Buenos dias" for "Buenos días" and "el analisis" for "el
+    /// análisis". Every other check passed it — the lemma is the same, the
+    /// content words are the same, the distance is tiny — and the output was
+    /// simply misspelled. In Spanish an accent is orthography, and in a few
+    /// pairs it is meaning: "él" is he and "el" is the, "sí" is yes and "si"
+    /// is if.
+    case orthography
 }
 
 /// One check's outcome.
@@ -58,6 +68,73 @@ public struct ValidationReport: Hashable, Sendable, Codable {
 }
 
 /// Thresholds for the measurement-based checks.
+/// Which languages POLISH is allowed to run in, and on what evidence.
+///
+/// Not a list of languages someone remembered to add. A language qualifies
+/// only when meaning-changing rewrites are demonstrably caught, and the two
+/// languages qualify by different routes.
+///
+/// English has two independent defences against a reversed meaning: the
+/// lexical polarity count and the semantic-distance check, which caught five
+/// of five measured negations.
+///
+/// Only one of those two exists off Apple, and until it was measured that was
+/// an open risk rather than a known quantity. `EnglishRejectionCorpus` closed
+/// it, and the first run was not reassuring: with the embedding absent, seven
+/// of twenty-nine meaning-changing rewrites got through, every one of them
+/// negation spelled without a negative word — *hardly*, *far from*,
+/// *disagreed*, *denied*. Three of those seven also escaped *with* the
+/// embedding, so this was never only an off-Apple problem.
+///
+/// The English negation lexicon was extended until all twenty-nine were
+/// refused with the embedding gone, and none of the eight legitimate rewrites
+/// was blocked. English is admitted on that measurement now, rather than on
+/// the assumption that two defences must be enough.
+///
+/// Spanish has one. The Spanish sentence embedding scores a negation closer to
+/// its original than a paraphrase is — 0.335 mean against a 0.473 paraphrase —
+/// so no threshold separates them and the distance check is blind to the most
+/// dangerous edit available. It still catches invention and wholesale
+/// replacement, but polarity rests entirely on the lexical count. That is why
+/// Spanish required `SpanishRejectionCorpus` before being admitted: eighteen
+/// corruptions, every one refused by the check intended to refuse it, against
+/// ten legitimate rewrites none of which was blocked.
+///
+/// The honest limit of that evidence is that the corpus and the lexicon were
+/// written by the same hand, so it demonstrates the defence works on the
+/// failures we thought of. The structural guard below is what covers the rest:
+/// a language with no negation lexicon cannot be admitted at all, whatever
+/// this table says.
+public enum PolishReadiness {
+
+    public static func isValidated(_ language: TranscriptLanguage) -> Bool {
+        // A language whose polarity lexicon is empty has no defence to measure,
+        // so it is refused regardless of what follows.
+        guard !SemanticLexicons.negations(for: language).isEmpty else { return false }
+
+        switch language {
+        case .english:
+            // Admitted on measurement, not on the embedding's presence. This
+            // returns true off Apple too, where the embedding does not exist
+            // — which is only defensible because EnglishRejectionCorpus shows
+            // the lexical checks hold on their own there.
+            return true
+        case .spanish:
+            // One defence, measured twice: SpanishRejectionCorpus, and again
+            // with the embedding forced absent, which changed no verdict.
+            return true
+        }
+    }
+
+    /// Why POLISH is withheld, for the interface to show. `nil` when it runs.
+    public static func withheldReason(for language: TranscriptLanguage?) -> String? {
+        guard let language else {
+            return "noLexicons"
+        }
+        return isValidated(language) ? nil : "notValidated"
+    }
+}
+
 public struct ValidationThresholds: Hashable, Sendable, Codable {
     /// Largest `NLEmbedding` distance still treated as the same meaning.
     ///
@@ -117,6 +194,7 @@ public protocol Validating: Sendable {
     func validate(
         original: [String],
         revised: [String],
+        language: TranscriptLanguage,
         thresholds: ValidationThresholds
     ) throws -> ValidationReport
 }
@@ -139,6 +217,7 @@ public struct ValidationGauntlet: Validating {
     public func validate(
         original: [String],
         revised: [String],
+        language: TranscriptLanguage = .english,
         thresholds: ValidationThresholds = .default
     ) throws -> ValidationReport {
         var results: [CheckResult] = []
@@ -162,8 +241,8 @@ public struct ValidationGauntlet: Validating {
         // ── 2. Numeric conservation ─────────────────────────────────────────
         results.append(conservation(
             check: .numericConservation,
-            before: EntityExtraction.numbers(in: originalText),
-            after: EntityExtraction.numbers(in: revisedText),
+            before: EntityExtraction.numbers(in: originalText, language: language),
+            after: EntityExtraction.numbers(in: revisedText, language: language),
             noun: "number"))
 
         // ── 3. Named-entity conservation ────────────────────────────────────
@@ -179,22 +258,27 @@ public struct ValidationGauntlet: Validating {
 
         // ── 4. Polarity ─────────────────────────────────────────────────────
         results.append(lexiconBalance(
-            check: .polarity, lexicon: SemanticLexicons.negations,
+            check: .polarity, lexicon: SemanticLexicons.negations(for: language),
+            phrases: SemanticLexicons.negationPhrases(for: language),
             original: original, revised: revised,
             perWindow: thresholds.perWindowPolarity, noun: "negation"))
 
         // ── 5. Modality ─────────────────────────────────────────────────────
         results.append(lexiconBalance(
-            check: .modality, lexicon: SemanticLexicons.hedges,
+            check: .modality, lexicon: SemanticLexicons.hedges(for: language),
             original: original, revised: revised,
             perWindow: thresholds.perWindowPolarity, noun: "hedge"))
 
         // ── 6. Semantic similarity ──────────────────────────────────────────
         results.append(semanticCheck(original: original, revised: revised,
-                                     thresholds: thresholds))
+                                     language: language, thresholds: thresholds))
 
-        // ── 7. Extent bounds ────────────────────────────────────────────────
+        // ── 7. Orthography ──────────────────────────────────────────────────
+        results.append(orthographyCheck(original: original, revised: revised))
+
+        // ── 8. Extent bounds ────────────────────────────────────────────────
         results.append(extentCheck(originalText: originalText, revisedText: revisedText,
+                                   language: language,
                                    thresholds: thresholds))
 
         return ValidationReport(results: results)
@@ -233,22 +317,31 @@ public struct ValidationGauntlet: Validating {
     private func lexiconBalance(
         check: ValidationCheck,
         lexicon: Set<String>,
+        phrases: [[String]] = [],
         original: [String],
         revised: [String],
         perWindow: Bool,
         noun: String
     ) -> CheckResult {
+        /// Single words and multi-word markers counted together, because they
+        /// are the same claim: how many times this text negates something.
+        func markers(in text: String) -> [String: Int] {
+            let tokens = TextTokenizer.tokens(text)
+            return SemanticLexicons.occurrences(tokens, in: lexicon)
+                .merging(SemanticLexicons.phraseOccurrences(tokens, in: phrases)) {
+                    $0 + $1
+                }
+        }
+
         if perWindow {
-            let before = SemanticLexicons.occurrences(
-                TextTokenizer.tokens(original.joined(separator: " ")), in: lexicon)
-            let after = SemanticLexicons.occurrences(
-                TextTokenizer.tokens(revised.joined(separator: " ")), in: lexicon)
+            let before = markers(in: original.joined(separator: " "))
+            let after = markers(in: revised.joined(separator: " "))
             return conservation(check: check, before: before, after: after, noun: noun)
         }
 
         for (index, pair) in zip(original, revised).enumerated() {
-            let before = SemanticLexicons.occurrences(TextTokenizer.tokens(pair.0), in: lexicon)
-            let after = SemanticLexicons.occurrences(TextTokenizer.tokens(pair.1), in: lexicon)
+            let before = markers(in: pair.0)
+            let after = markers(in: pair.1)
             guard before != after else { continue }
             let result = conservation(check: check, before: before, after: after, noun: noun)
             return CheckResult(check: check, passed: false,
@@ -260,14 +353,15 @@ public struct ValidationGauntlet: Validating {
 
     /// Per-sentence embedding distance against the threshold.
     private func semanticCheck(
-        original: [String], revised: [String], thresholds: ValidationThresholds
+        original: [String], revised: [String],
+        language: TranscriptLanguage, thresholds: ValidationThresholds
     ) -> CheckResult {
         var worst = 0.0
         var worstIndex = 0
         var measured = false
 
         for (index, pair) in zip(original, revised).enumerated() {
-            guard let d = similarity.distance(pair.0, pair.1) else { continue }
+            guard let d = similarity.distance(pair.0, pair.1, in: language) else { continue }
             measured = true
             if d > worst { worst = d; worstIndex = index }
         }
@@ -291,8 +385,48 @@ public struct ValidationGauntlet: Validating {
     ///
     /// This is what catches summarization: a faithful readability pass keeps
     /// roughly the same length and nearly all the same content words.
+    /// Refuses a revision that strips diacritics from a word it otherwise kept.
+    ///
+    /// Compared on the folded form so only the accents differ: if "días" and
+    /// "dias" both fold to "dias" and the original carried the accent while
+    /// the revision does not, the word was damaged rather than rewritten. A
+    /// genuinely different word folds differently and is left to the other
+    /// checks.
+    private func orthographyCheck(original: [String], revised: [String]) -> CheckResult {
+        var damaged: [String] = []
+
+        for (before, after) in zip(original, revised) {
+            var accented: [String: String] = [:]
+            for word in TextTokenizer.tokens(before) {
+                let folded = Self.fold(word)
+                if folded != word { accented[folded] = word }
+            }
+            guard !accented.isEmpty else { continue }
+
+            for word in TextTokenizer.tokens(after) {
+                // Only an unaccented spelling of a word the original accented.
+                guard word == Self.fold(word), let source = accented[word] else { continue }
+                damaged.append("\(source) → \(word)")
+            }
+        }
+
+        guard damaged.isEmpty else {
+            return CheckResult(
+                check: .orthography, passed: false,
+                detail: "accents removed: \(damaged.joined(separator: ", "))",
+                measurement: Double(damaged.count))
+        }
+        return CheckResult(check: .orthography, passed: true)
+    }
+
+    /// Lower-cased with diacritics removed.
+    private static func fold(_ word: String) -> String {
+        word.folding(options: [.diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+    }
+
     private func extentCheck(
-        originalText: String, revisedText: String, thresholds: ValidationThresholds
+        originalText: String, revisedText: String,
+        language: TranscriptLanguage, thresholds: ValidationThresholds
     ) -> CheckResult {
         let before = TextTokenizer.tokens(originalText)
         let after = TextTokenizer.tokens(revisedText)
@@ -310,8 +444,8 @@ public struct ValidationGauntlet: Validating {
                 measurement: ratio)
         }
 
-        let contentBefore = EntityExtraction.contentWords(in: originalText)
-        let contentAfter = EntityExtraction.contentWords(in: revisedText)
+        let contentBefore = EntityExtraction.contentWords(in: originalText, language: language)
+        let contentAfter = EntityExtraction.contentWords(in: revisedText, language: language)
         guard !contentBefore.isEmpty else {
             return CheckResult(check: .extentBounds, passed: true, measurement: ratio)
         }

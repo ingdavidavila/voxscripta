@@ -46,7 +46,8 @@ public actor MockLanguageModelHost: LanguageModelHosting {
     public func rewrite(
         sentences: [String],
         context: PolishContext,
-        instructions: String
+        instructions: String,
+        language: TranscriptLanguage
     ) async throws -> [String] {
         callCount += 1
         instructionsSeen.append(instructions)

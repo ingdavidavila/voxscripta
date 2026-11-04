@@ -89,7 +89,7 @@ struct CLI {
         defer { try? FileManager.default.removeItem(at: scratch) }
         let canonical = scratch.appending(path: "canonical.f32")
 
-        let decoder = CanonicalDecoder()
+        let decoder = JobRunner.defaultDecoder()
         let format = try await decoder.probe(url: url)
         let clock = ContinuousClock()
 
@@ -341,7 +341,10 @@ struct CLI {
         }
         let reference = try String(contentsOf: URL(filePath: opts.positional[0]), encoding: .utf8)
         let hypothesis = try String(contentsOf: URL(filePath: opts.positional[1]), encoding: .utf8)
-        let result = WordErrorRate.measure(reference: reference, hypothesis: hypothesis)
+        let language = opts.value("locale").flatMap(TranscriptLanguage.init(localeIdentifier:))
+            ?? .english
+        let result = WordErrorRate.measure(reference: reference, hypothesis: hypothesis,
+                                           language: language)
 
         if opts.flag("json") {
             let encoder = JSONEncoder()
@@ -384,7 +387,7 @@ struct CLI {
                 chunking.targetDuration = .seconds(v * 0.8)
                 chunking.minDuration = .seconds(v * 0.4)
             }
-            let decoder = CanonicalDecoder()
+            let decoder = JobRunner.defaultDecoder()
             project = try await store.create(
                 from: URL(filePath: audioPath), at: projectURL,
                 policy: opts.flag("copy") ? .copy : .reference,
@@ -505,6 +508,14 @@ struct CLI {
     /// splicing audio hurts transcription — this exists for someone who wants
     /// the shortened file for its own sake.
     static func runRenderAudio(_ args: [String]) async throws {
+        // Writing the shortened copy goes through AVFoundation — see
+        // SilenceRemovalRenderer, which stays Apple-only until FFmpeg is taught
+        // to write it. Refused by name here rather than appearing to work: the
+        // whole point of the subcommand is the audio file.
+        #if !canImport(AVFoundation)
+        throw VoxScriptaError.notImplemented(
+            String(localized: "rendering silence-removed audio off Apple"))
+        #else
         let opts = Options(args)
         guard let projectPath = opts.value("project") else {
             throw VoxScriptaError.ioFailure(path: "<args>", reason: "--project <directory> is required")
@@ -540,6 +551,7 @@ struct CLI {
             log("  removed  \(saved) of silence (\(percent)%)")
             log("  map      \(mapURL.lastPathComponent)")
         }
+        #endif
     }
 
     /// Reclaims a finished project's scratch storage.
@@ -633,7 +645,8 @@ struct CLI {
 
         var samples: Int64 = 0
         let decodeTime = try await clock.measure {
-            samples = try await CanonicalDecoder().decode(url: url, to: canonical) { p in
+            samples = try await JobRunner.defaultDecoder()
+                .decode(url: url, to: canonical) { p in
                 if !quiet { progressBar("Decoding", p) }
             }
         }
@@ -667,7 +680,7 @@ struct CLI {
         }
         guard let plan else { throw VoxScriptaError.noSpeechDetected }
 
-        let engine = AppleSpeechEngine()
+        let engine = JobRunner.defaultEngine()
         let prepareTime = try await clock.measure {
             try await engine.prepare(locale: options.locale)
         }
@@ -709,12 +722,33 @@ struct CLI {
             outcome: outcome)
     }
 
+    /// The CPU this benchmark ran on, for the provenance line.
+    ///
+    /// Recorded because every timing in this project is quoted with the machine
+    /// that produced it; a number without one is not a measurement.
     static func hardwareName() -> String {
+        #if canImport(Darwin)
         var size = 0
         sysctlbyname("machdep.cpu.brand_string", nil, &size, nil, 0)
         var buffer = [UInt8](repeating: 0, count: size)
         sysctlbyname("machdep.cpu.brand_string", &buffer, &size, nil, 0)
         return String(decoding: buffer.prefix { $0 != 0 }, as: UTF8.self)
+        #else
+        // No sysctl off Apple. /proc/cpuinfo spells the field differently per
+        // architecture — "model name" on x86, "Model" on many ARM kernels, and
+        // on some neither — so all three are tried and the last resort is
+        // honest rather than invented.
+        let text = (try? String(contentsOf: URL(filePath: "/proc/cpuinfo"), encoding: .utf8)) ?? ""
+        for line in text.split(separator: "\n") {
+            let parts = line.split(separator: ":", maxSplits: 1)
+            guard parts.count == 2 else { continue }
+            let key = parts[0].trimmingCharacters(in: .whitespaces).lowercased()
+            guard key == "model name" || key == "model" || key == "cpu model" else { continue }
+            let value = parts[1].trimmingCharacters(in: .whitespaces)
+            if !value.isEmpty { return value }
+        }
+        return "unknown CPU"
+        #endif
     }
 
     // MARK: - Usage
@@ -756,7 +790,8 @@ struct CLI {
           --copy                 Copy the audio into the project instead of referencing it
           --keep-intermediates   Keep scratch audio after a job finishes
           --polish-backend <k>   automatic | system | bundled
-          --model <dir>          An MLX model folder to polish with
+                                 bundled is llama.cpp here; the app ships MLX
+          --model <path>         A GGUF file to polish with, overriding the default
           --engine <id>          apple (default) | whisperkit
           --locale <bcp47>       Transcription locale, default en-US
           --concurrency <n>      Chunks in flight, default 1
