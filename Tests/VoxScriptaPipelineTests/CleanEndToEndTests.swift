@@ -56,7 +56,8 @@ actor CleanRunCache {
 
         var options = JobOptions()
         options.transcription.concurrency = 1
-        _ = try await JobRunner().run(project: project, options: options)
+        _ = try await JobRunner(gate: EntitlementFixture.freshTrial())
+            .run(project: project, options: options)
 
         let output = Output(
             verbatim: try JobRunner.transcript(.verbatim, from: project.package),

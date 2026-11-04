@@ -11,6 +11,12 @@ public struct RootView: View {
     @Environment(AppModel.self) private var model
     @State private var isTargeted = false
 
+    /// The trial, so the banner can say where it stands and the wall has a
+    /// door. The engine refuses work on its own; this is what offers a way
+    /// out of that refusal instead of leaving a dead end.
+    @State private var entitlement = EntitlementModel()
+    @State private var isShowingPaywall = false
+
     public var body: some View {
         @Bindable var model = model
 
@@ -118,6 +124,22 @@ public struct RootView: View {
         } message: {
             Text(model.errorMessage ?? "")
         }
+        // Above everything, spanning the window. `safeAreaInset` rather than
+        // a VStack so the split view keeps its own layout and the banner does
+        // not become a column of it.
+        .safeAreaInset(edge: .top, spacing: 0) {
+            TrialBanner(model: entitlement) { isShowingPaywall = true }
+        }
+        .sheet(isPresented: $isShowingPaywall) {
+            NavigationStack {
+                PaywallView(model: entitlement)
+            }
+            #if os(macOS)
+            .frame(minWidth: 460, minHeight: 560)
+            #endif
+        }
+        .onAppear { entitlement.start() }
+        .onDisappear { entitlement.stop() }
         // Names what will actually happen rather than asking "are you sure?" —
         // what deleting removes depends on how the recording was imported.
         .alert("Delete “\(model.pendingDeletion?.plan.projectName ?? "")”?",

@@ -14,6 +14,11 @@ public struct SettingsView: View {
 
     @Environment(AppModel.self) private var model
 
+    /// The accounts this build has, if any. Built here rather than injected
+    /// so the settings pane works standalone, as it already does for every
+    /// other setting.
+    @State private var auth = AuthModel()
+
     public var body: some View {
         @Bindable var model = model
 
@@ -177,10 +182,18 @@ public struct SettingsView: View {
                     Text(Strings.keepWorkingFilesFooter)
                         .font(.caption).foregroundStyle(.secondary)
                 }
+                if auth.isConfigured {
+                    AccountSection(auth: auth)
+                }
                 Section(Strings.settingsPrivacy) {
                     Label(Strings.processedOnThisMac, systemImage: "lock.fill")
                         .help(Strings.processedHelp)
-                    Text(Strings.privacyFooter)
+                    // "No accounts" stops being true the moment one can be
+                    // made, and transcription staying local does not excuse
+                    // saying the other half wrongly.
+                    Text(auth.isConfigured
+                         ? Strings.privacyFooterWithAccounts
+                         : Strings.privacyFooter)
                         .font(.caption).foregroundStyle(.secondary)
                     #if os(macOS)
                     Button(Strings.showProjectsFolder) {

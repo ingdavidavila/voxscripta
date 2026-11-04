@@ -62,23 +62,23 @@ Legend: ✓ in the SwiftUI app · ABI column says whether the C ABI can serve it
 | Default variant to show | ✓ | interface-side |
 | Keep intermediate files | ✓ | ✓ · Flutter ✓ |
 | **Accounts** | | |
-| Sign in with Apple | ✗ | ✗ — screen ✓ Flutter, no service |
-| Sign in with Google | ✗ | ✗ — screen ✓ Flutter, no service |
-| Email and password sign-in | ✗ | ✗ — screen ✓ Flutter, no service |
-| Sign up: email, password, password again | ✗ | ✗ — screen ✓ Flutter, no service |
-| Password rules: 8 characters, a capital, a number, a symbol | ✗ | ✓ `vs_password_rules` · Flutter ✓ |
-| Reveal the password | ✗ | interface-side · Flutter ✓ |
-| Forgotten password | ✗ | ✗ — screen ✓ Flutter, no service |
-| Delete the account from inside the app | ✗ | ✗ — screen ✓ Flutter, no service |
+| Sign in with Apple | ✓ screen, no service | ✗ — screen ✓ Flutter, no service |
+| Sign in with Google | ✓ screen, no service | ✗ — screen ✓ Flutter, no service |
+| Email and password sign-in | ✓ screen, no service | ✗ — screen ✓ Flutter, no service |
+| Sign up: email, password, password again | ✓ screen, no service | ✗ — screen ✓ Flutter, no service |
+| Password rules: 8 characters, a capital, a number, a symbol | ✓ reads `PasswordPolicy` directly | ✓ `vs_password_rules` · Flutter ✓ |
+| Reveal the password | ✓ | interface-side · Flutter ✓ |
+| Forgotten password | ✓ screen, no service | ✗ — screen ✓ Flutter, no service |
+| Delete the account from inside the app | ✓ screen, no service | ✗ — screen ✓ Flutter, no service |
 | **The paywall** | | |
-| 3-day trial from first launch | ✗ | ✓ `vs_entitlement_state` · Flutter ✓ |
-| A clock set backwards does not extend it | ✗ | ✓ — high-water mark in the engine |
-| New transcriptions and recording refused after it | ✗ | ✓ — `vs_job_start`/`vs_recording_start` return -3 |
+| 3-day trial from first launch | ✓ | ✓ `vs_entitlement_state` · Flutter ✓ |
+| A clock set backwards does not extend it | ✓ | ✓ — high-water mark in the engine |
+| New transcriptions and recording refused after it | ✓ — `JobRunner` + `AppModel` | ✓ — `vs_job_start`/`vs_recording_start` return -3 |
 | Reading, copying and exporting never refused | ✓ | ✓ — not in `GatedAction` |
-| Trial countdown shown before the wall, not only after | ✗ | interface-side · Flutter ✓ |
-| Subscription screen with price, period and required links | ✗ | interface-side · Flutter ✓ |
-| Buying a subscription | ✗ | ✗ — screen ✓ Flutter, no store |
-| Restoring a purchase | ✗ | ✗ — screen ✓ Flutter, no store |
+| Trial countdown shown before the wall, not only after | ✓ | interface-side · Flutter ✓ |
+| Subscription screen with price, period and required links | ✓ | interface-side · Flutter ✓ |
+| Buying a subscription | StoreKit 2 written; no products, no URLs | ✗ — screen ✓ Flutter, no store |
+| Restoring a purchase | StoreKit 2 written; no products, no URLs | ✗ — screen ✓ Flutter, no store |
 | **Everywhere** | | |
 | A tooltip on every button saying what it does | ✓ | interface-side |
 | Dismissible errors carrying the engine's own words | ✓ | ✓ |
@@ -378,3 +378,111 @@ is exactly as strong as that platform code, and the ABI documents it that way.
 6. **SwiftUI has none of it.** Mac and iPhone get the engine's wall — jobs will
    be refused with the engine's own message — but no banner, no paywall and no
    way to buy. That is the next thing to build.
+
+
+## Accounts on Apple, 2026-11-03
+
+The SwiftUI half of the account work, written against the same contract the
+Flutter half already satisfies. Method for method, `AuthService` in
+`VoxScriptaUI/Auth` matches the Dart `AuthService`: same routes, same
+`AuthUser`, same required `deleteAccount()`.
+
+What makes this parity rather than a coincidence: **the password rules are not
+reimplemented here.** `AuthModel.passwordRules(for:)` returns
+`PasswordPolicy.evaluate(_:)` straight from `VoxScriptaCore`, and a test
+asserts the two are identical objects rather than merely similar ones. The
+Flutter app reads the same four rules over `vs_password_rules`. One
+definition, so a password accepted on a phone is accepted on a Mac — which is
+the whole reason `PasswordPolicy` went into the engine rather than into an
+interface.
+
+Three Apple-specific things the Flutter side did not have to deal with:
+
+1. **`SignInWithAppleButton`, not a drawn imitation.** Apple's guidelines
+   govern that button's appearance, and Review Guideline 4.8 is why it appears
+   wherever Google does. The real control also means the authorization sheet
+   is real: a missing Sign in with Apple entitlement surfaces as an error the
+   user can see rather than as a button that silently does nothing.
+2. **A cancelled authorization is not a failure.** `ASAuthorizationError.canceled`
+   is swallowed; everything else is reported. Someone who changed their mind
+   has not hit a problem.
+3. **`PasswordField` owns its own `isRevealed`.** SwiftUI swaps `SecureField`
+   for `TextField` when the toggle flips, and hoisting that state to the form
+   rebuilds the whole subtree and drops the caret back to the start of the
+   text. Found the same way in Flutter, fixed the same way.
+
+No gate at launch, on either platform. The account rows live in Settings and
+nowhere else, and `configuredAuthService()` returns nil, so in this build they
+do not appear at all. Review Guideline 5.1.1(i) refuses apps that demand
+personal information for features that do not need it, and transcription needs
+neither an account nor a network.
+
+The privacy footer in Settings now has two forms. "No accounts" stops being
+true the moment one can be made, and the fact that transcription stays local
+does not excuse saying the other half wrongly.
+
+### A hole in the paywall, found while writing this
+
+The wall was put in `vs_job_start` and `vs_recording_start` on the grounds
+that an interface cannot be trusted to remember it. That reasoning was right
+and the placement was wrong: **the SwiftUI app does not use the C ABI at
+all.** It calls `JobRunner().run(…)` from `VoxScriptaPipeline` directly, as do
+the CLI and the FFI. So the paywall applied to Android, Windows and Linux and
+left Mac and iPhone — the only platforms that can ship today — completely
+open.
+
+Fixed by moving the gate to `JobRunner.run`, which is the one place all three
+callers pass through. `JobRunner` takes the record as a parameter, defaulting
+to the machine's real one, for the same reason the two FFI entry points do:
+otherwise every pipeline test starts failing three days after the machine
+running it first ran the app.
+
+The recording path is still open on Apple and is listed below. `AppModel` has
+its own recorder and does not go through `vs_recording_start`.
+
+### The paywall on Apple, closed
+
+A trial banner above the window from the first day, a paywall sheet carrying
+the price, the billing period and both links Guideline 3.1.2 requires, and a
+**real StoreKit 2 implementation** — not another placeholder.
+
+It can be real because StoreKit 2 hands back transactions signed by Apple and
+`VerificationResult` checks that signature on the device. No server. That
+matters more here than in most apps: an application whose premise is that it
+needs no network should not acquire one in order to take money. An unverified
+result is refused outright rather than trusted-and-logged, which is the one
+thing standing between this and a forged receipt.
+
+`Transaction.updates` runs for the life of the app, because a renewal that
+arrives while the app is open, or a refund Apple grants, shows up there and
+nowhere else — without it a refunded subscription keeps working until the next
+launch. Apple's billing-retry grace is honoured: a subscriber whose card was
+declined once should not lose the app mid-interview.
+
+The "Save 37%" badge is computed from the two real prices, with a 5% floor. A
+hardcoded percentage becomes a false advertisement the first time either price
+moves, and in a currency whose tiers round differently it can be false on the
+day it ships.
+
+Recording on Apple is gated too, in `AppModel.startRecording`, since that path
+uses `AudioRecorder` and never reaches `JobRunner`. Asking before the
+microphone opens rather than after: audio the app will not then transcribe is
+worse than a clear refusal.
+
+### Still outstanding on Apple — and none of it is code
+
+`configuredSubscriptionService()` returns nil, so nothing is for sale, while
+the engine walls on day four regardless. Two things are missing and both sit
+outside the repository:
+
+1. **The two products in App Store Connect** — `voxscripta.monthly` and
+   `voxscripta.yearly`, with a price tier per territory. Until they exist,
+   `Product.products(for:)` returns an empty array and the paywall says so.
+2. **A public Terms of Use URL and Privacy Policy URL.** Guideline 3.1.2
+   requires both on the paywall itself, which is why they are required
+   arguments to `StoreKitSubscriptionService` rather than optional ones.
+   Shipping with placeholder links would put two dead URLs in front of a
+   buyer on the one screen where they are load-bearing.
+
+That privacy-policy URL now blocks three separate things: the iOS submission,
+the Play submission, and the paywall.

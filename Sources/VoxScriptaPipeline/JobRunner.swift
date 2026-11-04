@@ -90,9 +90,21 @@ public struct JobProgressReport: Sendable {
 /// planner can reason about.
 public struct JobRunner: Sendable {
     private let engineFactory: @Sendable () -> any TranscriptionEngine
+    private let gate: EntitlementStore
 
-    public init(engineFactory: (@Sendable () -> any TranscriptionEngine)? = nil) {
+    /// - Parameter gate: the trial and subscription record consulted before
+    ///   any work starts. Defaults to this machine's real one.
+    ///
+    ///   It is a parameter so a test can supply a record it owns. Without
+    ///   that, every pipeline test would start failing three days after the
+    ///   machine running them first ran the app — a suite that measures the
+    ///   calendar rather than the code.
+    public init(
+        engineFactory: (@Sendable () -> any TranscriptionEngine)? = nil,
+        gate: EntitlementStore = EntitlementStore()
+    ) {
         self.engineFactory = engineFactory ?? Self.defaultEngine
+        self.gate = gate
     }
 
     /// The recogniser used when the caller names none.
@@ -162,6 +174,15 @@ public struct JobRunner: Sendable {
         options: JobOptions = JobOptions(),
         progress: @escaping @Sendable (JobProgressReport) -> Void = { _ in }
     ) async throws -> Transcript {
+        // The paywall, before the source is even resolved.
+        //
+        // Here rather than in each interface. The SwiftUI app, the CLI and
+        // the C ABI all come through this one method, and the first version
+        // of this wall lived only in `vs_job_start` — which meant Mac and
+        // iPhone, the platforms that can actually ship, were never behind it
+        // at all. One gate, and nothing can forget to ask.
+        try gate.require(.startJob)
+
         var options = resolved(options, for: project)
         let package = project.package
         let (sourceURL, release) = try project.resolveSource()

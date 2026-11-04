@@ -63,7 +63,7 @@ struct CancellationTests {
         let project = try await makeProject(in: tmp)
 
         let engine = await slowEngine()
-        let runner = JobRunner(engineFactory: { engine })
+        let runner = JobRunner(engineFactory: { engine }, gate: EntitlementFixture.freshTrial())
         let options: JobOptions = {
             var o = JobOptions()
             o.transcription.concurrency = 1
@@ -111,7 +111,7 @@ struct CancellationTests {
         let project = try await makeProject(in: tmp)
 
         let engine = await slowEngine()
-        let runner = JobRunner(engineFactory: { engine })
+        let runner = JobRunner(engineFactory: { engine }, gate: EntitlementFixture.freshTrial())
         let options: JobOptions = {
             var o = JobOptions()
             o.transcription.concurrency = 1
@@ -141,7 +141,7 @@ struct CancellationTests {
         // planner, so the same path handles both.
         let reopened = try await ProjectStore().open(at: project.package.root)
         let resumeEngine = MockTranscriptionEngine()
-        let transcript = try await JobRunner(engineFactory: { resumeEngine })
+        let transcript = try await JobRunner(engineFactory: { resumeEngine }, gate: EntitlementFixture.freshTrial())
             .run(project: reopened, options: options)
 
         #expect(transcript.isMonotonic)
@@ -166,7 +166,7 @@ struct CancellationTests {
         let engine = await slowEngine()
 
         let task = Task {
-            try await JobRunner(engineFactory: { engine })
+            try await JobRunner(engineFactory: { engine }, gate: EntitlementFixture.freshTrial())
                 .run(project: project, options: JobOptions())
         }
         try await Task.sleep(for: .milliseconds(200))

@@ -450,4 +450,150 @@ enum Strings {
         Open the folder where Vox Scripta keeps its projects in Finder.
         """
     }
+
+    // MARK: - Accounts
+
+    static var signIn: LocalizedStringKey { "Sign In" }
+    static var signUp: LocalizedStringKey { "Create Account" }
+    static var signOut: LocalizedStringKey { "Sign Out" }
+    static var account: LocalizedStringKey { "Account" }
+    static var notNow: LocalizedStringKey { "Not Now" }
+    static var emailField: LocalizedStringKey { "Email" }
+    static var passwordField: LocalizedStringKey { "Password" }
+    static var confirmPasswordField: LocalizedStringKey { "Password again" }
+    static var showPassword: LocalizedStringKey { "Show password" }
+    static var hidePassword: LocalizedStringKey { "Hide password" }
+    static var forgotPassword: LocalizedStringKey { "Forgot your password?" }
+    static var resetPassword: LocalizedStringKey { "Reset Password" }
+    static var sendResetLink: LocalizedStringKey { "Send Reset Link" }
+    static var continueWithGoogle: LocalizedStringKey { "Continue with Google" }
+    static var orDivider: LocalizedStringKey { "or" }
+    static var noAccountYet: LocalizedStringKey { "No account yet?" }
+    static var haveAccount: LocalizedStringKey { "Already have an account?" }
+    static var passwordRequirements: LocalizedStringKey { "Your password needs" }
+
+    /// Said whether or not the address is registered.
+    ///
+    /// Confirming that an address *has* an account would turn this form into
+    /// a membership oracle for anyone who wanted to know who uses the app.
+    static var resetSent: LocalizedStringKey {
+        """
+        If that address has an account, a reset link is on its way. Check \
+        your inbox, and your spam folder.
+        """
+    }
+    static var signInSubtitle: LocalizedStringKey {
+        """
+        An account is optional. Vox Scripta transcribes on this machine \
+        whether you sign in or not.
+        """
+    }
+    static var deleteAccount: LocalizedStringKey { "Delete Account" }
+    static var deleteAccountTitle: LocalizedStringKey { "Delete this account?" }
+    static var deleteAccountBody: LocalizedStringKey {
+        """
+        The account and everything the account service holds for it are \
+        removed. This cannot be undone. Recordings, projects and transcripts \
+        on this Mac are not deleted — they were never on the account.
+        """
+    }
+    static var deleteAccountBodyPhone: LocalizedStringKey {
+        """
+        The account and everything the account service holds for it are \
+        removed. This cannot be undone. Recordings, projects and transcripts \
+        on this device are not deleted — they were never on the account.
+        """
+    }
+    static var keepAccount: LocalizedStringKey { "Keep It" }
+    static var signedInAs: LocalizedStringKey { "Signed in as" }
+    static var signedInWith: LocalizedStringKey { "Signed in with" }
+    static var signOutKeepsWork: LocalizedStringKey {
+        """
+        Your recordings and transcripts stay on this machine.
+        """
+    }
+
+    /// The privacy footer once accounts exist.
+    ///
+    /// The original says "no accounts", which stops being true the moment one
+    /// can be created. Transcription is still local and still cannot upload;
+    /// both halves have to be said rather than one.
+    static var privacyFooterWithAccounts: LocalizedStringKey {
+        """
+        Transcription runs on this machine and cannot upload anything. An \
+        account is optional and carries only your email address, for \
+        signing in.
+        """
+    }
+
+    // MARK: - The paywall
+
+    static var subscribe: LocalizedStringKey { "Subscribe" }
+    static var seePlans: LocalizedStringKey { "See Plans" }
+    static var restorePurchase: LocalizedStringKey { "Restore" }
+    static var keepGoing: LocalizedStringKey { "Keep going after your trial" }
+    static var trialEndedTitle: LocalizedStringKey { "Your trial has ended" }
+    static var lapsedTitle: LocalizedStringKey { "Your subscription has lapsed" }
+    static var subscribedTitle: LocalizedStringKey { "You are subscribed" }
+    static var lastDayOfTrial: LocalizedStringKey { "Last day of your free trial." }
+    static var trialEndedShort: LocalizedStringKey {
+        """
+        Your trial has ended. Everything already transcribed stays yours.
+        """
+    }
+    static var lapsedShort: LocalizedStringKey {
+        """
+        Your subscription has lapsed. Everything already transcribed stays yours.
+        """
+    }
+
+    /// The one claim this screen must not overstate.
+    ///
+    /// A subscription changes nothing about where the work happens. Saying
+    /// otherwise to sell one would be the single lie available here.
+    static var paywallPitch: LocalizedStringKey {
+        """
+        Vox Scripta transcribes on this machine. Nothing is uploaded, nothing \
+        is sent to a service, and none of that changes with a subscription — \
+        what it pays for is the work of making it.
+        """
+    }
+    static var whatStaysYours: LocalizedStringKey { "What stays yours either way" }
+    static var keepRecordings: LocalizedStringKey {
+        "Every recording you imported — untouched, where you put it."
+    }
+    static var keepTranscripts: LocalizedStringKey {
+        "Every transcript already made — readable, copyable, exportable."
+    }
+    static var keepFormats: LocalizedStringKey {
+        "Every export format: txt, md, docx, srt, vtt."
+    }
+    static var keepFolder: LocalizedStringKey { "Your projects folder, on your own disk." }
+    static var unlocksWhat: LocalizedStringKey {
+        "A subscription unlocks new transcriptions and recording."
+    }
+    static var renewalTerms: LocalizedStringKey {
+        """
+        Subscriptions renew automatically at the price shown until cancelled. \
+        Cancel any time; the subscription runs to the end of the period \
+        already paid for.
+        """
+    }
+    static var termsOfUse: LocalizedStringKey { "Terms of Use" }
+    static var privacyPolicyLink: LocalizedStringKey { "Privacy Policy" }
+    static var manageSubscription: LocalizedStringKey { "Manage Subscription" }
+    static var noStoreWired: LocalizedStringKey { "No store is connected in this build" }
+    static var noStoreWiredBody: LocalizedStringKey {
+        """
+        Subscriptions are sold through the App Store, and it is not wired up \
+        yet, so there is nothing to buy here. This build cannot start new \
+        transcriptions once the trial ends.
+        """
+    }
+    static var noPlansReturned: LocalizedStringKey {
+        "No plans came back from the App Store."
+    }
+    static func trialDaysLeft(_ days: Int) -> LocalizedStringKey {
+        "\(days) days left in your free trial."
+    }
 }

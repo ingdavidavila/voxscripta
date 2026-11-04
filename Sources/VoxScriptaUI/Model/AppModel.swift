@@ -56,6 +56,13 @@ public final class AppModel {
     private(set) var isRunning = false
     private(set) var errorMessage: String?
 
+    /// This machine's trial and subscription.
+    ///
+    /// Held here so the recording path can ask before it opens the
+    /// microphone. Transcribing is gated inside `JobRunner`, which every
+    /// interface goes through; recording on Apple does not, so it asks here.
+    let entitlements = EntitlementStore()
+
     // ── Current result ──────────────────────────────────────────────────────
     private(set) var openProject: Project?
     private(set) var peaks: WaveformPeaks?
@@ -263,6 +270,16 @@ public final class AppModel {
     /// for as long as the audio route takes — which, when the route is
     /// broken, is forever.
     private func startRecording() {
+        // The paywall, before the microphone. `JobRunner` gates transcribing,
+        // but this path never reaches it — a recording made here only meets
+        // the wall afterwards, and audio the app will not then transcribe is
+        // worse than a clear refusal now.
+        do {
+            try entitlements.require(.startRecording)
+        } catch {
+            fail(error)
+            return
+        }
         isShowingRecorder = true
         Task { [weak self] in
             guard let self else { return }
