@@ -89,8 +89,21 @@ With an account service:
 
 ## The privacy policy itself
 
-**Written**, at `Docs/privacy-policy.md`. Still **unhosted**, which is what
-actually blocks:
+**Written and published.**
+
+- Privacy policy: <https://ingdavidavila.github.io/voxscripta/privacy.html>
+- Terms of use: <https://ingdavidavila.github.io/voxscripta/terms.html>
+
+Served from the `gh-pages` branch — an orphan branch holding only the site, so
+it shares no history with `main`. Pages cannot serve from `Docs/` here: its
+`/docs` source option matches a lower-case directory and git records this one
+capitalised, so a branch avoided renaming the source tree.
+
+**GitHub Pages still has to be switched on once**, in Settings → Pages, source
+`gh-pages` / root. Until that is done the URLs 404.
+
+The Markdown source stays at `Docs/privacy-policy.md` and the published HTML
+is in the branch; if one changes, change both.
 the iOS submission, the Play submission, and the paywall — Guideline 3.1.2
 requires a Privacy Policy link on the subscription screen itself, which is why
 `StoreKitSubscriptionService` takes the URL as a required argument rather than
