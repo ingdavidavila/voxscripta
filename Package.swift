@@ -330,7 +330,7 @@ let package = Package(
         .testTarget(
             name: "VoxScriptaCoreParityTests",
             dependencies: ["VoxScriptaCore", "VoxScriptaCoreCxx", "VoxScriptaCxxShim",
-                           "VoxScriptaDSP", "VoxScriptaExport"],
+                           "VoxScriptaDSP", "VoxScriptaExport", "VoxScriptaTranscription"],
             swiftSettings: [.swiftLanguageMode(.v6), .interoperabilityMode(.Cxx)]
         ),
         .testTarget(name: "VoxScriptaExportTests",

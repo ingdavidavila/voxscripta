@@ -18,6 +18,7 @@
 #include "voxscripta/chunk_models.hpp"
 #include "voxscripta/errors.hpp"
 #include "voxscripta/chunk_planner.hpp"
+#include "voxscripta/transcript_merger.hpp"
 #include "voxscripta/silence_detector.hpp"
 #include "voxscripta/frame_analysis.hpp"
 #include "voxscripta/silence_models.hpp"
@@ -152,6 +153,14 @@ inline std::int64_t chunk_sample_count(const ChunkPlan& plan, int i) {
 }
 inline int hard_cuts(const ChunkPlan& plan) {
     return static_cast<int>(plan.hard_cut_count());
+}
+
+// ── Transcript merging ──────────────────────────────────────────────────
+
+/// `normalize` as a C string, so Swift can compare it without owning a
+/// std::string specialization.
+inline std::string normalized(const char* text) {
+    return TranscriptMerger::normalize(std::string(text));
 }
 
 inline int size_of(const FloatVector& v) { return static_cast<int>(v.size()); }

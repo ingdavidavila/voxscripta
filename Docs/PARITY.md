@@ -546,7 +546,7 @@ Four modules have a C++ implementation and no cross-check:
 
 | Module | Why it matters |
 | --- | --- |
-| `transcript_merger` | Resolves overlapping chunk text. Divergence shows up as duplicated or dropped words at chunk seams — the hardest defect to notice and the most embarrassing to ship. |
+| `transcript_merger` | Partly held — see the defect below. `merge` itself still needs chunk transcripts built across the boundary. |
 | `exporters` | txt, md, docx, srt, vtt. A timestamp format or a line-wrap that differs makes the same recording export differently per platform. |
 | `chunk_scheduler` | Ordering and concurrency. Needs a deterministic harness before it can be compared at all. |
 | `canonical_audio` | Reads samples from disk, so parity needs fixture files rather than synthetic arrays. |
@@ -554,3 +554,45 @@ Four modules have a C++ implementation and no cross-check:
 `transcript_merger` and `exporters` are the two worth doing next, in that
 order. Both compare values rather than requiring I/O, so both are the same
 shape of work as the two already done.
+
+
+### A defect the suite found on its first run
+
+`TranscriptMerger::normalize` does not agree with the Swift original on
+non-ASCII text, and `normalize` is how the merger decides two chunks overlap.
+
+Swift normalizes with full Unicode — `lowercased()`, then keep anything
+`isLetter || isNumber`. The C++ port works on bytes: ASCII lower-case, drop
+ASCII punctuation, keep every byte ≥ 0x80 exactly as found. Six confirmed
+disagreements:
+
+| Input | Swift | C++ |
+| --- | --- | --- |
+| `it’s` (U+2019) | `its` | `it’s` |
+| `don’t` (U+2019) | `dont` | `don’t` |
+| `CAFÉ` | `café` | `cafÉ` |
+| `NIÑO` | `niño` | `niÑo` |
+| `¿Qué?` | `qué` | `¿qué` |
+| `a—b` (U+2014) | `ab` | `a—b` |
+
+The consequence is not cosmetic. Within one platform the comparison is at
+least self-consistent, but the byte rule **fails to match a word carrying
+punctuation against the same word without it**. A seam where one chunk ends
+"hola" and the next begins "¡hola" deduplicates on Apple and does not off it.
+What a user sees is a duplicated word at a chunk boundary — on Windows and
+Android, in Spanish, and in any English transcript using typographic
+apostrophes, which is most of them, because recognisers emit U+2019 rather
+than U+0027.
+
+Not fixed here. Exact parity with Swift's Unicode semantics is not reachable
+in plain C++ without a Unicode table, which makes it a design decision rather
+than a typo, and `core/` is being worked on from the Windows machine. It has
+been reported there with a suggested approach: decode UTF-8 and handle
+Latin-1 Supplement (U+00C0–U+00FF) and General Punctuation (U+2000–U+206F)
+explicitly, which is bounded, needs no dependency, and closes every case
+above.
+
+The six cases sit in `MergerParityTests` inside `withKnownIssue`, so the suite
+is green while the defect stands and **fails the moment it is fixed** — which
+is when someone should delete the wrapper and move them into the agreeing
+list.
