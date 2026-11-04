@@ -40,6 +40,10 @@ android/.cxx/
 android/app/.cxx/
 *.iml
 
+# Fetched by Tools/fetch-whisper.sh, never committed.
+third_party/whisper.cpp/
+models/
+
 # Xcode user state
 ios/**/xcuserdata/
 ios/**/*.xcworkspace/xcuserdata/
