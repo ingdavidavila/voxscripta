@@ -22,7 +22,14 @@ Tests/Fixtures/generated/
 *.bench.json
 
 # Local model assets. Never committed — large, and license-encumbered.
-Models/
+#
+# Anchored. Unanchored, this matched ANY directory called Models at any
+# depth, and on a case-insensitive filesystem the lower-case rule below
+# matched it too — which silently swallowed
+# Sources/VoxScriptaCore/Models/ModelSearch.swift. The file built here and
+# did not exist on GitHub, so every fresh clone failed to compile and this
+# machine could not see it.
+/Models/
 
 # Fetched model weights — see Tools/fetch-model.sh
 build/Model/
@@ -42,7 +49,9 @@ android/app/.cxx/
 
 # Fetched by Tools/fetch-whisper.sh, never committed.
 third_party/whisper.cpp/
-models/
+# Anchored, for the reason given above. Fetched weights live in build/models,
+# which the build/ rule already covers.
+/models/
 
 # Xcode user state
 ios/**/xcuserdata/
