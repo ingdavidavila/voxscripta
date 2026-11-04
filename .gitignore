@@ -43,3 +43,7 @@ android/app/.cxx/
 # Xcode user state
 ios/**/xcuserdata/
 ios/**/*.xcworkspace/xcuserdata/
+
+# Golden-diff artifacts, written by `flutter test` when a pixel test fails.
+# Regenerated on every failure and meaningless once the golden is fixed.
+flutter/app/test/failures/

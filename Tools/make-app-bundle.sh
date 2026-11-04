@@ -122,7 +122,32 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-# Entitlements assert the privacy claim structurally: no network client, ever.
+# Entitlements assert the privacy claim structurally.
+#
+# Two flavours, because the App Store build and the direct download can no
+# longer make the same promise. StoreKit needs a network client to fetch
+# products, take a payment and hear about a refund, so a store build cannot be
+# built without one. The direct download has no store to talk to and keeps the
+# stronger claim.
+#
+#   default                      no network client, ever. The build refuses one.
+#   VOXSCRIPTA_STORE_BUILD=1     network client, for StoreKit and nothing else.
+#
+# Flavours rather than one relaxed rule, so the strongest guarantee survives
+# where it can still be kept, and so nobody discovers later that the promise
+# was quietly downgraded for every build at once.
+STORE_BUILD="${VOXSCRIPTA_STORE_BUILD:-0}"
+
+if [ "$STORE_BUILD" = "1" ]; then
+    NETWORK_ENTITLEMENT='    <!-- StoreKit only: fetching products, taking a payment, hearing about a
+         refund. No audio and no transcript is sent anywhere — that is no
+         longer provable from the entitlements alone, which is exactly why
+         the direct-download flavour below still refuses this key. -->
+    <key>com.apple.security.network.client</key><true/>'
+else
+    NETWORK_ENTITLEMENT=""
+fi
+
 cat > "$ROOT/build/VoxScripta.entitlements" <<ENT
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -132,8 +157,9 @@ cat > "$ROOT/build/VoxScripta.entitlements" <<ENT
     <key>com.apple.security.files.user-selected.read-only</key><true/>
     <!-- Recording in the app needs the microphone, and the hardened runtime
          denies it without this. It grants input only: there is still no
-         network, no camera, and no address book. -->
+         camera and no address book. -->
     <key>com.apple.security.device.audio-input</key><true/>
+$NETWORK_ENTITLEMENT
 </dict>
 </plist>
 ENT
@@ -194,11 +220,34 @@ fi
 codesign --force --options runtime --sign - \
     --entitlements "$ROOT/build/VoxScripta.entitlements" "$APP"
 
-# The privacy guarantee is only worth stating if it is checked. A network
-# entitlement here would silently undo §26, so the build refuses to produce one.
-if codesign -d --entitlements - "$APP" 2>/dev/null | grep -q "network.client"; then
-    echo "FAIL: the bundle carries a network entitlement" >&2
-    exit 1
+# The privacy guarantee is only worth stating if it is checked, so each
+# flavour is checked for the thing it claims.
+#
+# Direct download: no network client. Still §26 enforced by the platform
+# rather than by our restraint.
+#
+# Store build: a network client, and *only* a client. A network *server*
+# entitlement is never justifiable in this app, and the asymmetry is the
+# point — an app that can be connected to is a different risk from one that
+# can connect out to a store.
+ENTITLEMENTS_NOW="$(codesign -d --entitlements - "$APP" 2>/dev/null || true)"
+
+if [ "$STORE_BUILD" = "1" ]; then
+    if ! printf '%s' "$ENTITLEMENTS_NOW" | grep -q "network.client"; then
+        echo "FAIL: a store build needs the network client entitlement for StoreKit" >&2
+        exit 1
+    fi
+    if printf '%s' "$ENTITLEMENTS_NOW" | grep -q "network.server"; then
+        echo "FAIL: the bundle carries a network *server* entitlement" >&2
+        exit 1
+    fi
+    echo "store flavour: network client present, for StoreKit only"
+else
+    if printf '%s' "$ENTITLEMENTS_NOW" | grep -q "network"; then
+        echo "FAIL: the bundle carries a network entitlement" >&2
+        exit 1
+    fi
+    echo "direct flavour: no network entitlement of any kind"
 fi
 
 # A signature that lost its entitlements is worse than a failed build, because

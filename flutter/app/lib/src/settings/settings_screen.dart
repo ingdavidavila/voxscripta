@@ -196,13 +196,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _PolishSection(model: model),
         _Section(
           title: 'Storage and privacy',
+          // The claim is about audio and transcripts, not about the
+          // network, because a build that sells a subscription has to reach
+          // a store. A promise that holds for one flavour and not another is
+          // worse than a narrower one that holds for both.
           footer: widget.accountSection == null
-              ? 'Everything runs on this machine. Nothing is uploaded, '
-                  'nothing is sent to a service, and no account is needed.'
-              : 'Transcription runs on this machine. No audio and no '
-                  'transcript is uploaded, and the app transcribes with no '
-                  'account at all — an account only carries your email '
-                  'address, for signing in.',
+              ? 'Transcription runs entirely on this machine. No recording '
+                  'and no transcript is ever uploaded, and there is no '
+                  'telemetry.'
+              : 'Transcription runs entirely on this machine. No recording '
+                  'and no transcript is ever uploaded, and there is no '
+                  'telemetry. An account is optional and carries only your '
+                  'email address, for signing in.',
           children: [
             _Switch(
               label: 'Keep working files',

@@ -55,7 +55,14 @@ void main() {
     });
   });
 
-  final now = DateTime(2026, 11, 1, 16, 30);
+  // Relative to the real clock, not a fixed date.
+  //
+  // The rows show "2 days ago", computed against DateTime.now(). A hardcoded
+  // fixture date drifts away from that every midnight, so these goldens
+  // failed on whatever day someone next ran them and the diff was pure noise.
+  // Deriving the fixture from now keeps the *difference* constant, which is
+  // what the row actually renders.
+  final now = DateTime.now();
 
   ProjectEntry entry(String name, Duration length, Duration ago) => ProjectEntry(
         id: name,

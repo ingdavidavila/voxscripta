@@ -108,13 +108,24 @@ enum Strings {
         onThisDevice
         #endif
     }
+    /// Why the claim is now about *audio* rather than about the network.
+    ///
+    /// "Ships without network access" was true while nothing in the app could
+    /// connect out, and the build enforced it: `Tools/make-app-bundle.sh`
+    /// refused a bundle carrying a network entitlement. A store build has to
+    /// reach StoreKit to sell a subscription, so that sentence stops being
+    /// true for it — and a promise that is true of one flavour and false of
+    /// another is worse than a narrower promise that holds for both.
+    ///
+    /// What survives, and is still structurally true: no audio and no
+    /// transcript is ever sent anywhere. Every stage runs on the machine.
     static let privacyBadgeHelpMac: LocalizedStringKey = """
-        Vox Scripta processes audio entirely on this Mac. It ships without network \
-        access and cannot upload anything.
+        Vox Scripta processes audio entirely on this Mac. No recording and no \
+        transcript is ever uploaded.
         """
     static let privacyBadgeHelpDevice: LocalizedStringKey = """
-        Vox Scripta processes audio entirely on this device. It ships without network \
-        access and cannot upload anything.
+        Vox Scripta processes audio entirely on this device. No recording and no \
+        transcript is ever uploaded.
         """
     static func privacyBadgeHelp() -> LocalizedStringKey {
         #if os(macOS)
@@ -438,10 +449,24 @@ enum Strings {
         it from connecting out.
         """
     }
+    /// The direct-download flavour, which genuinely cannot connect out.
     static var privacyFooter: LocalizedStringKey {
         """
-        Vox Scripta ships without network access. It has no telemetry and no \
+        This build ships without network access. It has no telemetry and no \
         accounts, and cannot upload anything.
+        """
+    }
+
+    /// The App Store flavour.
+    ///
+    /// It carries a network client because StoreKit needs one. Saying so is
+    /// not a concession; the alternative is a privacy claim the entitlements
+    /// contradict, which is the kind of thing that is found by somebody else.
+    static var privacyFooterStore: LocalizedStringKey {
+        """
+        Transcription runs entirely on this machine. No recording and no \
+        transcript is ever uploaded, and there is no telemetry. The only \
+        network use is the App Store, for your subscription.
         """
     }
     static var showProjectsFolder: LocalizedStringKey { "Show Projects Folder" }
@@ -520,9 +545,9 @@ enum Strings {
     /// both halves have to be said rather than one.
     static var privacyFooterWithAccounts: LocalizedStringKey {
         """
-        Transcription runs on this machine and cannot upload anything. An \
-        account is optional and carries only your email address, for \
-        signing in.
+        Transcription runs entirely on this machine. No recording and no \
+        transcript is ever uploaded, and there is no telemetry. An account is \
+        optional and carries only your email address, for signing in.
         """
     }
 

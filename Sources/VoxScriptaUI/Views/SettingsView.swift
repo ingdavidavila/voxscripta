@@ -19,6 +19,18 @@ public struct SettingsView: View {
     /// other setting.
     @State private var auth = AuthModel()
 
+    /// The privacy claim this build can actually keep.
+    ///
+    /// An account stores an email address; a store build carries a network
+    /// client for StoreKit; a direct download has neither and genuinely
+    /// cannot connect out. Saying the strongest of the three regardless would
+    /// be a claim the entitlements contradict.
+    private var privacyFooter: LocalizedStringKey {
+        if auth.isConfigured { return Strings.privacyFooterWithAccounts }
+        if configuredSubscriptionService() != nil { return Strings.privacyFooterStore }
+        return Strings.privacyFooter
+    }
+
     public var body: some View {
         @Bindable var model = model
 
@@ -188,12 +200,12 @@ public struct SettingsView: View {
                 Section(Strings.settingsPrivacy) {
                     Label(Strings.processedOnThisMac, systemImage: "lock.fill")
                         .help(Strings.processedHelp)
-                    // "No accounts" stops being true the moment one can be
-                    // made, and transcription staying local does not excuse
-                    // saying the other half wrongly.
-                    Text(auth.isConfigured
-                         ? Strings.privacyFooterWithAccounts
-                         : Strings.privacyFooter)
+                    // Three footers, because this app can be built three
+                    // ways and only one of them can claim it has no network
+                    // access at all. Chosen from what is actually wired
+                    // rather than from a build flag, so the claim cannot
+                    // drift from the binary.
+                    Text(privacyFooter)
                         .font(.caption).foregroundStyle(.secondary)
                     #if os(macOS)
                     Button(Strings.showProjectsFolder) {
