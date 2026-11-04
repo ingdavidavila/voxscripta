@@ -1,3 +1,13 @@
+// MLX is Apple-only.
+//
+// `Package.swift` gates the mlx-swift-lm dependency to macOS and iOS, because
+// on Linux mlx-swift reaches for its CUDA backend and fails on a missing
+// cuda.h — which takes the whole package down rather than just this target.
+// Gating the dependency alone is not enough: without this guard the same
+// build then fails on a missing module instead. With it, VoxScriptaMLX
+// compiles to an empty module off Apple, which is correct — nothing
+// cross-platform depends on it, and polish off Apple runs through llama.cpp.
+#if canImport(MLXLLM)
 import Foundation
 import VoxScriptaLanguage
 
@@ -24,3 +34,5 @@ extension MLXModelHost {
         }
     }
 }
+
+#endif

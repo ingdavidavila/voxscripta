@@ -619,7 +619,10 @@ Two diverge, both Latin Extended-B case pairs the port's own notes predicted:
 | `Ǆ` U+01C4 | `ǆ` U+01C6 | unchanged |
 | `Ʒ` U+01B7 | `ʒ` U+0292 | unchanged |
 
-Ǆ is a Croatian and Serbian digraph; Ʒ is IPA and Skolt Sami. Neither is
-likely in a transcript this app sees soon, which is why they are recorded
-rather than treated as urgent — but they are recorded, because "unlikely" is
-exactly how the apostrophe got missed.
+Ǆ is a Croatian and Serbian digraph; Ʒ is IPA and Skolt Sami.
+
+**Won't fix.** `ShippingLanguages` now narrows the app to English and Spanish,
+so neither character is reachable in a locale this version offers. The two
+cases stay in the suite inside `withKnownIssue` rather than being deleted,
+because if the language list is ever widened far enough to reach them, a
+failing test is a cheaper reminder than a duplicated word at a chunk seam.

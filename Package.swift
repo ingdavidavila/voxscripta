@@ -26,7 +26,13 @@ let engineLinkerSettings: [LinkerSetting] = [
     // path meant a Linux link looked for Mach-O archives.
     .unsafeFlags(["-Lbuild/engines/host/prefix/lib"],
                  .when(platforms: [.macOS, .iOS])),
-    .unsafeFlags(["-Lbuild/engines/linux-musl/prefix/lib"],
+    // Both Linux prefixes, because SwiftPM cannot tell them apart: a native
+    // glibc build and a musl cross-build from a Mac are both `.linux`, and
+    // they install to different directories. The linker takes whichever
+    // exists; a missing -L is harmless. Without the host path a native Linux
+    // build fails with 'cannot find -lwhisper'.
+    .unsafeFlags(["-Lbuild/engines/linux-musl/prefix/lib",
+                  "-Lbuild/engines/host/prefix/lib"],
                  .when(platforms: [.linux, .android])),
     .linkedLibrary("whisper"),
     .linkedLibrary("llama"),
@@ -151,7 +157,9 @@ let package = Package(
                 ], .when(platforms: [.macOS, .iOS])),
                 // No rpath on the static path: there is nothing to find at
                 // run time because everything is in the binary.
-                .unsafeFlags(["-Lbuild/ffmpeg/linux-musl/prefix/lib"],
+                // Both, for the reason given on the engine settings above.
+                .unsafeFlags(["-Lbuild/ffmpeg/linux-musl/prefix/lib",
+                              "-Lbuild/ffmpeg/host/prefix/lib"],
                              .when(platforms: [.linux, .android])),
                 // FFmpeg's own dependencies, which a shared build resolves for
                 // itself and a static one hands to whoever links it. Both are
@@ -227,10 +235,19 @@ let package = Package(
         .target(name: "VoxScriptaMLX",
                 dependencies: [
                     "VoxScriptaCore", "VoxScriptaLanguage",
-                    .product(name: "MLXLLM", package: "mlx-swift-lm"),
-                    .product(name: "MLXLMCommon", package: "mlx-swift-lm"),
-                    .product(name: "MLXHuggingFace", package: "mlx-swift-lm"),
-                    .product(name: "Transformers", package: "swift-transformers"),
+                    // Apple-only. On Linux mlx-swift tries to build its CUDA
+                    // backend and fails on a missing cuda.h, which takes the
+                    // whole package down rather than just this target — so
+                    // the dependency is gated rather than the target, and the
+                    // sources below are already behind `canImport(MLX)`.
+                    .product(name: "MLXLLM", package: "mlx-swift-lm",
+                             condition: .when(platforms: [.macOS, .iOS])),
+                    .product(name: "MLXLMCommon", package: "mlx-swift-lm",
+                             condition: .when(platforms: [.macOS, .iOS])),
+                    .product(name: "MLXHuggingFace", package: "mlx-swift-lm",
+                             condition: .when(platforms: [.macOS, .iOS])),
+                    .product(name: "Transformers", package: "swift-transformers",
+                             condition: .when(platforms: [.macOS, .iOS])),
                 ],
                 swiftSettings: [.swiftLanguageMode(.v6)]),
 

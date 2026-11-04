@@ -55,9 +55,34 @@ struct WhisperEngineTests {
         #expect(engine.identifier != .appleSpeech)
         let caps = await engine.capabilities()
         #expect(caps.supportsWordTimestamps)
-        // The reason it exists: Apple covers about thirty locales.
-        #expect(caps.supportedLocales.count > 30)
+
+        // This used to assert more than thirty locales, on the reasoning that
+        // the engine existed because Apple's covered about thirty and
+        // Whisper's covers a hundred. That reason has been retired: the app
+        // now offers English and Spanish only, because those are the two
+        // languages CLEAN has lexicons for and the POLISH gauntlet has been
+        // measured in. See `ShippingLanguages`.
+        //
+        // The engine still exists for a different and better reason — Apple's
+        // recogniser is not available off Apple platforms at all — and what
+        // matters now is that it advertises exactly what the app ships.
+        #expect(caps.supportedLocales == ShippingLanguages.set)
         #expect(caps.supportedLocales.contains("es-ES"))
+        #expect(caps.supportedLocales.contains("en-US"))
+    }
+
+    @Test("A language the app no longer offers is refused, model or not")
+    func refusesRetiredLocale() async {
+        // The model can do these. The app does not offer them, and the
+        // refusal has to come from the engine rather than from a picker —
+        // otherwise a project created before the narrowing, or a locale
+        // passed over the C ABI, walks straight past it.
+        let engine = WhisperEngine()
+        for locale in ["fr-FR", "de-DE", "pt-BR", "ja-JP"] {
+            await #expect(throws: VoxScriptaError.self) {
+                try await engine.prepare(locale: locale)
+            }
+        }
     }
 
     @Test("A locale it cannot do is refused before any work")
