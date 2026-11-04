@@ -6,18 +6,16 @@
 #include <map>
 
 #include "voxscripta/errors.hpp"
+#include "voxscripta/unicode_lite.hpp"
 
 namespace voxscripta {
 
 std::string TranscriptMerger::normalize(const std::string& text) {
-    // Letters and digits only, ASCII lower-cased. Bytes of multi-byte UTF-8
-    // characters are kept as they are, so non-Latin words still compare.
-    std::string out;
-    for (unsigned char c : text) {
-        if (c >= 0x80) out += static_cast<char>(c);
-        else if (std::isalnum(c)) out += static_cast<char>(std::tolower(c));
-    }
-    return out;
+    // The Swift original is `text.lowercased().filter { $0.isLetter || $0.isNumber }`.
+    // That is a category test: U+2019 (the apostrophe recognisers emit) goes
+    // because it is punctuation, not because it is on a list. See unicode_lite.hpp
+    // for what the tables cover.
+    return unicode::letters_and_numbers_lowercased(text);
 }
 
 MediaTime TranscriptMerger::measured_pause(MediaTime previous_end, MediaTime current_start,
