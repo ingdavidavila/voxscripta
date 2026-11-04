@@ -486,3 +486,71 @@ outside the repository:
 
 That privacy-policy URL now blocks three separate things: the iOS submission,
 the Play submission, and the paywall.
+
+
+## Swift ↔ C++ parity, 2026-11-04
+
+The C++ port arrived from the Windows machine covering the whole
+deterministic spine — canonical audio, frame analysis, noise floor, silence
+detection, chunk planning, scheduling, transcript merging, exporters — plus a
+whisper.cpp wrapper and a Media Foundation decoder. Roughly 5,250 lines.
+
+It brought a risk with it. The cross-implementation suite covered `MediaTime`
+and `TimeRange` and stopped there, so nine modules had two implementations of
+the same rules, each tested only against its own expectations. That is exactly
+the drift this document exists to prevent: a port's own tests encode whatever
+the port does, so they cannot catch it disagreeing with the original.
+
+### What is now held to parity
+
+**Silence detection** — the stage that most needed it, because §6 pins it to
+deterministic DSP and "reproducible" is only a virtue if both sides reproduce
+the same thing. Six hand-written signals across four parameter sets, plus two
+hundred seeded random ones: region and gap boundaries compared **exactly**
+(they are integer nanoseconds and are what chunking consumes), energies and
+the noise-floor profile within 1e-3 dB, which is far below anything that could
+change a classification.
+
+**Refusal** is compared too, and deserved its own mechanism. Swift throws
+`noSpeechDetected`, C++ throws `NoSpeechDetected`, and a port that returned an
+empty map where the original threw would pass every boundary comparison while
+being wrong in the way that reaches a user — a recording the Mac rejects and
+Android silently accepts, yielding an empty transcript instead of an
+explanation.
+
+**Chunk planning** — boundaries, sample ranges, overlap leads, boundary kinds
+and hard-cut counts, all exact, over signals long enough to reach thresholds
+measured in minutes. Fed each side's *own* silence map rather than one side's
+map twice, so the two stages compose the way they do in the application.
+
+Both suites assert they are **not vacuous**: two empty lists agree perfectly
+and prove nothing, so the fixtures are checked to actually produce regions and
+to produce more than one chunk.
+
+### The bridge, and why it needed a shim
+
+Swift's C++ interop cannot instantiate a class template, so `std::vector<float>`
+cannot be written from Swift at all — only a specialization named on the C++
+side can be used. Swift also cannot catch a C++ exception; it traps, which
+would take the test process down rather than fail a test.
+
+`Sources/VoxScriptaCxxShim` holds the named specializations, element
+accessors and two exception-to-status functions. It sits outside `core/`
+deliberately: these are properties of the bridge, not of the port, and the
+C++ core should not grow declarations whose only reader is a test in another
+language. No product exposes it and nothing but the test target depends on it.
+
+### Still unheld
+
+Four modules have a C++ implementation and no cross-check:
+
+| Module | Why it matters |
+| --- | --- |
+| `transcript_merger` | Resolves overlapping chunk text. Divergence shows up as duplicated or dropped words at chunk seams — the hardest defect to notice and the most embarrassing to ship. |
+| `exporters` | txt, md, docx, srt, vtt. A timestamp format or a line-wrap that differs makes the same recording export differently per platform. |
+| `chunk_scheduler` | Ordering and concurrency. Needs a deterministic harness before it can be compared at all. |
+| `canonical_audio` | Reads samples from disk, so parity needs fixture files rather than synthetic arrays. |
+
+`transcript_merger` and `exporters` are the two worth doing next, in that
+order. Both compare values rather than requiring I/O, so both are the same
+shape of work as the two already done.

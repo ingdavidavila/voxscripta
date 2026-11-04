@@ -182,6 +182,16 @@ let package = Package(
             publicHeadersPath: "include"
         ),
 
+        // Named C++ specializations for the parity tests. Not shipped: no
+        // product exposes it and nothing but the test target depends on it.
+        .target(
+            name: "VoxScriptaCxxShim",
+            dependencies: ["VoxScriptaCoreCxx"],
+            path: "Sources/VoxScriptaCxxShim",
+            sources: ["src"],
+            publicHeadersPath: "include"
+        ),
+
         // ── Foundation layer ────────────────────────────────────────────────
         // No dependencies, by design. Every other module speaks this vocabulary.
         .target(name: "VoxScriptaCore", swiftSettings: strict),
@@ -319,7 +329,8 @@ let package = Package(
         // Deleted, target by target, as each Swift module is retired.
         .testTarget(
             name: "VoxScriptaCoreParityTests",
-            dependencies: ["VoxScriptaCore", "VoxScriptaCoreCxx"],
+            dependencies: ["VoxScriptaCore", "VoxScriptaCoreCxx", "VoxScriptaCxxShim",
+                           "VoxScriptaDSP", "VoxScriptaExport"],
             swiftSettings: [.swiftLanguageMode(.v6), .interoperabilityMode(.Cxx)]
         ),
         .testTarget(name: "VoxScriptaExportTests",
