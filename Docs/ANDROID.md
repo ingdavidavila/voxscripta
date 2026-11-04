@@ -1,10 +1,25 @@
 # Running the Android side
 
 Everything here was written on a Mac with no JDK, no Android SDK and no device.
-The native core is verified — it cross-compiles for all four ABIs and its
-symbols bind — but **no Kotlin in this repository has ever been compiled, and
-nothing has ever executed on Android.** That is the gap this document exists to
-close, and the first thing you do on the Studio machine closes it.
+That gap is now closed.
+
+## It runs, 2026-11-04
+
+**12 of 12 checks green, on an Android 15 x86_64 emulator.** The first time
+anything in this project has executed on Android. Done from the Windows
+machine with NDK 27.0.12077973, CMake 3.22.1 and platform 36, installed
+through the command-line tools. `Tools/verify-android-core.sh` passes all four
+ABIs and all five JNI symbols.
+
+What that proves, in the order it matters: `int64` survives the JNI boundary
+intact — six hours at 48 kHz is 1,036,800,000 samples and it came back exact;
+the exception translation works, so a C++ throw arrives in Kotlin as an
+`ArithmeticException` rather than calling `std::terminate` and killing a
+six-hour job with no stack; and a compound value round-trips, not just
+scalars.
+
+The rest of this document is the original instructions, kept because the next
+person to set up a machine needs them.
 
 ## First run
 
@@ -22,8 +37,12 @@ close, and the first thing you do on the Studio machine closes it.
 
 4. Run the `app` configuration on an emulator or a device.
 
-Expected result: a plain screen listing thirteen checks, all green, headed
-*"libvoxscripta runs — 13 checks, all matching Swift"*.
+Expected result: a plain screen listing twelve checks, all green.
+
+The count was written as thirteen here before anything had been run, and the
+harness has twelve: four `format` cases, four sample and nanosecond
+conversions, one padded-range round trip, and three that assert a throw.
+Corrected against the source rather than against memory.
 
 ## What that screen actually proves
 
@@ -61,6 +80,18 @@ I could not compile any of this, so expect to fix one or two of these:
   satisfies this.
 
 None of these touch the native code, which is known to build.
+
+## A fresh clone needs the submodules first
+
+`vendor/` holds four git submodules — whisper.cpp, llama.cpp, miniaudio and
+FFmpeg — so a fresh clone has four empty directories and the build fails at
+`'llama.h' file not found` in `Sources/CLlama/include/CLlama.h`. Before any
+`swift build` on a new machine:
+
+    git submodule update --init --recursive
+
+The pins are deliberate and worth not drifting from: FFmpeg n7.1.1,
+llama.cpp b12017, miniaudio 0.11.25, whisper.cpp master at 482279b.
 
 ## Verifying without Studio
 
