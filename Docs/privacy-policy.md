@@ -113,5 +113,4 @@ will be described plainly and in advance, not buried.
 ## Governing law
 
 This policy is governed by the laws of the United States and of the State of
-<!-- PLACEHOLDER: your state of residence or incorporation --> __________,
-without regard to conflict of law provisions.
+Texas, without regard to conflict of law provisions.
