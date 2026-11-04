@@ -32,7 +32,8 @@ public actor AppleSpeechEngine: TranscriptionEngine {
         EngineCapabilities(
             supportsWordTimestamps: true,
             supportsDiarization: false,
-            supportedLocales: Set(await SpeechTranscriber.supportedLocales.map { $0.identifier(.bcp47) }),
+            supportedLocales: ShippingLanguages.filter(
+                await SpeechTranscriber.supportedLocales.map { $0.identifier(.bcp47) }),
             maximumChunkDuration: nil
         )
     }
@@ -61,7 +62,8 @@ public actor AppleSpeechEngine: TranscriptionEngine {
     /// not a compile-time fact — it varies by OS version and by what the user
     /// has installed.
     public static func supportedLocaleIdentifiers() async -> Set<String> {
-        Set(await SpeechTranscriber.supportedLocales.map { $0.identifier(.bcp47) })
+        ShippingLanguages.filter(
+            await SpeechTranscriber.supportedLocales.map { $0.identifier(.bcp47) })
     }
 
     public func prepare(locale localeIdentifier: String) async throws {

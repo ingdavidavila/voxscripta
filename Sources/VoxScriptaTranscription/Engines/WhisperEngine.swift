@@ -67,12 +67,14 @@ public actor WhisperEngine: TranscriptionEngine {
     /// Whisper names languages, not locales, and the rest of this project
     /// speaks locales — so these are written as the locales the project uses,
     /// and ``whisperLanguage(for:)`` reduces one to the other.
-    public static let supportedLocales: Set<String> = [
-        "en-US", "en-GB", "es-ES", "es-MX", "es-419", "fr-FR", "de-DE", "it-IT",
-        "pt-BR", "pt-PT", "nl-NL", "ca-ES", "pl-PL", "ru-RU", "ja-JP", "ko-KR",
-        "zh-CN", "zh-TW", "ar-SA", "tr-TR", "sv-SE", "da-DK", "nb-NO", "fi-FI",
-        "uk-UA", "cs-CZ", "el-GR", "he-IL", "hi-IN", "id-ID", "th-TH", "vi-VN",
-    ]
+    /// Narrowed to what this version ships, not to what the model can do.
+    ///
+    /// The multilingual weights handle around a hundred languages and this
+    /// list used to name thirty-two of them. CLEAN and the POLISH gauntlet
+    /// have been measured in two, so two is what is offered — see
+    /// ``ShippingLanguages`` for why that is a correctness boundary rather
+    /// than a product decision, and why it saves no download size.
+    public static let supportedLocales: Set<String> = ShippingLanguages.set
 
     /// The two-letter code Whisper wants, from the locale the project uses.
     static func whisperLanguage(for locale: String) -> String {
