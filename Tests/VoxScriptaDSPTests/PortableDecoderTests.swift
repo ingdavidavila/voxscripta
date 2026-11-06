@@ -213,6 +213,10 @@ struct PortableDecoderTests {
         }
     }
 
+    // Only where the fixtures can be written: m4a, flac, caf and aiff come
+    // from AVFoundation's encoders. Off Apple the portable decoder is covered
+    // against WAVE above, and against real files when any are supplied.
+    #if canImport(AVFoundation)
     @Test("Every container the Apple decoder reads, this one reads too")
     func containerParity() async throws {
         // Parity with AVFoundation is the whole justification for taking on
@@ -228,4 +232,5 @@ struct PortableDecoderTests {
                     "\(format) produced only \(written) samples")
         }
     }
+    #endif
 }

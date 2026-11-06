@@ -146,6 +146,26 @@ make -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)" >"$OUT/build.log" 2>
 }
 make install >/dev/null
 
+# Copy the installed headers next to the shim, which is where Swift looks for
+# them: SwiftPM puts Sources/CFFmpeg/include on the search path for this target
+# and for everything that imports it, and FFmpeg's own headers reference each
+# other as <libavutil/...>, so the four directories have to sit side by side
+# under one search path.
+#
+# Copied rather than symlinked, deliberately. These used to be four directory
+# symlinks committed to git, which meant a checkout on Windows needed either
+# Developer Mode or elevated privileges — a repository should not ask for that
+# just to be cloned. They are build output, so the build produces them, and
+# .gitignore keeps them out of history.
+HEADERS="$ROOT/Sources/CFFmpeg/include"
+for lib in libavcodec libavformat libavutil libswresample; do
+    # :? so the shell aborts rather than running rm against a path built from
+    # an empty variable.
+    rm -rf "${HEADERS:?}/${lib:?}"
+    cp -R "$PREFIX/include/$lib" "$HEADERS/$lib"
+done
+echo "staged headers into Sources/CFFmpeg/include"
+
 echo "installed into $PREFIX"
 find "$PREFIX/lib" \( -name '*.dylib' -o -name '*.so' \) -type f 2>/dev/null | sort | while read -r lib; do
     printf "  %-30s %s\n" "$(basename "$lib")" "$(du -h "$lib" | cut -f1)"

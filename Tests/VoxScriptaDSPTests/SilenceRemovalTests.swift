@@ -1,3 +1,8 @@
+// SilenceRemovalRenderer is AVFoundation's. The detector it depends on is
+// portable and is covered by SilenceDetectorTests; what is Apple-only here
+// is the rendering of the shortened copy, which has no portable
+// counterpart yet. Docs/PARITY.md records that gap.
+#if canImport(AVFoundation)
 import Testing
 import Foundation
 import AVFoundation
@@ -179,3 +184,4 @@ struct SilenceRemovalTests {
         #expect(peak > 0.05, "the rendered audio is silent")
     }
 }
+#endif

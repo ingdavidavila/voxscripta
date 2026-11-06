@@ -1,1 +1,1 @@
-../../../vendor/whisper.cpp/include/whisper.h
+#include "../../../vendor/whisper.cpp/include/whisper.h"

@@ -126,6 +126,12 @@ struct WhisperEngineTests {
     }
 
     // MARK: - The measurement
+    //
+    // Both of these need speech rendered by AVSpeechSynthesizer and decoded by
+    // AVFoundation, so they measure Whisper only on Apple. The engine itself is
+    // the one that runs everywhere; measuring it elsewhere needs a portable way
+    // to make speech, which Docs/PARITY.md records as outstanding.
+    #if canImport(AVFoundation)
 
     @Test("It transcribes real speech at a usable word error rate")
     func wordErrorRate() async throws {
@@ -194,4 +200,5 @@ struct WhisperEngineTests {
             #expect(segment.originalEnd >= segment.originalStart)
         }
     }
+    #endif
 }

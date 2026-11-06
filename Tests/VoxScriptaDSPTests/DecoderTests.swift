@@ -1,3 +1,7 @@
+// CanonicalDecoder is AVFoundation's, and exists only where AVFoundation
+// does. PortableDecoderTests covers the same contract through FFmpeg, which
+// is what runs everywhere else.
+#if canImport(AVFoundation)
 import Testing
 import Foundation
 import Synchronization
@@ -183,3 +187,4 @@ struct DecoderTests {
         }
     }
 }
+#endif

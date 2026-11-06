@@ -1,5 +1,7 @@
 import Foundation
+#if canImport(AVFoundation)
 import AVFoundation
+#endif
 import VoxScriptaCore
 
 /// A passage of known text rendered to speech.
@@ -71,6 +73,14 @@ public enum SpeechCorpus {
         passages.map(\.text).joined(separator: " ")
     }
 
+}
+
+// Rendering, which needs a speech synthesizer, and so exists only where
+// AVFoundation does. The passages above are plain data and stay available
+// everywhere: a Linux run can still read the reference text, it just cannot
+// produce the audio. Docs/PARITY.md records what that leaves uncovered.
+#if canImport(AVFoundation)
+extension SpeechCorpus {
     /// Renders passages to canonical-rate mono float samples.
     ///
     /// - Note: Voice availability differs between machines, so the audio is not
@@ -151,6 +161,7 @@ public enum SpeechCorpus {
     }
 }
 
+
 /// Accumulates synthesizer output across callbacks.
 private final class BufferCollector: @unchecked Sendable {
     private let lock = NSLock()
@@ -190,3 +201,5 @@ private final class ResumeGuard: @unchecked Sendable {
         c?.resume()
     }
 }
+
+#endif

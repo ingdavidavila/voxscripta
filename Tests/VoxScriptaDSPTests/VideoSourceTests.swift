@@ -1,3 +1,6 @@
+// Writes real video files with AVAssetWriter and reads them back. Off Apple
+// the video path is FFmpeg's and is covered by the audio fixtures instead.
+#if canImport(AVFoundation)
 import Testing
 import Foundation
 import AVFoundation
@@ -85,3 +88,4 @@ struct VideoSourceTests {
         }
     }
 }
+#endif

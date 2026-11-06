@@ -1,5 +1,6 @@
 # Swift Package Manager
 .build/
+.build-linux/
 .swiftpm/
 Package.resolved
 
@@ -46,6 +47,15 @@ android/app/build/
 android/.cxx/
 android/app/.cxx/
 *.iml
+
+# Staged by Tools/build-ffmpeg.sh from build/ffmpeg/<abi>/prefix/include, so
+# that FFmpeg's headers sit under the one search path Swift is given for this
+# target. Build output, not source: these were once committed symlinks, which
+# a Windows checkout could not create without elevated privileges.
+/Sources/CFFmpeg/include/libavcodec/
+/Sources/CFFmpeg/include/libavformat/
+/Sources/CFFmpeg/include/libavutil/
+/Sources/CFFmpeg/include/libswresample/
 
 # Fetched by Tools/fetch-whisper.sh, never committed.
 third_party/whisper.cpp/

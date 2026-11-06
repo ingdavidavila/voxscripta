@@ -626,3 +626,116 @@ so neither character is reachable in a locale this version offers. The two
 cases stay in the suite inside `withKnownIssue` rather than being deleted,
 because if the language list is ever widened far enough to reach them, a
 failing test is a cheaper reminder than a duplicated word at a chunk seam.
+
+## Linux, 2026-11-05
+
+The engine now compiles for Linux without the package being stripped by hand.
+Two blockers were in the way, both mine, and clearing them turned up a third
+that nobody had looked for.
+
+### The symlinks
+
+Forty-nine headers under `Sources/CLlama`, `Sources/CWhisper` and
+`Sources/CMiniaudio` were committed as mode-120000 symlinks into `vendor/`, and
+four more under `Sources/CFFmpeg` were directory symlinks into gitignored build
+output. Git writes a mode-120000 entry as a plain text file holding the link's
+path unless the clone is allowed to create links, which on Windows means
+Developer Mode or an elevated shell. The compiler then reads a fifty-one byte
+text file where a header should be. A repository should not ask for elevated
+privileges in order to be cloned, so the right fix was to stop using symlinks
+rather than to document the workaround.
+
+The vendor headers are now one-line forwarding headers — regular files that
+`#include` the real path — and the FFmpeg headers are staged into
+`Sources/CFFmpeg/include` by `Tools/build-ffmpeg.sh` and gitignored, because
+they are build output and always were. `git ls-files -s | awk '$1=="120000"'`
+now returns nothing.
+
+### A third problem the first fix exposed
+
+Replacing the symlinks broke the build, in `llama.h`, on the fields that use
+`ggml_opt_*` types. The cause is worth recording because it is not obvious.
+
+`llama.h` and `whisper.h` both `#include "ggml.h"` unqualified. That used to
+resolve as a sibling: Clang takes the directory of the file it opened, and with
+a symlink the file it opened was `Sources/CLlama/include/llama.h`, so `ggml.h`
+sat right beside it. A forwarding header moves the real file's directory back
+under `vendor/`, so the sibling lookup fails.
+
+Naming the vendor include directories in `cSettings` did not fix it, which was
+the useful clue: the header was being found, and still produced no
+declarations. Both `CLlama` and `CWhisper` carried their own copy of the ggml
+headers, so the declarations were attributed to whichever module Clang parsed
+first and were invisible to the other one.
+
+`Tools/build-engines.sh` has said all along that these two engines share one
+ggml — it installs llama.cpp's and builds whisper.cpp against it with
+`WHISPER_USE_SYSTEM_GGML`. The headers were the one place that arrangement was
+not expressed. There is now a `CGGML` target that both depend on: one module,
+one set of declarations, matching what is actually in the binary. The duplicate
+copies were a latent problem that the symlinks had been hiding.
+
+### VoxScriptaTestSupport
+
+Six test targets and `corpus-gen` depend on this target, so its `import
+AVFoundation` is why the whole package could not be built for Linux.
+
+I had said `AudioFileWriter` was "pure WAV writing" and belonged in a portable
+target. That was wrong: it is a six-format encoder — wav, caf, m4a, aiff, flac,
+aac — driven entirely by AVFoundation. Only WAVE is simple enough to write by
+hand, and it is also the format that nine of its twelve call sites ask for.
+
+So `WAVFileWriter` writes 16-bit PCM WAVE directly, on every platform.
+Deliberately on every platform: a fallback that runs only where the real
+encoder is missing is a fallback nobody has tested. `AudioFileWriter` keeps its
+signature, routes `.wav` there, and throws for the other five off Apple rather
+than quietly substituting a different container. `TestAudioFormat.isPortable`
+and `.available` let a caller ask instead of failing.
+
+`SpeechCorpus` keeps its passages and reference text available everywhere and
+guards only `render`, which needs `AVSpeechSynthesizer`. `VideoFileWriter` is
+`AVAssetWriter` end to end and is guarded whole.
+
+### What now compiles for Linux
+
+Verified by cross-compiling on the Mac with the Static Linux SDK, which is a
+weaker check than running them but a check rather than a claim:
+`VoxScriptaCore`, `DSP`, `Transcription`, `Language`, `Project`, `Export`,
+`Pipeline`, `TestSupport` and `FFI` — the C ABI included.
+
+Every Apple-only import in the engine layers was already guarded. The only
+layer that was not is `VoxScriptaUI`: twenty-one files of SwiftUI, StoreKit and
+AuthenticationServices, which is Apple's by nature. It, the `@main` app target
+and `VoxScriptaAppTests` are dropped from the manifest off Apple. That test
+reads the host rather than the platform being built for, because that is all a
+manifest can see; it is right for a native Linux build and wrong for a
+cross-compile, which cannot build test targets anyway since the Static Linux
+SDK ships no swift-testing.
+
+### What Linux does not cover, and why
+
+Not hidden behind a skip that reads as a pass — these tests do not exist off
+Apple, and this is the list:
+
+| Not on Linux | Because |
+| --- | --- |
+| `DecoderTests` | `CanonicalDecoder` is AVFoundation's. `PortableDecoderTests` covers the same contract through FFmpeg. |
+| `SilenceRemovalTests` | `SilenceRemovalRenderer` is AVFoundation's and has no portable counterpart yet. The detector it depends on is portable and is covered. |
+| `VideoSourceTests` | Needs `AVAssetWriter` to make a video fixture. |
+| `SmokeTests` | Apple's recogniser. `WhisperEngineTests` covers the engine that exists elsewhere. |
+| `CleanEndToEndTests`, `CrashRecoveryTests` | Need rendered speech. The stages are covered portably by the signal corpus; what is Apple-only is the audio, not the pipeline. |
+| `WhisperEngineTests` word-error-rate and timing tests | Same: rendered speech, then the Apple decoder. The rest of the suite is portable and is the part that matters off Apple. |
+| `PortableDecoderTests.containerParity` | The m4a, flac, caf and aiff fixtures come from AVFoundation's encoders. |
+| `ExportTests.avFoundationAcceptsOutput` | Cross-checks the WebVTT writer against the system parser, which only Apple has. |
+
+Two of these are worth closing rather than accepting. A portable WAVE *reader*
+would return the three `SilenceRemovalTests` cases that only read their output
+back. FFmpeg can encode as well as decode, so the compressed fixtures could be
+written by the same library that reads them, which would make
+`containerParity` mean something off Apple. Neither is started.
+
+### Still outstanding
+
+`swift test` has not been run on Linux against the unstripped package from this
+machine; the cross-compile checks compilation only, and the Static Linux SDK
+cannot build the test targets at all. That run belongs on the Linux box.

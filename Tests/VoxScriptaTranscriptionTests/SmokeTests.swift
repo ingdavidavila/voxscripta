@@ -1,3 +1,7 @@
+// Apple's recogniser and the speech corpus that feeds it, both of which are
+// Apple's alone. WhisperEngineTests covers the same ground with the engine
+// that does exist elsewhere; Docs/PARITY.md records the difference.
+#if canImport(Speech)
 import Testing
 import Foundation
 import VoxScriptaCore
@@ -120,3 +124,4 @@ struct AppleEngineEndToEndTests {
         #expect(first.text == second.text)
     }
 }
+#endif

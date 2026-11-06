@@ -1,3 +1,7 @@
+// Needs rendered speech, which only AVSpeechSynthesizer produces. The
+// pipeline's own stages are covered portably by the suites that use the
+// signal corpus; what is Apple-only here is the audio, not the pipeline.
+#if canImport(AVFoundation)
 import Testing
 import Foundation
 import VoxScriptaCore
@@ -141,3 +145,4 @@ struct CleanEndToEndTests {
         #expect(zip(starts, starts.dropFirst()).allSatisfy { $0 <= $1 })
     }
 }
+#endif

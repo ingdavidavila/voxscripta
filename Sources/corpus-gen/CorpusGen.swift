@@ -38,9 +38,24 @@ struct CorpusGen {
         let opts = Array(args.dropFirst())
         do {
             if let index = opts.firstIndex(of: "--speech") {
+                #if canImport(AVFoundation)
                 let minutes = index + 1 < opts.count ? Double(opts[index + 1]) ?? 1 : 1
                 try await generateSpeech(into: URL(filePath: outPath), minutes: minutes,
                                          disfluent: opts.contains("--disfluent"))
+                #else
+                // The signal corpus below is portable; the speech corpus needs
+                // AVSpeechSynthesizer. Said plainly rather than left to fail at
+                // the first call, and rather than emitting silence that would
+                // look like a corpus.
+                FileHandle.standardError.write(Data("""
+                    error: --speech needs a speech synthesizer, which this \
+                    platform does not have. Generate the speech corpus on a Mac \
+                    and copy the directory across; the signal corpus (no \
+                    --speech) works here.
+
+                    """.utf8))
+                exit(EXIT_FAILURE)
+                #endif
             } else {
                 try await generate(into: URL(filePath: outPath))
             }
@@ -93,6 +108,7 @@ struct CorpusGen {
         print("so these files are reproducible rather than committed.")
     }
 
+    #if canImport(AVFoundation)
     /// Renders real speech with a known transcript, for word error rate.
     ///
     /// Passages repeat with varied trailing pauses until the requested length is
@@ -134,6 +150,7 @@ struct CorpusGen {
                      TextTokenizer.tokens(reference).count))
         print("  \(referenceURL.lastPathComponent) holds the exact spoken text.")
     }
+    #endif
 
     /// The sidecar written next to each rendered case.
     struct GroundTruth: Encodable {

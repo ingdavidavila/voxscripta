@@ -1,6 +1,12 @@
+import Foundation
+
+// AVAssetWriter end to end: there is no portable way to mux a video file here,
+// and no reason to add one. This exists so the decoder can be shown to pull
+// audio out of a video container, which off Apple is FFmpeg's job and is
+// covered by the audio fixtures instead. Docs/PARITY.md records the gap.
+#if canImport(AVFoundation)
 import AVFoundation
 import CoreMedia
-import Foundation
 
 /// Writes small video files, so the video import paths can be tested for real.
 ///
@@ -127,3 +133,4 @@ public enum VideoFileWriter {
         return sample
     }
 }
+#endif

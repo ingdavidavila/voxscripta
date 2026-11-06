@@ -1,3 +1,6 @@
+// Needs rendered speech for a job long enough to interrupt. See
+// CleanEndToEndTests for why that makes the suite Apple-only.
+#if canImport(AVFoundation)
 import Testing
 import Foundation
 import VoxScriptaCore
@@ -336,3 +339,4 @@ struct CleanupTests {
                 "reopening with default flags re-transcribed the project")
     }
 }
+#endif

@@ -1,6 +1,8 @@
 import Testing
 import Foundation
+#if canImport(AVFoundation)
 import AVFoundation
+#endif
 import VoxScriptaCore
 import VoxScriptaTestSupport
 @testable import VoxScriptaExport
@@ -106,6 +108,10 @@ struct SubtitleExportTests {
         }
     }
 
+    // Cross-checked against the system parser, which only Apple has. The
+    // exporters themselves are portable and the rest of this suite covers
+    // them; what cannot travel is the independent reader.
+    #if canImport(AVFoundation)
     @Test("AVFoundation parses the generated WebVTT")
     func avFoundationAcceptsOutput() async throws {
         // Verified against the system parser — the same one QuickTime and Safari
@@ -128,6 +134,7 @@ struct SubtitleExportTests {
         #expect(abs(CMTimeGetSeconds(duration) - lastCueEnd) < 0.05,
                 "AVFoundation read \(CMTimeGetSeconds(duration))s, expected \(lastCueEnd)s")
     }
+    #endif
 
     @Test("Long segments are split into readable cues")
     func splitsLongSegments() {
