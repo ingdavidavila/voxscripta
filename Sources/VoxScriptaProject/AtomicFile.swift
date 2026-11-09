@@ -24,7 +24,7 @@ public enum AtomicFile {
         do {
             try data.write(to: temporary, options: [.atomic])
             try fsyncFile(at: temporary)
-            _ = try FileManager.default.replaceItemAt(url, withItemAt: temporary)
+            try moveIntoPlace(temporary, onto: url)
             try fsyncDirectory(at: directory)
         } catch {
             try? FileManager.default.removeItem(at: temporary)
@@ -66,6 +66,44 @@ public enum AtomicFile {
             throw VoxScriptaError.projectCorrupt(
                 reason: "\(url.lastPathComponent) could not be read: \(error.localizedDescription)")
         }
+    }
+
+    /// Moves `temporary` onto `destination`, replacing it if it is there.
+    ///
+    /// `rename(2)`, which is what the note at the top of this type has always
+    /// claimed happens here. It did not: this called
+    /// `FileManager.replaceItemAt`, and on swift-corelibs-foundation that
+    /// throws "The file doesn't exist" when the *destination* is absent.
+    /// Darwin's implementation moves the file into place either way, so on a
+    /// Mac the difference never showed — while on Linux every first write of
+    /// a manifest, a peaks file or a transcript failed and only overwrites
+    /// worked. Found by the Linux run, where it accounted for about sixty of
+    /// the sixty-two failures.
+    ///
+    /// One call on both platforms now, rather than a Linux branch around a
+    /// Darwin-shaped call: `rename(2)` replaces an existing destination
+    /// silently, succeeds when there is none, and is atomic within a
+    /// filesystem — which is the guarantee the resume planner is owed and the
+    /// reason ``fsyncDirectory(at:)`` below is worth making.
+    private static func moveIntoPlace(_ temporary: URL, onto destination: URL) throws {
+        #if canImport(Darwin) || canImport(Glibc) || canImport(Musl)
+        if rename(temporary.path, destination.path) != 0 {
+            throw VoxScriptaError.ioFailure(
+                path: destination.path,
+                reason: String(cString: strerror(errno)))
+        }
+        #else
+        // Windows, where `rename` refuses an existing destination outright, so
+        // the two cases are separated by hand. Not atomic when the file is
+        // already there — the gap is the same one the directory flush below
+        // records, and closing both means `MoveFileEx` with
+        // MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH through WinSDK.
+        // Untested: nothing here has been run on Windows yet.
+        if FileManager.default.fileExists(atPath: destination.path) {
+            try FileManager.default.removeItem(at: destination)
+        }
+        try FileManager.default.moveItem(at: temporary, to: destination)
+        #endif
     }
 
     /// Flushes a file's contents to stable storage.

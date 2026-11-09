@@ -17,7 +17,7 @@ import VoxScriptaCore
 @Suite("Llama polish backend")
 struct LlamaHostTests {
 
-    private var modelIsAvailable: Bool {
+    private static var modelIsAvailable: Bool {
         FileManager.default.fileExists(atPath: LlamaModelHost.defaultModelURL().path)
     }
 
@@ -67,9 +67,10 @@ struct LlamaHostTests {
 
     // MARK: - With a model
 
-    @Test("It returns exactly one rewrite per sentence")
+    @Test("It returns exactly one rewrite per sentence",
+          .enabled(if: LlamaHostTests.modelIsAvailable,
+                   "no model — run Tools/fetch-polish-model.sh"))
     func cardinality() async throws {
-        try #require(modelIsAvailable, "no model — run Tools/fetch-polish-model.sh")
         let sentences = ["we sold five hundred units in the third quarter",
                          "david met with sarah chen on tuesday",
                          "we did not approve the revised budget"]
@@ -89,9 +90,10 @@ struct LlamaHostTests {
         }
     }
 
-    @Test("What it produces survives the gauntlet")
+    @Test("What it produces survives the gauntlet",
+          .enabled(if: LlamaHostTests.modelIsAvailable,
+                   "no model — run Tools/fetch-polish-model.sh"))
     func outputPassesValidation() async throws {
-        try #require(modelIsAvailable, "no model — run Tools/fetch-polish-model.sh")
         let sentences = ["we sold five hundred units in the third quarter",
                          "we did not approve the revised budget",
                          "david met with sarah chen on tuesday"]
@@ -111,9 +113,10 @@ struct LlamaHostTests {
         #expect(report.passed, "the gauntlet rejected it: \(report.failureReasons)")
     }
 
-    @Test("Spanish stays Spanish")
+    @Test("Spanish stays Spanish",
+          .enabled(if: LlamaHostTests.modelIsAvailable,
+                   "no model — run Tools/fetch-polish-model.sh"))
     func spanishIsNotTranslated() async throws {
-        try #require(modelIsAvailable, "no model — run Tools/fetch-polish-model.sh")
         // The failure this project has already had once: English scaffolding
         // around Spanish content makes the model answer in English, and a
         // translated sentence fails every check there is.
@@ -134,9 +137,10 @@ struct LlamaHostTests {
         #expect(text.lowercased().contains("no "), "the negation was dropped: \(text)")
     }
 
-    @Test("The same sentence twice gives the same answer")
+    @Test("The same sentence twice gives the same answer",
+          .enabled(if: LlamaHostTests.modelIsAvailable,
+                   "no model — run Tools/fetch-polish-model.sh"))
     func deterministic() async throws {
-        try #require(modelIsAvailable, "no model — run Tools/fetch-polish-model.sh")
         // Greedy decoding, so this is not a tendency, it is a guarantee — and
         // the provenance written into every polished transcript depends on it.
         let sentence = ["the committee has not scheduled a follow up"]

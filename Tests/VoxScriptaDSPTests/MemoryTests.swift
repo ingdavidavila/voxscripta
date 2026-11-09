@@ -67,7 +67,22 @@ struct MemoryTests {
         // PCM is 76 MB, and the growth here is a small fraction of that.
         let growth = longPeak - shortPeak
         let audioBytes = CanonicalFormat.byteCount(for: longDuration)
-        #expect(growth < audioBytes / 4,
+
+        // The budget differs because the measurement does, which the note in
+        // MemoryFootprint.current() sets out: Darwin's phys_footprint leaves
+        // out the clean pages of a file mapping, and Linux's VmRSS counts
+        // them. So on a Mac the audio must not appear in the footprint at
+        // all, while on Linux the mapping itself is expected and what must
+        // not happen is the analyser holding a second copy on top of it.
+        //
+        // Stated as two budgets rather than one loose one, so the weaker
+        // platform still asserts something true instead of asserting nothing.
+        #if canImport(Darwin)
+        let budget = audioBytes / 4
+        #else
+        let budget = audioBytes + audioBytes / 4
+        #endif
+        #expect(growth < budget,
                 "footprint grew \(growth) bytes for \(audioBytes) bytes of audio")
 
         // Sanity: the analysis actually happened.

@@ -7,6 +7,21 @@ import VoxScriptaTestSupport
 @Suite("Atomic file writes")
 struct AtomicFileTests {
 
+    @Test("The first write to a path that does not exist yet succeeds")
+    func createsRatherThanReplaces() throws {
+        // The case that fails if the rename is done with
+        // FileManager.replaceItemAt: on swift-corelibs-foundation that throws
+        // when the *destination* is absent, so on Linux every artifact failed
+        // the first time it was written and only overwrites worked. Darwin
+        // papers over it, so this test cannot fail on a Mac — it is here
+        // because it is the contract, and the platform that needs it is the
+        // one that checks it.
+        let tmp = try TempDirectory()
+        let fresh = tmp.url.appending(path: "nested/never-written-before.json")
+        try AtomicFile.write(Data("first".utf8), to: fresh)
+        #expect(try Data(contentsOf: fresh) == Data("first".utf8))
+    }
+
     @Test("A write either lands whole or not at all")
     func atomicity() throws {
         let tmp = try TempDirectory()
