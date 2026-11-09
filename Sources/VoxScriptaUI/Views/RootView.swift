@@ -344,10 +344,8 @@ struct LibrarySidebar: View {
 
         return List(selection: $model.selectedProjectID) {
             if model.projects.isEmpty {
-                ContentUnavailableView(Strings.noRecordings,
-                                       systemImage: "waveform",
-                                       description: Text(Strings.noRecordingsDetail))
-                .listRowSeparator(.hidden)
+                LibraryEmptyState()
+                    .listRowSeparator(.hidden)
             } else {
                 Section(Strings.recordings) {
                     ForEach(model.projects) { project in
@@ -393,6 +391,37 @@ struct LibrarySidebar: View {
             guard let id, let project = model.projects.first(where: { $0.id == id }) else { return }
             model.openIfNeeded(project)
         }
+    }
+}
+
+/// The library's empty state, written for the width it actually gets.
+///
+/// `ContentUnavailableView` is designed for a full pane and behaves badly in
+/// a column: at 240 points its title truncated to "No recording…" and its
+/// description broke a word per line. This only ever appears in a sidebar —
+/// a phone shows the import screen in place of an empty list — so it is
+/// sized for one rather than borrowing a layout meant for the pane beside it.
+///
+/// `fixedSize(horizontal:vertical:)` is the part that matters: without it
+/// text in a narrow column truncates rather than taking the lines it needs.
+private struct LibraryEmptyState: View {
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "waveform")
+                .font(.title2)
+                .foregroundStyle(.tertiary)
+            Text(Strings.noRecordings)
+                .font(.subheadline.weight(.medium))
+            Text(Strings.noRecordingsDetail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .multilineTextAlignment(.center)
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 28)
+        .padding(.horizontal, 10)
+        .accessibilityElement(children: .combine)
     }
 }
 
