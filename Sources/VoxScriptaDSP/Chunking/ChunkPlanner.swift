@@ -74,10 +74,34 @@ public struct ChunkPlanner: ChunkPlanning {
             )
         }
 
-        // Chunks tile the span from the first speech instant to the last. Leading
-        // and trailing silence is dropped entirely — it is never work.
+        // Chunks tile the span from the first speech instant to the last.
+        // Leading silence is dropped entirely — it is never work.
         let mediaStart = first.range.start
-        let mediaEnd = last.range.end
+
+        // Trailing silence is not dropped entirely, and that is a change from
+        // what this used to do.
+        //
+        // A recogniser emits a word only once it has heard enough after it to
+        // be sure the word ended, so the last chunk has to carry a little
+        // quiet past the final region or the final word is never committed.
+        // Worse, the region's own end can fall *inside* that word: the
+        // detector measures a noise floor, and a recording with no quiet
+        // passage in it measures a higher one, so the decay of the last word
+        // scores as silence and is cut.
+        //
+        // Both were measured on the same Spanish sentence. Ending on the last
+        // word gave 32 words and lost "estrategia"; the same audio with 1.5 s
+        // of silence after it gave 33 and kept it — and the chunk in the
+        // second case was 1.08 s longer, over identical speech, because the
+        // appended quiet lowered the measured floor. Nearly 0.7 s of real
+        // audio was being withheld from the recogniser in the first.
+        //
+        // This is the case the app is for: a person taps Stop when they stop
+        // talking, so a recording made here ends exactly the way that loses a
+        // word. The tail costs one chunk a second and a half of quiet, which
+        // transcribes to nothing.
+        let tail = MediaTime.seconds(1.5)
+        let mediaEnd = MediaTime.min(last.range.end + tail, silenceMap.sourceDuration)
 
         // Reference speech level, for scoring how deep a candidate gap sits.
         let speechReference = regions.reduce(Float(0)) { $0 + $1.meanEnergyDB } / Float(regions.count)

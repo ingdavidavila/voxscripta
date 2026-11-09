@@ -49,10 +49,21 @@ struct ChunkPlannerTests {
         // Sequence numbers are dense and ordered — the merger relies on this.
         #expect(plan.chunks.map(\.sequence) == Array(0..<plan.chunks.count), "\(label): sequence")
 
-        // Coverage: the plan spans exactly the speech extent, with no gap between
-        // consecutive chunks.
+        // Coverage: the plan starts exactly at the first speech instant, and
+        // runs past the last one without running past the recording.
+        //
+        // The end used to be asserted equal to the last region's end, and that
+        // is no longer the rule. The planner carries the final chunk a little
+        // beyond the last region, because a recogniser will not commit the
+        // final word without some quiet after it and because the region's own
+        // end can fall inside that word — see the note in ChunkPlanner. So
+        // what has to hold is bracketing rather than equality: never lose
+        // speech off the end, never invent audio past the recording.
         #expect(plan.chunks.first!.originalRange.start == firstRegion.range.start, "\(label): start")
-        #expect(plan.chunks.last!.originalRange.end == lastRegion.range.end, "\(label): end")
+        #expect(plan.chunks.last!.originalRange.end >= lastRegion.range.end,
+                "\(label): end cuts the last region short")
+        #expect(plan.chunks.last!.originalRange.end <= map.sourceDuration,
+                "\(label): end runs past the recording")
 
         for (a, b) in zip(plan.chunks, plan.chunks.dropFirst()) {
             if b.overlapLead > .zero {

@@ -67,9 +67,24 @@ ChunkPlan ChunkPlanner::plan(const SilenceMap& map, const ChunkParameters& param
     }
 
     // Chunks tile the span from the first speech instant to the last; leading
-    // and trailing silence is never work.
+    // silence is never work.
     const MediaTime media_start = regions.front().range.start_time();
-    const MediaTime media_end = regions.back().range.end_time();
+
+    // Trailing silence is not dropped entirely. A recogniser commits the final
+    // word only once it has heard some quiet after it, and the last region's
+    // own end can fall inside that word, because a recording with no quiet
+    // passage measures a higher noise floor and the word's decay then scores
+    // as silence. Measured on the Swift side: a Spanish sentence ending on its
+    // last word lost it, and nearly 0.7 s of real audio was being withheld.
+    //
+    // Mirrors ChunkPlanner.swift, and must keep mirroring it — the parity
+    // suite compares these two plans boundary for boundary and is what caught
+    // the Swift change landing here first.
+    const MediaTime tail = MediaTime::from_seconds(1.5);
+    const MediaTime region_end = regions.back().range.end_time();
+    const MediaTime padded_end = region_end + tail;
+    const MediaTime media_end =
+        padded_end < map.source_duration ? padded_end : map.source_duration;
 
     float speech_reference = 0;
     for (const auto& r : regions) speech_reference += r.mean_energy_db;
