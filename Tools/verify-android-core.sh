@@ -69,10 +69,21 @@ TOOLS="$NDK/toolchains/llvm/prebuilt/darwin-x86_64/bin"
 [ -d "$TOOLS" ] || TOOLS="$(ls -d "$NDK"/toolchains/llvm/prebuilt/*/bin 2>/dev/null | head -1)"
 FAILED=0
 
+# Ninja when there is one: Windows has no make, and Android Studio's SDK CMake
+# ships ninja next to cmake. Unix Makefiles remains the fallback elsewhere.
+if command -v ninja >/dev/null 2>&1; then
+    GENERATOR="Ninja"
+elif [ -x "$(dirname "$CMAKE")/ninja" ] || [ -x "$(dirname "$CMAKE")/ninja.exe" ]; then
+    export PATH="$(dirname "$CMAKE"):$PATH"
+    GENERATOR="Ninja"
+else
+    GENERATOR="Unix Makefiles"
+fi
+
 for abi in arm64-v8a armeabi-v7a x86_64 x86; do
     out="$ROOT/build/android-$abi"
     rm -rf "$out"
-    if "$CMAKE" -S "$ROOT/android" -B "$out" -G "Unix Makefiles" \
+    if "$CMAKE" -S "$ROOT/android" -B "$out" -G "$GENERATOR" \
             -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
             -DANDROID_ABI="$abi" -DANDROID_PLATFORM="android-$API" \
             -DCMAKE_BUILD_TYPE=Release >/dev/null 2>"$out.log" \
