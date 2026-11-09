@@ -306,11 +306,145 @@ One CLI subcommand is genuinely absent off Apple rather than merely unbuilt:
 throws `notImplemented` by name. The time map it would ship beside the audio
 is plain data and is produced everywhere.
 
-### Nothing has executed on Linux
+### Executed on Linux, natively
 
-The binary links and contains what it should. It has not run: this machine has
-no Docker, Podman or Linux host, and macOS cannot execute ELF. Everything above
-is a build-time claim.
+The paragraph that used to sit here said nothing had run on Linux. That stopped
+being true on a Windows machine with WSL2: the engine builds and its tests run on
+a real glibc host. What follows is what that took, written from the machine that
+did it rather than predicted from a Mac.
+
+**What was run.** Ubuntu 26.04.1 LTS, x86_64, under WSL2 (16 cores, 15 GB), with
+the swift.org Swift 6.4.0 toolchain for Ubuntu 26.04, at commit `4a57691`. This
+is a *native glibc* build. It is a different configuration from the musl
+cross-build above, and several instructions below are wrong for that one.
+
+**Prerequisites.** Everything below was installed by hand and is not in the
+repository.
+
+- Swift: the swift.org tarball for the Ubuntu release, unpacked under `$HOME` and
+  put on `PATH`. The download page publishes a `.sig`; `gpg --verify` against
+  swift.org's `all-keys.asc` gives *Good signature* from the "Swift 6.x Release
+  Signing Key" (GPG also warns the key is not certified, which is expected).
+- apt, from swift.org's own list for Ubuntu: `binutils git gnupg2
+  libcurl4-openssl-dev libedit2 libsqlite3-0 libxml2-dev libncurses-dev
+  pkg-config tzdata unzip zlib1g-dev libpython3-dev`, plus `build-essential
+  cmake ninja-build` for the C and C++ libraries.
+- apt, specific to this project: **`nasm`**, **`libbz2-dev`**, **`libc++-dev`**
+  and **`libc++abi-dev`**.
+  - `nasm`: FFmpeg's `configure` uses x86 assembly on x86_64 and stops without an
+    assembler, unless `--disable-x86asm` is passed and decoding gets slower. That
+    matters for a six-hour recording, so install it. It is not needed on arm64.
+    One honest caveat: `nasm` was installed *before* the first FFmpeg build here,
+    so the failure itself has not been observed on this machine; the claim rests
+    on how FFmpeg's `configure` is documented to behave.
+  - `libc++-dev`, `libc++abi-dev`: `Package.swift` links `-lc++` on Linux,
+    because the swift.org toolchain uses LLVM's C++ library.
+  - `libbz2-dev`: the package links `-lbz2` for FFmpeg.
+- If `sudo` asks for a password and you would rather not type it, `wsl -d
+  Ubuntu -u root -- apt-get install ...` from Windows does the same job.
+
+**Order.**
+
+```
+git submodule update --init --depth 1   # vendor/ is four submodules, empty in a fresh clone
+Tools/build-ffmpeg.sh host              # also stages the headers into Sources/CFFmpeg/include
+Tools/build-engines.sh host
+swift build -Xlinker -lstdc++ -Xlinker -lgomp
+
+LD_LIBRARY_PATH=$PWD/build/ffmpeg/host/prefix/lib:$PWD/build/engines/host/prefix/lib \
+  swift test -Xlinker -lstdc++ -Xlinker -lgomp
+```
+
+`build-ffmpeg.sh` and `build-engines.sh` both have a real `host` branch (it is
+the default ABI), and it needed no changes: ggml's own CMake finds no Metal on
+Ubuntu and builds for the CPU.
+
+**Why the two linker flags, and why they are not in `Package.swift`.** Neither is
+about Linux as such. Both follow from how the engines were built.
+
+- `-lgomp`: the host build leaves OpenMP on, so ggml uses gcc's `libgomp`, and the
+  link fails on `GOMP_*` and `omp_*` symbols without it. The musl cross-build
+  turns OpenMP off.
+- `-lstdc++`: `libllama.a` and the other archives are compiled by gcc against
+  `libstdc++`, but the package links `libc++`. Without the flag `corpus-gen`
+  fails with `undefined reference to ... GLIBCXX_3.4.21` and `DSO missing from
+  command line`. A host build made with clang and `libc++` would not need it;
+  that has not been tried.
+- SwiftPM cannot tell a glibc `.linux` build from a musl `.linux` build, so
+  adding either flag to `Package.swift` unconditionally would break the
+  cross-build where `libgomp` and `libstdc++` do not exist. The alternative that
+  would remove `-lgomp` outright is `-DGGML_OPENMP=OFF` in the host branch of
+  `build-engines.sh`, matching what the musl branch already does ("ggml builds
+  its own threading anyway"). That has not been done, and it is a decision, not a
+  fix: it changes the performance of the host build for everyone who uses it.
+
+**At run time.** The host FFmpeg is built *shared*, and nothing records where it
+is, so a test binary fails to load with `libavformat.so.61: cannot open shared
+object file` unless `LD_LIBRARY_PATH` names `build/ffmpeg/host/prefix/lib`. A
+relative rpath was judged fragile and not added.
+
+**Result at `4a57691`.** `swift build` exits 0 for the whole package. `swift
+test` runs 501 tests in nine targets:
+
+| Target | Tests | Result |
+| --- | --- | --- |
+| Core | 115 | pass |
+| DSP | 60 | pass (194 s) |
+| Transcription | 41 | pass |
+| Project | 47 | pass |
+| FFI | 62 | pass |
+| Pipeline | 10 | pass (139 s) |
+| Core parity (Swift against the C++ core) | 22 | pass, 2 known issues |
+| Export | 20 | pass |
+| Language | 124 | **3 tests fail** |
+
+The parity suite passing here means the C++ core, compiled on Linux by the
+swift.org toolchain's clang and called through Swift's C++ interop, agrees with
+the Swift original: it has now held on two operating systems. (gcc built only the
+C and C++ libraries under `vendor/`; the core's own CMake tests, which use gcc,
+are a separate run.)
+
+**What only a real Linux host could have found.** Every one of these built and
+passed on the Mac, because the Mac was the machine that hid it.
+
+- `AtomicFile` called `FileManager.replaceItemAt`, which on Linux throws "The file
+  doesn't exist" when the *destination* is new. Every first write of a
+  `manifest.json` failed. Reproduced in a 15-line standalone program; fixed by
+  using `rename(2)`, which is what the type's own comment said it did.
+- `PortableDecoder` opened its output file without creating the parent
+  directory, and discarded the result of `createFile`.
+- A file `ModelSearch.swift` was missing from the repository entirely: an
+  unanchored `Models/` rule in `.gitignore` matched `Sources/VoxScriptaCore/Models/`
+  and `git add` skipped it silently.
+- Fifty-three header files were git symlinks, which a Windows checkout turns into
+  text files; the manifest filtered products by a property `Product` does not
+  have, inside an `#if` no Mac compiles; several test files named Apple-only types
+  unguarded; `LlamaHostTests` used `#require`, which fails, where `.enabled(if:)`
+  skips; and a memory test measured a Mach quantity that Linux reports
+  differently.
+
+**What still fails on Linux, and why.** Three Language tests, all of them real
+differences rather than build problems:
+
+- `LanguageDetectionTests` ("a fluent transcript in the wrong language warns
+  rather than throws"): the detector returns *nothing* off Apple, which is its
+  documented behaviour. Closing it needs a portable detector.
+- `MutationTests` (two tests): a renamed person is not caught when the name is the
+  first word of its sentence, because the capitalised-token fallback skips
+  sentence-initial words on purpose; and the two meaning-change corruptions
+  ("opinion reversed", "meaning replaced with fluent unrelated text") are caught
+  by other checks rather than by the semantic-similarity check, which is absent
+  without the Apple embedding.
+
+**The shared library.** `libVoxScriptaFFI.so` does link on a native Linux host: a
+debug build is a 32 MB x86-64 ELF exporting 36 `vs_` functions, needing
+`libavformat.so.61` and friends, `libc++.so.1`, `libgomp.so.1` and
+`libstdc++.so.6`. The Static Linux SDK still cannot produce it, for the reason
+above. The library has not been loaded from Flutter, and a release build has not
+been made.
+
+**Slow tests.** The DSP target takes about 190 s and the Pipeline target about
+140 s on this machine; which individual tests dominate has not been timed.
 
 
 ### POLISH is weaker off Apple, and that needs deciding
