@@ -18,22 +18,32 @@ public struct RootView: View {
     @State private var isShowingPaywall = false
 
     public var body: some View {
+        #if os(macOS)
+        window
+        #else
+        // A strip of its own above the navigation stack rather than an inset
+        // inside it. The trial is a fact about the app, not about the screen
+        // you happen to be looking at, so it holds its place while the list
+        // scrolls, while the large title collapses, and while a sheet or a
+        // detail view comes and goes. An inset placed inside the stack moves
+        // with whatever the stack is showing; one placed around it lands in
+        // the navigation bar's own strip, which is the collision this started
+        // as.
+        VStack(spacing: 0) {
+            TrialBanner(model: entitlement) { isShowingPaywall = true }
+            window
+        }
+        #endif
+    }
+
+    /// The window proper: the library beside the work, and everything
+    /// presented over it.
+    private var window: some View {
         @Bindable var model = model
 
-        NavigationSplitView {
+        return NavigationSplitView {
             LibrarySidebar()
                 .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 320)
-                #if !os(macOS)
-                // Attached inside the split view rather than around it, so on
-                // a phone the banner lands under the navigation bar instead of
-                // across it. Around it, the inset is applied above the bar and
-                // the banner shares that strip with the bar's own buttons: on
-                // an iPhone 15 the trial text ran under the Record and
-                // Settings buttons and "See Plans" sat on top of the gear.
-                .safeAreaInset(edge: .top, spacing: 0) {
-                    TrialBanner(model: entitlement) { isShowingPaywall = true }
-                }
-                #endif
         } detail: {
             Group {
                 switch model.mode {
@@ -190,9 +200,15 @@ struct RootToolbar: ToolbarContent {
 
     var body: some ToolbarContent {
 
+        // The Mac only. In a phone's navigation bar a Label is rendered as its
+        // icon alone, so this arrived as an unexplained padlock in the corner
+        // — a privacy claim reduced to a glyph says nothing. On iOS the same
+        // promise is made in words, on the empty state and in Settings.
+        #if os(macOS)
         ToolbarItem(placement: .navigation) {
             PrivacyBadge()
         }
+        #endif
         ToolbarItemGroup(placement: .primaryAction) {
             if model.isRunning {
                 Button(role: .cancel) { model.cancel() } label: {
