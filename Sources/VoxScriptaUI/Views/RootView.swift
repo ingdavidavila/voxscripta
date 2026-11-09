@@ -23,6 +23,17 @@ public struct RootView: View {
         NavigationSplitView {
             LibrarySidebar()
                 .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 320)
+                #if !os(macOS)
+                // Attached inside the split view rather than around it, so on
+                // a phone the banner lands under the navigation bar instead of
+                // across it. Around it, the inset is applied above the bar and
+                // the banner shares that strip with the bar's own buttons: on
+                // an iPhone 15 the trial text ran under the Record and
+                // Settings buttons and "See Plans" sat on top of the gear.
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    TrialBanner(model: entitlement) { isShowingPaywall = true }
+                }
+                #endif
         } detail: {
             Group {
                 switch model.mode {
@@ -127,9 +138,15 @@ public struct RootView: View {
         // Above everything, spanning the window. `safeAreaInset` rather than
         // a VStack so the split view keeps its own layout and the banner does
         // not become a column of it.
+        //
+        // The Mac only: both columns are on screen there and the banner is
+        // meant to span them. A phone has one column and a navigation bar in
+        // the same place, so it is attached to the sidebar instead, above.
+        #if os(macOS)
         .safeAreaInset(edge: .top, spacing: 0) {
             TrialBanner(model: entitlement) { isShowingPaywall = true }
         }
+        #endif
         .sheet(isPresented: $isShowingPaywall) {
             NavigationStack {
                 PaywallView(model: entitlement)

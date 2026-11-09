@@ -20,18 +20,17 @@ func waveHeights(count: Int) -> [CGFloat] {
     }
 }
 
-func drawIcon(size: CGFloat) -> NSImage {
-    let image = NSImage(size: NSSize(width: size, height: size))
-    image.lockFocus()
-    defer { image.unlockFocus() }
-
-    guard let context = NSGraphicsContext.current?.cgContext else { return image }
+func drawIcon(into context: CGContext, size: CGFloat, fullBleed: Bool) {
     let rect = CGRect(x: 0, y: 0, width: size, height: size)
 
     // Rounded-square ground, in the deep teal the project uses throughout.
-    let inset = size * 0.055
+    //
+    // Full bleed on iOS, which applies its own corner mask: an icon that
+    // brings its own inset and rounding is then drawn inside that mask and
+    // reads as a small picture of an icon rather than as one.
+    let inset = fullBleed ? 0 : size * 0.055
     let body = rect.insetBy(dx: inset, dy: inset)
-    let corner = size * 0.225
+    let corner = fullBleed ? 0 : size * 0.225
     let path = CGPath(roundedRect: body, cornerWidth: corner, cornerHeight: corner, transform: nil)
     context.saveGState()
     context.addPath(path)
@@ -98,7 +97,47 @@ func drawIcon(size: CGFloat) -> NSImage {
     }
 
     context.restoreGState()
+}
+
+/// The macOS iconset slices, drawn the way they always were.
+func drawIcon(size: CGFloat) -> NSImage {
+    let image = NSImage(size: NSSize(width: size, height: size))
+    image.lockFocus()
+    defer { image.unlockFocus() }
+    if let context = NSGraphicsContext.current?.cgContext {
+        drawIcon(into: context, size: size, fullBleed: false)
+    }
     return image
+}
+
+/// PNG data at an exact pixel size.
+///
+/// Into a bitmap of its own rather than through `NSImage.lockFocus`, which
+/// takes the screen's backing scale and so renders a 1024-point icon as a
+/// 2048-pixel file on any Retina Mac. iOS wants exactly 1024, and it rejects
+/// an icon with an alpha channel outright, so both are fixed here instead of
+/// being corrected afterwards by a second tool.
+func iconPNG(pixels: Int, fullBleed: Bool) -> Data? {
+    // `noneSkipLast` rather than a 24-bit bitmap: CoreGraphics has no
+    // three-component context, so asking NSBitmapImageRep for one without
+    // alpha yields a rep that cannot be drawn into at all. This keeps a
+    // fourth byte per pixel and ignores it, and the image that comes out
+    // carries no alpha channel — which is what iOS requires.
+    guard let context = CGContext(
+        data: nil, width: pixels, height: pixels,
+        bitsPerComponent: 8, bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)
+    else { return nil }
+
+    let appKit = NSGraphicsContext(cgContext: context, flipped: false)
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = appKit
+    drawIcon(into: context, size: CGFloat(pixels), fullBleed: fullBleed)
+    NSGraphicsContext.restoreGraphicsState()
+
+    guard let image = context.makeImage() else { return nil }
+    return NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:])
 }
 
 // ── Write the iconset ───────────────────────────────────────────────────────
@@ -130,3 +169,36 @@ for (name, size) in variants {
 }
 
 print("wrote \(iconset.path)")
+
+// ── The iOS app icon ────────────────────────────────────────────────────────
+//
+// One 1024 square, which is the whole of a modern iOS icon set. Written
+// straight into the Xcode target's asset catalogue so that regenerating the
+// icon updates the app, rather than producing a file someone then has to
+// remember to copy.
+let appIconSet = URL(filePath: #filePath)
+    .deletingLastPathComponent()      // Tools
+    .deletingLastPathComponent()      // the package root
+    .appending(path: "ios/VoxScripta/Assets.xcassets/AppIcon.appiconset")
+try? FileManager.default.createDirectory(at: appIconSet, withIntermediateDirectories: true)
+
+guard let appIcon = iconPNG(pixels: 1024, fullBleed: true) else {
+    FileHandle.standardError.write(Data("could not render the iOS icon\n".utf8))
+    exit(1)
+}
+try appIcon.write(to: appIconSet.appending(path: "AppIcon-1024.png"))
+try #"""
+{
+  "images" : [
+    {
+      "filename" : "AppIcon-1024.png",
+      "idiom" : "universal",
+      "platform" : "ios",
+      "size" : "1024x1024"
+    }
+  ],
+  "info" : { "author" : "xcode", "version" : 1 }
+}
+"""# .write(to: appIconSet.appending(path: "Contents.json"), atomically: true, encoding: .utf8)
+
+print("wrote \(appIconSet.path)")
