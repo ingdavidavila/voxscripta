@@ -76,7 +76,7 @@ struct SignUpView: View {
                 HStack {
                     Text(Strings.haveAccount).foregroundStyle(.secondary)
                     Button(Strings.signIn) { dismiss() }
-                        .buttonStyle(.link)
+                        .linkButtonStyle()
                 }
                 .font(.callout)
             }

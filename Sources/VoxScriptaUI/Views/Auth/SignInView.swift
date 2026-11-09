@@ -46,7 +46,7 @@ struct SignInView: View {
                 FieldError(message: model.passwordError)
 
                 Button(Strings.forgotPassword) { isShowingReset = true }
-                    .buttonStyle(.link)
+                    .linkButtonStyle()
                     .disabled(model.isBusy)
             }
 
@@ -67,7 +67,7 @@ struct SignInView: View {
                 HStack {
                     Text(Strings.noAccountYet).foregroundStyle(.secondary)
                     Button(Strings.signUp) { isShowingSignUp = true }
-                        .buttonStyle(.link)
+                        .linkButtonStyle()
                 }
                 .font(.callout)
             }

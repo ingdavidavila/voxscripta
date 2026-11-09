@@ -58,7 +58,7 @@ cd "$OUT"
 
 # Shared where it is possible, static where it is not. See the note at the top
 # about what that costs.
-if [ "$ABI" = "linux-musl" ]; then
+if [ "$ABI" = "linux-musl" ] || [ "$ABI" = "ios" ]; then
     LINKAGE=(--disable-shared --enable-static)
 else
     LINKAGE=(--enable-shared --disable-static)
@@ -113,6 +113,24 @@ if [ "$ABI" = "linux-musl" ]; then
         --extra-cflags="$MUSL_FLAGS"
         --extra-ldflags="$MUSL_FLAGS -rtlib=compiler-rt -unwindlib=libunwind -static -fuse-ld=lld"
     )
+elif [ "$ABI" = "ios" ]; then
+    # xcrun answers with whatever SDK the installed Xcode has, so this does
+    # not pin a version the way a hardcoded path would.
+    SDK="$(xcrun --sdk iphoneos --show-sdk-path 2>/dev/null || true)"
+    [ -n "$SDK" ] || { echo "no iPhoneOS SDK; install Xcode and its iOS platform" >&2; exit 1; }
+    BIN="$(dirname "$(xcrun --sdk iphoneos --find clang)")"
+    # -mios-version-min has to match the deployment target the Swift above it
+    # is built with, or the objects link and then Swift rejects them.
+    IOS_FLAGS="-arch arm64 -isysroot $SDK -mios-version-min=26.0"
+    CONFIGURE+=(
+        # FFmpeg calls every Apple platform darwin; the arch and the sysroot
+        # are what make it a phone rather than the Mac running the build.
+        --target-os=darwin --arch=arm64 --enable-cross-compile
+        --cc="$BIN/clang" --cxx="$BIN/clang++"
+        --ar="$BIN/ar" --nm="$BIN/nm" --ranlib="$BIN/ranlib" --strip="$BIN/strip"
+        --extra-cflags="$IOS_FLAGS"
+        --extra-ldflags="$IOS_FLAGS"
+    )
 elif [ "$ABI" != "host" ]; then
     NDK="${ANDROID_NDK_HOME:-}"
     [ -n "$NDK" ] || NDK="$(ls -d "$HOME/Library/Android/sdk/ndk/"* 2>/dev/null | tail -1 || true)"
@@ -157,14 +175,25 @@ make install >/dev/null
 # Developer Mode or elevated privileges — a repository should not ask for that
 # just to be cloned. They are build output, so the build produces them, and
 # .gitignore keeps them out of history.
+# Only for the ABIs SwiftPM will compile against here. There is one include
+# directory for the whole package, so a cross-build must not leave its headers
+# where the host build then reads them: a Mac that had built linux-musl last
+# would be compiling against musl's avconfig.h. host and ios are both safe —
+# on a Mac they are two Apple slices whose headers agree, and on Linux host is
+# the native one.
 HEADERS="$ROOT/Sources/CFFmpeg/include"
+if [ "$ABI" != "host" ] && [ "$ABI" != "ios" ]; then
+    echo "not staging headers for $ABI — they would displace the host's"
+    HEADERS=""
+fi
 for lib in libavcodec libavformat libavutil libswresample; do
+    [ -n "$HEADERS" ] || break
     # :? so the shell aborts rather than running rm against a path built from
     # an empty variable.
     rm -rf "${HEADERS:?}/${lib:?}"
     cp -R "$PREFIX/include/$lib" "$HEADERS/$lib"
 done
-echo "staged headers into Sources/CFFmpeg/include"
+[ -n "$HEADERS" ] && echo "staged headers into Sources/CFFmpeg/include"
 
 echo "installed into $PREFIX"
 find "$PREFIX/lib" \( -name '*.dylib' -o -name '*.so' \) -type f 2>/dev/null | sort | while read -r lib; do

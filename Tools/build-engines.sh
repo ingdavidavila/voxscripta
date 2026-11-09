@@ -14,6 +14,7 @@
 # core/ the same way.
 #
 #   Tools/build-engines.sh                 host (this machine)
+#   Tools/build-engines.sh ios             arm64 iPhone device, needs Xcode
 #   Tools/build-engines.sh arm64-v8a       an Android ABI, needs the NDK
 #   Tools/build-engines.sh linux-musl      aarch64 Linux, from the Static SDK
 set -euo pipefail
@@ -72,6 +73,30 @@ common_flags() {
         # own CPU backend, which is the one measured in PortableDSPParityTests.
         echo "-DGGML_METAL=OFF"
         echo "-DGGML_BLAS=OFF"
+    elif [ "$ABI" = "ios" ]; then
+        # Apple's own CMake iOS support rather than a toolchain file of ours:
+        # naming the system, the architecture and the SDK is all it needs, and
+        # xcrun finds the SDK the installed Xcode actually has.
+        echo "-DCMAKE_SYSTEM_NAME=iOS"
+        echo "-DCMAKE_OSX_ARCHITECTURES=arm64"
+        echo "-DCMAKE_OSX_SYSROOT=iphoneos"
+        # Matches the iOS minimum in Package.swift. A lower one here would
+        # link, and then the Swift above it would refuse the same objects.
+        echo "-DCMAKE_OSX_DEPLOYMENT_TARGET=26.0"
+        # Metal and Accelerate both exist on iOS, so this is the one
+        # cross-build that keeps the Apple backends on — and Package.swift
+        # already links ggml-metal and ggml-blas for iOS, so turning them off
+        # here would fail the link rather than fall back.
+        #
+        # The shaders are embedded instead of installed beside the binary: an
+        # app bundle has nowhere to put a loose .metallib that ggml would find
+        # at run time on a device.
+        echo "-DGGML_METAL=ON"
+        echo "-DGGML_METAL_EMBED_LIBRARY=ON"
+        echo "-DGGML_OPENMP=OFF"
+        # CMAKE_SYSTEM_NAME=iOS restricts find_package to the SDK, which is
+        # what stops whisper.cpp seeing the ggml llama.cpp just installed.
+        echo "-DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH"
     elif [ "$ABI" != "host" ]; then
         NDK="${ANDROID_NDK_HOME:-}"
         [ -n "$NDK" ] || NDK="$(ls -d "$HOME/Library/Android/sdk/ndk/"* 2>/dev/null | tail -1 || true)"
