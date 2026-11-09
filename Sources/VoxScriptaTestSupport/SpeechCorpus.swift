@@ -48,6 +48,40 @@ public enum SpeechCorpus {
             text: "The quick brown fox jumps over the lazy dog near the river bank at sunrise."),
     ]
 
+    /// The same five shapes in Spanish.
+    ///
+    /// Deliberately parallel to ``standard`` rather than a translation of it:
+    /// each passage exercises the same thing its English counterpart does —
+    /// numbers, names, negation, hedges, plain prose — so the two word error
+    /// rates measure the same job in two languages and can be compared.
+    ///
+    /// Spanish-specific on purpose in two places. The names carry accents and
+    /// a surname that is not a word, because the orthography check exists for
+    /// exactly that; and the negation passage uses the double negative that
+    /// Spanish requires, which is the shape the polarity count has to survive.
+    public static let spanish: [SpeechPassage] = [
+        SpeechPassage(
+            name: "numbers",
+            text: "Vendimos quinientas unidades en el tercer trimestre, "
+                + "frente a trescientas doce del anterior."),
+        SpeechPassage(
+            name: "names",
+            text: "David se reunió con Sara Chen y el equipo de Northwind "
+                + "Trading el martes por la mañana."),
+        SpeechPassage(
+            name: "negation",
+            text: "No aprobamos el presupuesto revisado, y el comité no ha "
+                + "programado ninguna reunión de seguimiento."),
+        SpeechPassage(
+            name: "hedges",
+            text: "Quizá sea posible terminar el viernes, pero yo "
+                + "probablemente contaría con la semana siguiente."),
+        SpeechPassage(
+            name: "plain",
+            text: "El análisis de los resultados muestra una mejora "
+                + "significativa respecto al periodo anterior."),
+    ]
+
     /// Passages containing real disfluencies, for exercising the CLEAN pass.
     ///
     /// The fillers are spoken, not inserted afterwards, so the engine has to
@@ -86,14 +120,20 @@ extension SpeechCorpus {
     /// - Note: Voice availability differs between machines, so the audio is not
     ///   bit-reproducible across hosts the way the signal corpus is. Word error
     ///   rate against the known text remains exact regardless.
+    /// - Parameter language: the BCP-47 tag whose default voice to speak in.
+    ///   It used to be hardcoded to en-US inside the renderer, which meant
+    ///   Spanish passages were read aloud by an English voice — audio that
+    ///   measures the wrong thing entirely.
     public static func render(
         _ passages: [SpeechPassage],
         voiceIdentifier: String? = nil,
-        rate: Float = 0.45
+        rate: Float = 0.45,
+        language: String = "en-US"
     ) async throws -> [Float] {
         var out: [Float] = []
         for passage in passages {
-            out += try await renderOne(passage.text, voiceIdentifier: voiceIdentifier, rate: rate)
+            out += try await renderOne(passage.text, voiceIdentifier: voiceIdentifier,
+                                       rate: rate, language: language)
             let silence = Int(passage.trailingSilence * Double(CanonicalFormat.sampleRate))
             out += [Float](repeating: 0, count: silence)
         }
@@ -103,13 +143,14 @@ extension SpeechCorpus {
     private static func renderOne(
         _ text: String,
         voiceIdentifier: String?,
-        rate: Float
+        rate: Float,
+        language: String = "en-US"
     ) async throws -> [Float] {
         let utterance = AVSpeechUtterance(string: text)
         utterance.rate = rate
         if let voiceIdentifier, let voice = AVSpeechSynthesisVoice(identifier: voiceIdentifier) {
             utterance.voice = voice
-        } else if let voice = AVSpeechSynthesisVoice(language: "en-US") {
+        } else if let voice = AVSpeechSynthesisVoice(language: language) {
             utterance.voice = voice
         }
 

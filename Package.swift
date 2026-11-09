@@ -437,7 +437,15 @@ let onApplePlatform = true
 let onApplePlatform = false
 #endif
 
-if !onApplePlatform {
+// Through a function rather than `if !onApplePlatform { … }` at top level:
+// there the condition folds to a constant and the compiler warns that the
+// body will never be executed on a Mac — which is true, and is also the whole
+// point. A parameter is not folded, so the body is compiled and type-checked
+// on every host without the noise.
+func dropAppleOnlyTargets(
+    from targets: inout [Target], and products: inout [Product], when drop: Bool
+) {
+    guard drop else { return }
     // Matched by name, because Product exposes only its name. These products
     // are named after their one target, so one set covers both.
     let appleOnly: Set<String> = [
@@ -449,6 +457,8 @@ if !onApplePlatform {
     targets.removeAll { appleOnly.contains($0.name) }
     products.removeAll { appleOnly.contains($0.name) }
 }
+
+dropAppleOnlyTargets(from: &targets, and: &products, when: !onApplePlatform)
 
 let package = Package(
     name: "VoxScripta",
