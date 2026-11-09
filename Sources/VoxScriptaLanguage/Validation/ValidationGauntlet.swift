@@ -209,8 +209,14 @@ public protocol Validating: Sendable {
 /// asks a model whether a model's output was acceptable, which would be circular.
 public struct ValidationGauntlet: Validating {
     private let similarity: SemanticSimilarity
+    private let recognizesNames: Bool
 
-    public init(similarity: SemanticSimilarity = .shared) {
+    /// - Parameter recognizesNames: false drops the name tagger, as every
+    ///   platform but Apple's does. With `similarity: .unavailable` this is
+    ///   the whole off-Apple configuration rather than half of it.
+    public init(similarity: SemanticSimilarity = .shared,
+                recognizesNames: Bool = true) {
+        self.recognizesNames = recognizesNames
         self.similarity = similarity
     }
 
@@ -249,7 +255,8 @@ public struct ValidationGauntlet: Validating {
         // The watch list is drawn from both texts so a name the tagger only
         // recognizes once — or that only becomes capitalized after polishing —
         // is still counted on both sides.
-        let entityVocabulary = EntityExtraction.entityVocabulary([originalText, revisedText])
+        let entityVocabulary = EntityExtraction.entityVocabulary(
+            [originalText, revisedText], recognizingNames: recognizesNames)
         results.append(conservation(
             check: .namedEntityConservation,
             before: EntityExtraction.counts(of: entityVocabulary, in: originalText),

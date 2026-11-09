@@ -27,10 +27,17 @@ public enum EntityExtraction {
     /// the comparison itself: fixing "david" to "David" is exactly what POLISHED
     /// is for, and a case-sensitive comparison reads that as adding a name. So the
     /// vocabulary is collected from both sides and counted case-insensitively.
-    public static func entityVocabulary(_ texts: [String]) -> Set<String> {
+    /// - Parameter recognizingNames: false behaves as though no name tagger
+    ///   exists, which is the case on Windows, Linux and Android. A parameter
+    ///   rather than a platform check so that configuration can be measured
+    ///   from a Mac — ``SemanticSimilarity/unavailable`` exists for the same
+    ///   reason, and simulating only that half is what hid the gap this was
+    ///   added for.
+    public static func entityVocabulary(_ texts: [String],
+                                        recognizingNames: Bool = true) -> Set<String> {
         var vocabulary: Set<String> = []
         for text in texts {
-            vocabulary.formUnion(namedEntities(in: text))
+            if recognizingNames { vocabulary.formUnion(namedEntities(in: text)) }
             vocabulary.formUnion(capitalizedTokens(in: text))
         }
         return vocabulary

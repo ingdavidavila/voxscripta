@@ -20,8 +20,15 @@ import VoxScriptaCore
 struct OffAppleGauntletMeasurement {
 
     /// The gauntlet as it exists on Windows, Linux and Android.
+    ///
+    /// Both halves. This used to pass only `similarity: .unavailable`, while
+    /// the comment above claimed it abstained "exactly as it does on Windows,
+    /// Linux and Android" — and it did not, because off Apple the name tagger
+    /// is gone too. Simulating one half and asserting about both is how the
+    /// renamed-person hole below stayed invisible on this machine until a
+    /// real Linux run found it.
     private var offApple: ValidationGauntlet {
-        ValidationGauntlet(similarity: .unavailable)
+        ValidationGauntlet(similarity: .unavailable, recognizesNames: false)
     }
 
     /// The gauntlet as it exists on a Mac.
@@ -100,6 +107,46 @@ struct OffAppleGauntletMeasurement {
         for item in blocked { print("    ⚠︎ \(item)") }
         // A gauntlet that refuses everything is useless rather than safe.
         #expect(blocked.isEmpty, "legitimate rewrites blocked: \(blocked)")
+    }
+
+    // MARK: - Names, which the embedding never guarded
+
+    @Test("Off Apple, a renamed person at the start of a sentence is not caught")
+    func renamedPersonEscapesOffApple() throws {
+        // Recorded rather than asserted away, because it is a real gap and
+        // the decision about closing it has not been made.
+        //
+        // The mechanism is narrow. Off Apple the vocabulary comes from
+        // `capitalizedTokens` alone, and that deliberately skips
+        // sentence-initial capitals — CLEAN and POLISHED both legitimately
+        // capitalize there, so a capital in that position says nothing about
+        // whether a word is a name. "Sarah Chen" to "Rebecca Chen" changes
+        // only the sentence-initial word; "Chen" is watched and unchanged, so
+        // the counts match and the rewrite passes.
+        //
+        // So the check is not blind off Apple. It is blind to proper nouns in
+        // one position. A portable fix exists — treat a sentence-initial
+        // capital as a name when the token after it is also capitalized,
+        // which is "Sarah Chen" and is not "We shipped" — and it is a change
+        // to what the product rejects, so it is not being made here.
+        let report = try offApple.validate(
+            original: ["Sarah Chen approved the plan."],
+            revised: ["Rebecca Chen approved the plan."],
+            language: .english)
+
+        withKnownIssue("a sentence-initial proper noun is unwatched without the name tagger") {
+            #expect(!report.passed, "the rename should have been caught")
+        }
+
+        // What does hold off Apple: the same rename away from the start of a
+        // sentence is caught, which is what makes the gap positional rather
+        // than total.
+        let midSentence = try offApple.validate(
+            original: ["The plan was approved by Sarah Chen."],
+            revised: ["The plan was approved by Rebecca Chen."],
+            language: .english)
+        #expect(!midSentence.passed,
+                "a rename away from the sentence start must still be caught")
     }
 
     // MARK: - Spanish, checked a second time

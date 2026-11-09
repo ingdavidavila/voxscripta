@@ -86,8 +86,21 @@ public struct PortableDecoder: CanonicalDecoding {
 
         let total = (try? duration(of: url))?.seconds ?? 0
 
-        FileManager.default.createFile(atPath: destination.path, contents: nil)
-        guard let output = FileHandle(forWritingAtPath: destination.path) else {
+        // The parent first. A project's Derived/ does not exist until
+        // something writes into it, and this is often the first thing that
+        // does — so without this, decoding into a fresh project failed on
+        // every platform that uses this decoder. The Apple decoder has always
+        // made the directory; this one did not, and the two only differ
+        // because nothing ran the portable path on a new project until the
+        // Linux suite did.
+        try? FileManager.default.createDirectory(
+            at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+
+        // createFile's result is checked rather than discarded. Ignoring it
+        // turned a failed create into a nil FileHandle, and the error then
+        // blamed opening the file for a directory that was never there.
+        guard FileManager.default.createFile(atPath: destination.path, contents: nil),
+              let output = FileHandle(forWritingAtPath: destination.path) else {
             throw VoxScriptaError.ioFailure(path: destination.path,
                                             reason: "could not open the destination for writing")
         }
