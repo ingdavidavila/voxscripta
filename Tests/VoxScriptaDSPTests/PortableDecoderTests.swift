@@ -35,6 +35,12 @@ struct PortableDecoderTests {
     }
 
     // MARK: - Agreement with AVFoundation
+    //
+    // Cross-checks, so they need the decoder being checked against. Off Apple
+    // there is no CanonicalDecoder to compare with and these cannot exist —
+    // what remains below is this decoder's own coverage, which is the part
+    // that matters where it is the only decoder there is.
+    #if canImport(AVFoundation)
 
     @Test("It decodes a WAV to the same samples AVFoundation does")
     func agreesWithApple() async throws {
@@ -92,6 +98,7 @@ struct PortableDecoderTests {
         #expect(abs(apple.seconds - portable.seconds) < 0.01,
                 "\(apple.seconds) vs \(portable.seconds)")
     }
+    #endif
 
     @Test("Probe reports the file's own rate and channels, not the canonical ones")
     func probeReportsSource() async throws {
@@ -160,6 +167,10 @@ struct PortableDecoderTests {
         }
     }
 
+    // Both need an m4a to read, and only AVFoundation can write one here.
+    // readsAAC would compile off Apple and then fail in the fixture, which is
+    // a worse way to learn that than not having the test.
+    #if canImport(AVFoundation)
     @Test("It reads an m4a, which is the whole reason for FFmpeg")
     func readsAAC() async throws {
         // The gap that forced this decision: the app records m4a, so a
@@ -202,6 +213,7 @@ struct PortableDecoderTests {
         #expect(worst(shift: best) < 0.1,
                 "the two decoders disagree by \(worst(shift: best)) on the same m4a")
     }
+    #endif
 
     @Test("A missing file is unavailable, not a decode failure")
     func missingFile() async throws {
