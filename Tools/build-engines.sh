@@ -15,6 +15,7 @@
 #
 #   Tools/build-engines.sh                 host (this machine)
 #   Tools/build-engines.sh ios             arm64 iPhone device, needs Xcode
+#   Tools/build-engines.sh ios-sim         arm64 iOS Simulator, needs Xcode
 #   Tools/build-engines.sh arm64-v8a       an Android ABI, needs the NDK
 #   Tools/build-engines.sh linux-musl      aarch64 Linux, from the Static SDK
 set -euo pipefail
@@ -73,6 +74,20 @@ common_flags() {
         # own CPU backend, which is the one measured in PortableDSPParityTests.
         echo "-DGGML_METAL=OFF"
         echo "-DGGML_BLAS=OFF"
+    elif [ "$ABI" = "ios-sim" ]; then
+        # The simulator is a different platform from the device, not a
+        # different architecture of it: both are arm64 on an Apple silicon
+        # Mac, and an archive built for one is refused by the other. They
+        # cannot be lipo'd together either, which is the problem XCFrameworks
+        # exist to solve — so this is a prefix of its own.
+        echo "-DCMAKE_SYSTEM_NAME=iOS"
+        echo "-DCMAKE_OSX_ARCHITECTURES=arm64"
+        echo "-DCMAKE_OSX_SYSROOT=iphonesimulator"
+        echo "-DCMAKE_OSX_DEPLOYMENT_TARGET=26.0"
+        echo "-DGGML_METAL=ON"
+        echo "-DGGML_METAL_EMBED_LIBRARY=ON"
+        echo "-DGGML_OPENMP=OFF"
+        echo "-DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH"
     elif [ "$ABI" = "ios" ]; then
         # Apple's own CMake iOS support rather than a toolchain file of ours:
         # naming the system, the architecture and the SDK is all it needs, and

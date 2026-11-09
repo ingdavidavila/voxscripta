@@ -58,7 +58,7 @@ cd "$OUT"
 
 # Shared where it is possible, static where it is not. See the note at the top
 # about what that costs.
-if [ "$ABI" = "linux-musl" ] || [ "$ABI" = "ios" ]; then
+if [ "$ABI" = "linux-musl" ] || [ "$ABI" = "ios" ] || [ "$ABI" = "ios-sim" ]; then
     LINKAGE=(--disable-shared --enable-static)
 else
     LINKAGE=(--enable-shared --disable-static)
@@ -113,15 +113,24 @@ if [ "$ABI" = "linux-musl" ]; then
         --extra-cflags="$MUSL_FLAGS"
         --extra-ldflags="$MUSL_FLAGS -rtlib=compiler-rt -unwindlib=libunwind -static -fuse-ld=lld"
     )
-elif [ "$ABI" = "ios" ]; then
+elif [ "$ABI" = "ios" ] || [ "$ABI" = "ios-sim" ]; then
+    if [ "$ABI" = "ios-sim" ]; then
+        APPLE_SDK=iphonesimulator
+        MIN_FLAG=-mios-simulator-version-min=26.0
+    else
+        APPLE_SDK=iphoneos
+        MIN_FLAG=-mios-version-min=26.0
+    fi
     # xcrun answers with whatever SDK the installed Xcode has, so this does
     # not pin a version the way a hardcoded path would.
-    SDK="$(xcrun --sdk iphoneos --show-sdk-path 2>/dev/null || true)"
-    [ -n "$SDK" ] || { echo "no iPhoneOS SDK; install Xcode and its iOS platform" >&2; exit 1; }
-    BIN="$(dirname "$(xcrun --sdk iphoneos --find clang)")"
-    # -mios-version-min has to match the deployment target the Swift above it
-    # is built with, or the objects link and then Swift rejects them.
-    IOS_FLAGS="-arch arm64 -isysroot $SDK -mios-version-min=26.0"
+    SDK="$(xcrun --sdk "$APPLE_SDK" --show-sdk-path 2>/dev/null || true)"
+    [ -n "$SDK" ] || { echo "no $APPLE_SDK SDK; install Xcode and its iOS platform" >&2; exit 1; }
+    BIN="$(dirname "$(xcrun --sdk "$APPLE_SDK" --find clang)")"
+    # The minimum has to match the deployment target the Swift above it is
+    # built with, or the objects link and then Swift rejects them. The
+    # simulator takes its own flag; passing the device one builds objects the
+    # simulator refuses.
+    IOS_FLAGS="-arch arm64 -isysroot $SDK $MIN_FLAG"
     CONFIGURE+=(
         # FFmpeg calls every Apple platform darwin; the arch and the sysroot
         # are what make it a phone rather than the Mac running the build.
@@ -182,7 +191,7 @@ make install >/dev/null
 # on a Mac they are two Apple slices whose headers agree, and on Linux host is
 # the native one.
 HEADERS="$ROOT/Sources/CFFmpeg/include"
-if [ "$ABI" != "host" ] && [ "$ABI" != "ios" ]; then
+if [ "$ABI" != "host" ] && [ "$ABI" != "ios" ] && [ "$ABI" != "ios-sim" ]; then
     echo "not staging headers for $ABI — they would displace the host's"
     HEADERS=""
 fi

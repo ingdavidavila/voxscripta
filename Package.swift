@@ -27,6 +27,20 @@ let strict: [SwiftSetting] = [
 // proven there.
 let packageRoot = URL(fileURLWithPath: #filePath).deletingLastPathComponent().path
 
+// Device or simulator. SwiftPM's `.iOS` means both, and a manifest cannot see
+// which one is being built for — while the two are different *platforms*
+// rather than two architectures of one, so an archive built for the device is
+// refused by the simulator and the two cannot be lipo'd together. Hence one
+// prefix each, chosen here:
+//
+//     VOXSCRIPTA_IOS_SLICE=sim swift build …     or the same on xcodebuild
+//
+// The device is the default, because that is what gets installed on a phone
+// and shipped. The simulator is for looking at the interface, which is the
+// only way to see an iPad layout without an iPad.
+let iOSSlice = ProcessInfo.processInfo.environment["VOXSCRIPTA_IOS_SLICE"] == "sim"
+    ? "ios-sim" : "ios"
+
 let engineLinkerSettings: [LinkerSetting] = [
     // Per platform, because the two are built by the same script into
     // different prefixes: `Tools/build-engines.sh` for the Mac and
@@ -38,7 +52,8 @@ let engineLinkerSettings: [LinkerSetting] = [
     // `platform MACOS`: the link failed, and nothing had ever been built for
     // a device. SwiftPM's `.iOS` covers the simulator too, and this prefix
     // holds the device slice only, so a simulator build needs its own.
-    .unsafeFlags(["-L" + packageRoot + "/build/engines/ios/prefix/lib"], .when(platforms: [.iOS])),
+    .unsafeFlags(["-L" + packageRoot + "/build/engines/" + iOSSlice + "/prefix/lib"],
+                 .when(platforms: [.iOS])),
     // Both Linux prefixes, because SwiftPM cannot tell them apart: a native
     // glibc build and a musl cross-build from a Mac are both `.linux`, and
     // they install to different directories. The linker takes whichever
@@ -178,7 +193,8 @@ var targets: [Target] = [
             ], .when(platforms: [.macOS])),
             // iOS builds FFmpeg static, so there is nothing to find at run
             // time and no rpath to set.
-            .unsafeFlags(["-L" + packageRoot + "/build/ffmpeg/ios/prefix/lib"], .when(platforms: [.iOS])),
+            .unsafeFlags(["-L" + packageRoot + "/build/ffmpeg/" + iOSSlice + "/prefix/lib"],
+                         .when(platforms: [.iOS])),
             // No rpath on the static path: there is nothing to find at
             // run time because everything is in the binary.
             // Both, for the reason given on the engine settings above.

@@ -23,6 +23,14 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<!-- Export compliance, answered here so that every upload and every
+	     TestFlight build does not stop to ask. False is accurate rather than
+	     merely convenient: the only cryptography in this app is SHA-256 over
+	     file contents, to tell whether an artifact is still valid. Hashing is
+	     not encryption, there is no key anywhere in the project, and with no
+	     network there is nothing in transit to protect. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
