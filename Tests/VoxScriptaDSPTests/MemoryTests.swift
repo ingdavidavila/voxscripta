@@ -98,7 +98,7 @@ struct MemoryTests {
         let dest = tmp.url.appending(path: "canonical.f32")
         let baseline = try MemoryFootprint.current()
         let (written, peak) = try await MemoryFootprint.peak {
-            try await CanonicalDecoder(bufferDuration: 10).decode(url: source, to: dest) { _ in }
+            try await platformDecoder(bufferDuration: 10).decode(url: source, to: dest) { _ in }
         }
         #expect(written > 9_000_000)
 

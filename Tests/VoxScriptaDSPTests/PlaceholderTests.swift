@@ -13,11 +13,11 @@ struct DSPErrorTests {
     @Test("A missing file is reported as unavailable")
     func missingFile() async {
         await #expect(throws: VoxScriptaError.sourceUnavailable(path: "/nope/a.wav")) {
-            try await CanonicalDecoder().probe(url: URL(filePath: "/nope/a.wav"))
+            try await platformDecoder().probe(url: URL(filePath: "/nope/a.wav"))
         }
         await #expect(throws: VoxScriptaError.sourceUnavailable(path: "/nope/a.wav")) {
-            _ = try await CanonicalDecoder().decode(url: URL(filePath: "/nope/a.wav"),
-                                                    to: URL(filePath: "/tmp/out.f32")) { _ in }
+            _ = try await platformDecoder().decode(url: URL(filePath: "/nope/a.wav"),
+                                                  to: URL(filePath: "/tmp/out.f32")) { _ in }
         }
     }
 
@@ -27,7 +27,7 @@ struct DSPErrorTests {
         let bogus = tmp.url.appending(path: "notaudio.wav")
         try Data("this is not a wave file".utf8).write(to: bogus)
         await #expect(throws: VoxScriptaError.self) {
-            try await CanonicalDecoder().probe(url: bogus)
+            try await platformDecoder().probe(url: bogus)
         }
     }
 

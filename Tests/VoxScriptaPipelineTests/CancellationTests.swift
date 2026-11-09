@@ -38,7 +38,7 @@ struct CancellationTests {
         chunking.targetDuration = .seconds(30)
         chunking.maxDuration = .seconds(40)
 
-        let decoder = CanonicalDecoder()
+        let decoder = platformDecoder()
         return try await ProjectStore().create(
             from: audio, at: tmp.url.appending(path: "p.voxscripta"),
             chunking: chunking,

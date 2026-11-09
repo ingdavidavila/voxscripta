@@ -19,13 +19,26 @@ let strict: [SwiftSetting] = [
 ///
 /// Unsafe flags are allowed because this is a root package and nothing depends
 /// on it. If that ever changes, these become an xcframework.
+// Absolute, and derived from this file rather than from the working
+// directory: `swift build` runs the compiler from the package root, so a
+// relative -L resolves, and xcodebuild does not. The iOS paths below are
+// consumed by Xcode, so they cannot be relative. The macOS and Linux ones are
+// left as they are because `swift build` is what uses them and they are
+// proven there.
+let packageRoot = URL(fileURLWithPath: #filePath).deletingLastPathComponent().path
+
 let engineLinkerSettings: [LinkerSetting] = [
     // Per platform, because the two are built by the same script into
     // different prefixes: `Tools/build-engines.sh` for the Mac and
     // `Tools/build-engines.sh linux-musl` for Linux. One hardcoded `host`
     // path meant a Linux link looked for Mach-O archives.
-    .unsafeFlags(["-Lbuild/engines/host/prefix/lib"],
-                 .when(platforms: [.macOS, .iOS])),
+    .unsafeFlags(["-Lbuild/engines/host/prefix/lib"], .when(platforms: [.macOS])),
+    // Its own prefix, from `Tools/build-engines.sh ios`. This used to say
+    // [.macOS, .iOS], which pointed an iPhone build at archives marked
+    // `platform MACOS`: the link failed, and nothing had ever been built for
+    // a device. SwiftPM's `.iOS` covers the simulator too, and this prefix
+    // holds the device slice only, so a simulator build needs its own.
+    .unsafeFlags(["-L" + packageRoot + "/build/engines/ios/prefix/lib"], .when(platforms: [.iOS])),
     // Both Linux prefixes, because SwiftPM cannot tell them apart: a native
     // glibc build and a musl cross-build from a Mac are both `.linux`, and
     // they install to different directories. The linker takes whichever
@@ -162,7 +175,10 @@ var targets: [Target] = [
                 // -Xlinker pairs here; a -Wl, form is rejected outright.
                 "-Xlinker", "-rpath", "-Xlinker",
                 FileManager.default.currentDirectoryPath + "/build/ffmpeg/host/prefix/lib",
-            ], .when(platforms: [.macOS, .iOS])),
+            ], .when(platforms: [.macOS])),
+            // iOS builds FFmpeg static, so there is nothing to find at run
+            // time and no rpath to set.
+            .unsafeFlags(["-L" + packageRoot + "/build/ffmpeg/ios/prefix/lib"], .when(platforms: [.iOS])),
             // No rpath on the static path: there is nothing to find at
             // run time because everything is in the binary.
             // Both, for the reason given on the engine settings above.
@@ -173,8 +189,14 @@ var targets: [Target] = [
             // itself and a static one hands to whoever links it. Both are
             // in the Static Linux SDK's sysroot; zlib is what the mov
             // demuxer uses for compressed headers.
-            .linkedLibrary("z", .when(platforms: [.linux, .android])),
-            .linkedLibrary("bz2", .when(platforms: [.linux, .android])),
+            // iOS belongs with the static platforms here, not with macOS: a
+            // shared FFmpeg resolves these itself, a static one hands them to
+            // whoever links it. Without them an iPhone link fails on
+            // _inflate, _uncompress and the BZ2_bzDecompress family, which are
+            // zlib's and bzip2's — both in the iOS SDK. zlib is what the mov
+            // demuxer uses for compressed headers.
+            .linkedLibrary("z", .when(platforms: [.linux, .android, .iOS])),
+            .linkedLibrary("bz2", .when(platforms: [.linux, .android, .iOS])),
             .linkedLibrary("avformat"),
             .linkedLibrary("avcodec"),
             .linkedLibrary("avutil"),
@@ -188,7 +210,17 @@ var targets: [Target] = [
         name: "CMiniaudio",
         path: "Sources/CMiniaudio",
         sources: ["miniaudio_impl.c"],
-        cSettings: [.headerSearchPath("include")]
+        cSettings: [
+            .headerSearchPath("include"),
+            // Compiled as Objective-C on iOS, which is what miniaudio's own
+            // documentation asks for: its iOS capture path goes through
+            // AVAudioSession, and a plain C translation unit cannot import an
+            // Objective-C module — the failure is
+            // "Module 'ObjectiveC.NSObject' requires feature 'objc'" from
+            // inside the SDK's own headers. macOS needs none of this because
+            // there miniaudio talks to CoreAudio directly.
+            .unsafeFlags(["-x", "objective-c"], .when(platforms: [.iOS])),
+        ]
     ),
     .target(
         name: "VoxScriptaCoreCxx",
@@ -272,8 +304,10 @@ var targets: [Target] = [
     // corpus-gen. Because generation is reproducible, the synthetic fixtures
     // are built at test time rather than committed as binaries.
     .target(name: "VoxScriptaTestSupport",
-            dependencies: ["VoxScriptaCore", "VoxScriptaTranscription", "VoxScriptaLanguage",
-                           "VoxScriptaBench"],
+            // DSP for `platformDecoder()`, which hands a test whichever
+            // decoder the platform actually ships.
+            dependencies: ["VoxScriptaCore", "VoxScriptaDSP", "VoxScriptaTranscription",
+                           "VoxScriptaLanguage", "VoxScriptaBench"],
             swiftSettings: strict),
 
     // ── Application ─────────────────────────────────────────────────────
@@ -374,11 +408,31 @@ var targets: [Target] = [
 // the case that matters, and wrong for a cross-compile from a Mac — where the
 // Static Linux SDK ships no swift-testing and so cannot build the test targets
 // anyway.
-#if !os(macOS) && !os(iOS)
-let appleOnly: Set<String> = ["VoxScriptaUI", "VoxScriptaApp", "VoxScriptaAppTests"]
-targets.removeAll { appleOnly.contains($0.name) }
-products.removeAll { !Set($0.targets).isDisjoint(with: appleOnly) }
+//
+// Only the *answer* is behind the #if; the filtering below is not. The first
+// version of this put the filtering itself inside `#if !os(macOS)`, where no
+// Mac could ever compile it, and it shipped calling a `targets` property that
+// PackageDescription's Product does not have — breaking the manifest on both
+// of the platforms the gate exists to serve. Code that runs on one host only
+// still has to be compiled by every host.
+#if os(macOS) || os(iOS)
+let onApplePlatform = true
+#else
+let onApplePlatform = false
 #endif
+
+if !onApplePlatform {
+    // Matched by name, because Product exposes only its name. These products
+    // are named after their one target, so one set covers both.
+    let appleOnly: Set<String> = [
+        "VoxScriptaUI", "VoxScriptaApp", "VoxScriptaAppTests",
+        // Its sources are empty off Apple — the target compiles, but the test
+        // file references ModelLocator and MLXModelHost, which are not there.
+        "VoxScriptaMLXTests",
+    ]
+    targets.removeAll { appleOnly.contains($0.name) }
+    products.removeAll { appleOnly.contains($0.name) }
+}
 
 let package = Package(
     name: "VoxScripta",

@@ -10,13 +10,17 @@ struct EngineTests {
     func wordTimestamps() async {
         // The merger's overlap de-duplication and the polish validator both depend
         // on word-level timing, so an engine without it cannot be a default.
+        #if canImport(Speech)
         #expect(await AppleSpeechEngine().capabilities().supportsWordTimestamps)
+        #endif
         #expect(await WhisperKitEngine().capabilities().supportsWordTimestamps)
     }
 
     @Test("Engine identities are distinct")
     func identities() {
+        #if canImport(Speech)
         #expect(AppleSpeechEngine().identifier == .appleSpeech)
+        #endif
         #expect(WhisperKitEngine().identifier == .whisperKit)
         #expect(EngineID.appleSpeech != EngineID.whisperKit)
     }
@@ -24,7 +28,9 @@ struct EngineTests {
     @Test("Diarization is deferred in both V1 engines")
     func diarizationDeferred() async {
         // §30: architected for, not shipped. The V2 path is Parakeet via FluidAudio.
+        #if canImport(Speech)
         #expect(!(await AppleSpeechEngine().capabilities().supportsDiarization))
+        #endif
         #expect(!(await WhisperKitEngine().capabilities().supportsDiarization))
     }
 
@@ -57,6 +63,9 @@ struct EngineTests {
         }
     }
 
+    // Apple's recogniser only. The engine that exists elsewhere is covered by
+    // WhisperEngineTests; EngineID is in Core and is checked above regardless.
+    #if canImport(Speech)
     @Test("The Apple engine rejects an unsupported locale before doing work")
     func unsupportedLocale() async {
         let engine = AppleSpeechEngine()
@@ -73,5 +82,6 @@ struct EngineTests {
                                         in: URL(filePath: "/dev/null"), options: .default)
         }
     }
+    #endif
 
 }

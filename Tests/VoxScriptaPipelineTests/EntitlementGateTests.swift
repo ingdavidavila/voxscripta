@@ -31,7 +31,7 @@ struct EntitlementGateTests {
             samples: [Float](repeating: 0, count: CanonicalFormat.sampleRate / 2),
             to: audio, format: .wav, sampleRate: CanonicalFormat.sampleRate)
 
-        let decoder = CanonicalDecoder()
+        let decoder = platformDecoder()
         return try await ProjectStore().create(
             from: audio,
             at: root.appending(path: "p.voxscripta"),
