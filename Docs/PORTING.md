@@ -443,8 +443,21 @@ debug build is a 32 MB x86-64 ELF exporting 36 `vs_` functions, needing
 above. The library has not been loaded from Flutter, and a release build has not
 been made.
 
-**Slow tests.** The DSP target takes about 190 s and the Pipeline target about
-140 s on this machine; which individual tests dominate has not been timed.
+**Slow tests.** The DSP target takes about 190 s in the default parallel run and
+about 350 s when run one test at a time (`--no-parallel`), and the Pipeline
+target about 140 s. Timed individually, five DSP tests are about 95% of the
+serial cost: the memory test `footprintIsBounded` (138 s; it writes and analyses
+1 and 20 minutes of synthetic audio), and four tests that run the 6-minute
+`continuousSpeech` corpus case (37 to 49 s each). Everything else in the target
+is under about 10 s, and most under 2 s.
+
+The cause is the build, not Linux and not the test design. `swift test` builds
+without optimisation, and these fixtures are generated sample by sample. On a
+Mac, `footprintIsBounded` takes 41.9 s in a debug build and 0.7 s in a release
+build, about 59 times faster. That figure was measured on macOS, not on this
+Linux machine, and a release run (`swift test -c release`) was not repeated here.
+The Pipeline target's 140 s has not been timed test by test, so it is not known
+whether it has the same cause.
 
 
 ### POLISH is weaker off Apple, and that needs deciding
