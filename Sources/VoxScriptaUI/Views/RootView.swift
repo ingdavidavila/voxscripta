@@ -11,6 +11,19 @@ public struct RootView: View {
     @Environment(AppModel.self) private var model
     @State private var isTargeted = false
 
+    #if !os(macOS)
+    /// Whether the split view has collapsed to a single column.
+    ///
+    /// Read here, outside the NavigationSplitView, because that is the only
+    /// place it means the window. Inside the sidebar the same environment
+    /// value describes *that column*, which is narrow on an iPad showing both
+    /// — so a check made there called a two-column iPad compact and drew the
+    /// import screen into a 320-point sidebar while the detail pane drew it
+    /// again beside it.
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    private var isOneColumn: Bool { horizontalSizeClass == .compact }
+    #endif
+
     /// The trial, so the banner can say where it stands and the wall has a
     /// door. The engine refuses work on its own; this is what offers a way
     /// out of that refusal instead of leaving a dead end.
@@ -36,13 +49,22 @@ public struct RootView: View {
         #endif
     }
 
+    /// Always false on a Mac, which has two columns by construction.
+    private var isOneColumnForSidebar: Bool {
+        #if os(macOS)
+        false
+        #else
+        isOneColumn
+        #endif
+    }
+
     /// The window proper: the library beside the work, and everything
     /// presented over it.
     private var window: some View {
         @Bindable var model = model
 
         return NavigationSplitView {
-            LibrarySidebar()
+            LibrarySidebar(isOneColumn: isOneColumnForSidebar)
                 .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 320)
         } detail: {
             Group {
@@ -254,6 +276,14 @@ struct PrivacyBadge: View {
 struct LibrarySidebar: View {
     @Environment(AppModel.self) private var model
 
+    /// Whether this column is the whole window.
+    ///
+    /// Passed in rather than read here. The substitutions below are for a
+    /// window with nowhere else to put things, and the environment's size
+    /// class inside this view describes the *column*, which is narrow on an
+    /// iPad that has a detail pane as well.
+    var isOneColumn: Bool
+
     var body: some View {
         #if os(macOS)
         // Two columns: the detail pane beside this one is already showing the
@@ -263,9 +293,20 @@ struct LibrarySidebar: View {
         // One column, which makes this the first screen, so everything that
         // would be presented over it is shown *as* it instead.
         if model.isShowingRecorder {
+            // Shown here whatever the width, because there is nowhere else:
+            // the sheet that presents it on a Mac is Mac-only, and a recorder
+            // that never appears is worse than one in a narrow column. On an
+            // iPad with both columns this is cramped, and that is a thing to
+            // improve rather than a thing that is broken.
             RecordingView()
                 .navigationTitle(Strings.recordingInProgress)
                 .navigationBarBackButtonHidden(true)
+        } else if !isOneColumn {
+            // Two columns, as on a Mac. The detail pane beside this one is
+            // already showing the job or the transcript, so the library stays
+            // a library — substituting here would render the workspace twice,
+            // once squeezed into a 320-point sidebar.
+            list
         } else if model.mode == .processing {
             // In place of the list, for the same reason the recorder is: the
             // detail column these used to live in is never presented on a
@@ -358,15 +399,39 @@ struct LibrarySidebar: View {
 struct ProjectRow: View {
     let project: ProjectSummary
 
+    /// What to say about a project's state, or nil when saying nothing is
+    /// right: a finished transcript is the expected case and labelling every
+    /// row "Transcribed" would be noise on a library where most are.
+    static func stateNote(for state: JobState) -> (text: String, tint: Color)? {
+        switch state {
+        case .complete: nil
+        case .failed: (String(localized: "Failed"), .red)
+        case .cancelled: (String(localized: "Not finished"), .secondary)
+        case .imported: (String(localized: "Not transcribed"), .secondary)
+        default: (String(localized: "In progress"), .secondary)
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(project.displayName)
                 .lineLimit(1)
                 .font(.body)
-            Text(project.duration.description)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .monospacedDigit()
+            HStack(spacing: 6) {
+                Text(project.duration.description)
+                    .monospacedDigit()
+                // Whether this one has been transcribed yet. ProjectSummary
+                // has carried `state` all along and no interface showed it,
+                // so the library listed finished work and abandoned work
+                // identically and the only way to tell them apart was to
+                // open one.
+                if let note = Self.stateNote(for: project.state) {
+                    Text("·")
+                    Text(note.text).foregroundStyle(note.tint)
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
         .padding(.vertical, 2)
     }
