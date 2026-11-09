@@ -266,6 +266,26 @@ struct LibrarySidebar: View {
             RecordingView()
                 .navigationTitle(Strings.recordingInProgress)
                 .navigationBarBackButtonHidden(true)
+        } else if model.mode == .processing {
+            // In place of the list, for the same reason the recorder is: the
+            // detail column these used to live in is never presented on a
+            // collapsed split view, so on a phone there was nowhere for a job
+            // to be watched or a transcript to be read. Tapping a recording
+            // started the work and then showed the library, unchanged, as
+            // though nothing had happened.
+            ProcessingView()
+                .navigationTitle(Strings.recordings)
+        } else if model.mode == .transcript {
+            TranscriptWorkspace()
+                .navigationTitle(Strings.recordings)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        // Text rather than a Label: a phone's navigation bar
+                        // renders a Label as its icon alone, which is how the
+                        // privacy badge became an unexplained padlock.
+                        Button(Strings.recordings) { model.closeWorkspace() }
+                    }
+                }
         } else if model.projects.isEmpty {
             // An empty list with nothing to tap is a dead end, so the import
             // screen takes its place until there is something to list.

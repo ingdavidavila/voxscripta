@@ -552,6 +552,17 @@ public final class AppModel {
         }
     }
 
+    /// Leaves the open transcript and goes back to the library.
+    ///
+    /// The Mac needs no such thing: both columns are on screen, so the
+    /// library never went away. A phone has one column and shows the
+    /// workspace *in place of* the list, so without this there is no way back
+    /// — which is how a transcript, once opened, became the whole app.
+    func closeWorkspace() {
+        guard !isRunning else { return }
+        closeOpenProject()
+    }
+
     /// Clears whatever is on screen, after its project goes away.
     private func closeOpenProject() {
         openProject = nil
