@@ -82,6 +82,103 @@ public enum SpeechCorpus {
                 + "significativa respecto al periodo anterior."),
     ]
 
+    /// Ordinary prose with no proper nouns in it, for measuring acoustics.
+    ///
+    /// Added after the first full conditioned run, which produced a table that
+    /// barely moved between conditions. The diagnosis was not that the engine
+    /// is robust: "northwind" was lost in all eighteen rows, and "sara",
+    /// "chen", "quizá" and "unidades" in all nine of their language's rows.
+    /// Four constant errors on a seventy-word reference *is* the 5.6% English
+    /// figure. The acoustic conditions were moving one or two other words,
+    /// which rounds back to the same rate.
+    ///
+    /// So ``standard`` measures the wrong thing for this job. It was built to
+    /// exercise what the polish validator protects — names, numbers, dates,
+    /// negations — and names are the hardest case in every recogniser, so it
+    /// has a high fixed floor that hides everything else.
+    ///
+    /// These passages are the complement: common vocabulary only, no names, no
+    /// places, no coined words, and roughly twice the length, so an error is a
+    /// smaller share of the rate and what moves is attributable to hearing
+    /// rather than to spelling a name. Both sets are kept, because they answer
+    /// different questions and neither answers the other's.
+    public static let acoustic: [SpeechPassage] = [
+        SpeechPassage(
+            name: "weather",
+            text: "The weather turned cold before the end of the week and the "
+                + "roads were covered in a thin layer of ice."),
+        SpeechPassage(
+            name: "window",
+            text: "She opened the window to let the warm air out and heard the "
+                + "sound of children playing in the street below."),
+        SpeechPassage(
+            name: "boxes",
+            text: "Most of the boxes were empty, but the one at the bottom held "
+                + "a stack of old letters tied with string."),
+        SpeechPassage(
+            name: "train",
+            text: "If the train leaves on time we should arrive before dark, "
+                + "though the last part of the journey is slow."),
+        SpeechPassage(
+            name: "report",
+            text: "He asked whether the report had been finished, and she said "
+                + "it would be ready by the middle of the afternoon."),
+        SpeechPassage(
+            name: "bread",
+            text: "The bread had gone stale, so they fed what was left of it to "
+                + "the birds along the edge of the pond."),
+        SpeechPassage(
+            name: "chairs",
+            text: "There were seven chairs around the table and not one of them "
+                + "matched any of the others."),
+        SpeechPassage(
+            name: "lock",
+            text: "Nothing about the arrangement seemed unusual until somebody "
+                + "noticed the lock had been changed."),
+    ]
+
+    /// The Spanish counterpart, written rather than translated.
+    ///
+    /// Written to the same constraints — common words, no names — instead of
+    /// translated from the English, because a translation inherits the English
+    /// sentence rhythm and measures the synthesizer reading foreign-shaped
+    /// Spanish. The two sets are comparable in what they contain, not in
+    /// wording.
+    public static let acousticSpanish: [SpeechPassage] = [
+        SpeechPassage(
+            name: "weather",
+            text: "El tiempo cambió antes del final de la semana y los caminos "
+                + "quedaron cubiertos de una fina capa de hielo."),
+        SpeechPassage(
+            name: "window",
+            text: "Abrió la ventana para dejar salir el aire caliente y escuchó "
+                + "a los niños que jugaban en la calle de abajo."),
+        SpeechPassage(
+            name: "boxes",
+            text: "Casi todas las cajas estaban vacías, pero la del fondo "
+                + "guardaba un montón de cartas viejas atadas con un cordel."),
+        SpeechPassage(
+            name: "train",
+            text: "Si el tren sale a tiempo deberíamos llegar antes de que "
+                + "oscurezca, aunque el último tramo del camino es lento."),
+        SpeechPassage(
+            name: "report",
+            text: "Preguntó si el informe ya estaba terminado, y ella dijo que "
+                + "estaría listo a media tarde."),
+        SpeechPassage(
+            name: "bread",
+            text: "El pan se había puesto duro, así que dieron lo que quedaba a "
+                + "los pájaros junto a la orilla del estanque."),
+        SpeechPassage(
+            name: "chairs",
+            text: "Había siete sillas alrededor de la mesa y ninguna de ellas "
+                + "hacía juego con las demás."),
+        SpeechPassage(
+            name: "lock",
+            text: "Nada en el arreglo parecía extraño hasta que alguien notó "
+                + "que habían cambiado la cerradura."),
+    ]
+
     /// Passages containing real disfluencies, for exercising the CLEAN pass.
     ///
     /// The fillers are spoken, not inserted afterwards, so the engine has to
