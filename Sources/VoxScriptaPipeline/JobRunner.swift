@@ -188,6 +188,12 @@ public struct JobRunner: Sendable {
         let (sourceURL, release) = try project.resolveSource()
         defer { release() }
 
+        // Built here rather than where transcription starts, because the hash
+        // below needs to know which weights will be used. Construction loads
+        // nothing — `prepare(locale:)` does that — so this costs nothing to
+        // do early.
+        let engine = engineFactory()
+
         let inputs = StageInputs(
             sourceContentHash: project.manifest.source.contentHash,
             frameGeometryDescription: "\(options.geometry.windowDuration.nanoseconds)"
@@ -200,6 +206,7 @@ public struct JobRunner: Sendable {
             // simply reopening a project re-transcribe it.
             locale: project.manifest.locale,
             concurrency: project.manifest.concurrency,
+            modelIdentity: engine.modelIdentity,
             cleanDescription: Self.describe(options.clean),
             polishDescription: Self.describe(options.polish))
 
@@ -234,7 +241,8 @@ public struct JobRunner: Sendable {
         // transcript, so only the language model pass is redone.
         if startStage == .polish {
             let clean = try AtomicFile.readJSON(Transcript.self, from: package.cleanTranscriptURL)
-            try await runPolishStage(project: project, clean: clean,
+            try await runPolishStage(project: project, modelIdentity: engine.modelIdentity,
+                                     clean: clean,
                                      options: options, progress: progress)
             try await project.store.setState(.complete)
             progress(JobProgressReport(state: .complete, fraction: 1, detail: "Complete"))
@@ -246,9 +254,12 @@ public struct JobRunner: Sendable {
         // upstream is valid, so redo just the last, cheap, deterministic stage.
         if startStage == .clean {
             let verbatim = try AtomicFile.readJSON(Transcript.self, from: package.transcriptURL)
-            let cleaned = try await runCleanStage(project: project, verbatim: verbatim,
+            let cleaned = try await runCleanStage(project: project,
+                                                  modelIdentity: engine.modelIdentity,
+                                                  verbatim: verbatim,
                                                   options: options, progress: progress)
-            try await runPolishStage(project: project, clean: cleaned,
+            try await runPolishStage(project: project, modelIdentity: engine.modelIdentity,
+                                     clean: cleaned,
                                      options: options, progress: progress)
             try await finish(project: project, options: options, progress: progress)
             return verbatim
@@ -374,7 +385,6 @@ public struct JobRunner: Sendable {
 
         // ── Transcription ───────────────────────────────────────────────────
         try await advance(project, .transcribing, progress, 0.12, "Transcribing")
-        let engine = engineFactory()
         try await engine.prepare(locale: options.transcription.locale)
         defer { Task { await engine.release() } }
 
@@ -483,11 +493,14 @@ public struct JobRunner: Sendable {
         try await project.store.setStageHash(.merge, to: inputs.hash(for: .merge))
         try crashIfRequested(options, .merge, .after)
 
-        let cleaned = try await runCleanStage(project: project, verbatim: transcript,
+        let cleaned = try await runCleanStage(project: project,
+                                                  modelIdentity: engine.modelIdentity,
+                                                  verbatim: transcript,
                                               options: options, progress: progress)
         try crashIfRequested(options, .clean, .after)
 
-        try await runPolishStage(project: project, clean: cleaned,
+        try await runPolishStage(project: project, modelIdentity: engine.modelIdentity,
+                                     clean: cleaned,
                                  options: options, progress: progress)
         try crashIfRequested(options, .polish, .after)
 
@@ -522,6 +535,7 @@ public struct JobRunner: Sendable {
     /// language model.
     private func runCleanStage(
         project: Project,
+        modelIdentity: String,
         verbatim: Transcript,
         options: JobOptions,
         progress: @Sendable (JobProgressReport) -> Void
@@ -540,7 +554,8 @@ public struct JobRunner: Sendable {
         // merely claimed to be safe.
         try AtomicFile.writeJSON(cleaned.edits, to: package.cleanEditsURL)
 
-        let inputs = try await stageInputs(for: project, options: options)
+        let inputs = try await stageInputs(for: project, options: options,
+                                           modelIdentity: modelIdentity)
         try await project.store.setStageHash(.clean, to: inputs.hash(for: .clean))
         return cleaned.transcript
     }
@@ -615,7 +630,9 @@ public struct JobRunner: Sendable {
         return options
     }
 
-    private func stageInputs(for project: Project, options: JobOptions) async throws -> StageInputs {
+    private func stageInputs(
+        for project: Project, options: JobOptions, modelIdentity: String
+    ) async throws -> StageInputs {
         StageInputs(
             sourceContentHash: project.manifest.source.contentHash,
             frameGeometryDescription: "\(options.geometry.windowDuration.nanoseconds)"
@@ -628,6 +645,7 @@ public struct JobRunner: Sendable {
             // simply reopening a project re-transcribe it.
             locale: project.manifest.locale,
             concurrency: project.manifest.concurrency,
+            modelIdentity: modelIdentity,
             cleanDescription: Self.describe(options.clean),
             polishDescription: Self.describe(options.polish))
     }
@@ -657,6 +675,7 @@ public struct JobRunner: Sendable {
     /// to disk so a missing polished transcript is never unexplained.
     private func runPolishStage(
         project: Project,
+        modelIdentity: String,
         clean: Transcript,
         options: JobOptions,
         progress: @escaping @Sendable (JobProgressReport) -> Void
@@ -696,7 +715,8 @@ public struct JobRunner: Sendable {
             try? FileManager.default.removeItem(at: package.polishSkippedURL)
             Log.language.info("polished with \(resolved.describedAs, privacy: .public)")
 
-            let inputs = try await stageInputs(for: project, options: options)
+            let inputs = try await stageInputs(for: project, options: options,
+                                           modelIdentity: modelIdentity)
             try await project.store.setStageHash(.polish, to: inputs.hash(for: .polish))
         } catch {
             await host.unload()

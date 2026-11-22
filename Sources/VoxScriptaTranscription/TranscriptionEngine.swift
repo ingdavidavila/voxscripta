@@ -113,6 +113,20 @@ public struct ChunkTranscript: Sendable, Codable {
 public protocol TranscriptionEngine: Sendable {
     var identifier: EngineID { get }
 
+    /// Which weights this engine will actually use, as a stable string.
+    ///
+    /// Part of the transcription stage hash, and the reason it exists: the
+    /// hash recorded `engineID` — "whisper.cpp" — and nothing about *which*
+    /// model. Swapping ggml-base for ggml-small left every cached chunk
+    /// looking valid, so a resumed job would mix the two models' output in
+    /// one transcript and a model comparison would measure the cache.
+    ///
+    /// Non-isolated and cheap, because it is read before any engine is
+    /// prepared and before a model is loaded. An engine that owns no weights
+    /// — or whose weights are the operating system's — says so rather than
+    /// returning something arbitrary.
+    nonisolated var modelIdentity: String { get }
+
     /// What the engine can do.
     ///
     /// Async because discovery is a real query against the OS — the set of
@@ -132,4 +146,11 @@ public protocol TranscriptionEngine: Sendable {
 
     /// Releases model resources. Called before the language phase loads its own.
     func release() async
+}
+
+public extension TranscriptionEngine {
+    /// Engines with no weights of their own, and test doubles, need say
+    /// nothing. An empty identity contributes nothing to the hash, which
+    /// leaves those engines behaving exactly as they did.
+    nonisolated var modelIdentity: String { "" }
 }

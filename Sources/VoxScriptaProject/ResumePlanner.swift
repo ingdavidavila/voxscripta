@@ -42,6 +42,16 @@ public struct StageInputs: Sendable {
     /// its lexicons come from, left the old output in place. The hash is what
     /// makes a setting mean anything.
     public let cleanDescription: String
+    /// Which weights produced the transcript.
+    ///
+    /// `engineID` says "whisper.cpp" and not which model, so without this a
+    /// resumed job would happily reuse chunks transcribed by a different one
+    /// — mixing two models' output in a single transcript — and a model
+    /// comparison would be measuring the cache rather than the models.
+    ///
+    /// Defaulted to empty so that an engine with no weights of its own, and
+    /// every existing caller, hash exactly as they did.
+    public let modelIdentity: String
     /// What POLISH was asked to do, including which prompt produced it.
     ///
     /// The prompt version exists precisely so a transcript records which
@@ -57,9 +67,11 @@ public struct StageInputs: Sendable {
         engineID: EngineID,
         locale: String,
         concurrency: Int,
+        modelIdentity: String = "",
         cleanDescription: String = "",
         polishDescription: String = ""
     ) {
+        self.modelIdentity = modelIdentity
         self.sourceContentHash = sourceContentHash
         self.frameGeometryDescription = frameGeometryDescription
         self.silenceParameters = silenceParameters
@@ -87,7 +99,8 @@ public struct StageInputs: Sendable {
             return ContentHash.string("chunking|\(hash(for: .silence))|\(describe(chunkParameters))")
         case .transcription:
             return ContentHash.string(
-                "transcription|\(hash(for: .chunking))|\(engineID.rawValue)|\(locale)|\(concurrency)")
+                "transcription|\(hash(for: .chunking))|\(engineID.rawValue)|\(locale)"
+                    + "|\(concurrency)|\(modelIdentity)")
         case .merge:
             return ContentHash.string("merge|\(hash(for: .transcription))")
         case .clean:

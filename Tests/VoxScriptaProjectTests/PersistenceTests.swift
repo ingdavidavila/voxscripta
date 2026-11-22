@@ -224,11 +224,59 @@ struct StageInputsTests {
         source: String = "src",
         silence: SilenceParameters = .default,
         chunking: ChunkParameters = .default,
-        concurrency: Int = 4
+        concurrency: Int = 4,
+        model: String = "ggml-base.bin|147951465"
     ) -> StageInputs {
         StageInputs(sourceContentHash: source, frameGeometryDescription: "g",
                     silenceParameters: silence, chunkParameters: chunking,
-                    engineID: .appleSpeech, locale: "en-US", concurrency: concurrency)
+                    engineID: .appleSpeech, locale: "en-US", concurrency: concurrency,
+                    modelIdentity: model)
+    }
+
+    @Test("Changing the model invalidates transcription, and nothing before it")
+    func modelChangeInvalidatesTranscription() {
+        // The gap this closes: the hash recorded engineID — "whisper.cpp" —
+        // and nothing about *which* model. Swapping base for small left every
+        // cached chunk looking valid, so a resumed job would have mixed two
+        // models' output in one transcript, and a model comparison would have
+        // been measuring the cache rather than the models.
+        let before = inputs()
+        let after = inputs(model: "ggml-small.bin|487601967")
+
+        // Decoding, analysis, silence and chunking do not depend on the
+        // model, and re-running them would cost minutes for nothing.
+        #expect(before.hash(for: .decode) == after.hash(for: .decode))
+        #expect(before.hash(for: .analyze) == after.hash(for: .analyze))
+        #expect(before.hash(for: .silence) == after.hash(for: .silence))
+        #expect(before.hash(for: .chunking) == after.hash(for: .chunking))
+
+        // Transcription and everything downstream of it must not be reused.
+        #expect(before.hash(for: .transcription) != after.hash(for: .transcription))
+        #expect(before.hash(for: .merge) != after.hash(for: .merge))
+        #expect(before.hash(for: .clean) != after.hash(for: .clean))
+        #expect(before.hash(for: .polish) != after.hash(for: .polish))
+    }
+
+    @Test("A model that has gone missing is not the same as the model that was there")
+    func absentModelDiffersFromPresent() {
+        // WhisperEngine reports "<name>|absent" when the file is gone. That
+        // has to differ from the hash recorded when it was present, or a
+        // resume could match a job that ran against weights no longer on the
+        // machine.
+        #expect(inputs(model: "ggml-base.bin|147951465").hash(for: .transcription)
+                != inputs(model: "ggml-base.bin|absent").hash(for: .transcription))
+    }
+
+    @Test("An engine with no weights of its own hashes as it always did")
+    func emptyIdentityIsNeutral() {
+        // The protocol defaults modelIdentity to "", so mocks and any engine
+        // whose weights are the operating system's keep their existing
+        // hashes. Without this the change would invalidate every project on
+        // disk on first run.
+        let neutral = StageInputs(sourceContentHash: "src", frameGeometryDescription: "g",
+                                  silenceParameters: .default, chunkParameters: .default,
+                                  engineID: .appleSpeech, locale: "en-US", concurrency: 4)
+        #expect(neutral.hash(for: .transcription) == inputs(model: "").hash(for: .transcription))
     }
 
     @Test("Hashes are stable across calls and processes")

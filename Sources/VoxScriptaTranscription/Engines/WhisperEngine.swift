@@ -24,6 +24,26 @@ import VoxScriptaCore
 public actor WhisperEngine: TranscriptionEngine {
     public nonisolated let identifier = EngineID.whisper
 
+    /// The model file this engine will load, by name and byte count.
+    ///
+    /// Name and size rather than a content hash: hashing 141 MB on every job
+    /// to learn something a filename already tells us is a poor trade, and
+    /// the case this guards against — base swapped for small, or a model
+    /// replaced by a different one — changes both. Re-downloading the same
+    /// weights leaves both alone, so the cache is not thrown away for nothing,
+    /// which an mtime would have done.
+    ///
+    /// A missing file is reported as missing rather than as nothing, so a
+    /// resume cannot silently match a job that ran when the model was there.
+    public nonisolated var modelIdentity: String {
+        let name = modelURL.lastPathComponent
+        guard let size = try? FileManager.default
+            .attributesOfItem(atPath: modelURL.path)[.size] as? Int64 else {
+            return "\(name)|absent"
+        }
+        return "\(name)|\(size)"
+    }
+
     private var context: OpaquePointer?
     private let modelURL: URL
     private let threads: Int32

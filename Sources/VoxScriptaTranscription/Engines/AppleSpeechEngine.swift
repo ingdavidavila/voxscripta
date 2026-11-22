@@ -22,6 +22,19 @@ import VoxScriptaCore
 public actor AppleSpeechEngine: TranscriptionEngine {
     public nonisolated let identifier = EngineID.appleSpeech
 
+    /// The operating system's version, because the operating system owns the
+    /// model.
+    ///
+    /// There is no file to name here — `SpeechTranscriber` loads assets Apple
+    /// manages and replaces. The version is the only handle on which model
+    /// produced a transcript, and an OS update genuinely can change the
+    /// output, so a cached chunk from a previous version should not be
+    /// reused.
+    public nonisolated var modelIdentity: String {
+        let v = ProcessInfo.processInfo.operatingSystemVersion
+        return "os|\(v.majorVersion).\(v.minorVersion).\(v.patchVersion)"
+    }
+
     private var preparedLocale: Locale?
     /// The format the analyzer wants, discovered during `prepare`.
     private var analyzerFormat: AVAudioFormat?
