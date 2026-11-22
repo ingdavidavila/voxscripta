@@ -11,12 +11,35 @@ public struct EngineCapabilities: Hashable, Sendable {
     /// Longest span the engine accepts in one call, or `nil` for no limit.
     public let maximumChunkDuration: MediaTime?
 
+    /// Whether one instance can serve several `transcribe` calls at once.
+    ///
+    /// This is the difference between the two shipped engines, and getting it
+    /// wrong costs either correctness or throughput.
+    ///
+    /// ``AppleSpeechEngine`` says true: it builds its analyzer per call and
+    /// awaits it, so the actor is released at every suspension and calls
+    /// genuinely overlap. One instance serves the whole plan.
+    ///
+    /// ``WhisperEngine`` says false: `whisper_full` is a synchronous C call
+    /// with no suspension inside it, so an actor method holds the actor for
+    /// the entire inference. Several tasks against one instance do not run in
+    /// parallel — they queue. Parallelism there needs an instance each.
+    public let supportsConcurrentCalls: Bool
+
+    /// How many calls this engine should have in flight, measured rather than
+    /// assumed. Scheduling takes the smaller of this and the caller's setting.
+    public let recommendedConcurrency: Int
+
     public init(
         supportsWordTimestamps: Bool,
         supportsDiarization: Bool = false,
         supportedLocales: Set<String>,
-        maximumChunkDuration: MediaTime? = nil
+        maximumChunkDuration: MediaTime? = nil,
+        supportsConcurrentCalls: Bool = true,
+        recommendedConcurrency: Int = 4
     ) {
+        self.supportsConcurrentCalls = supportsConcurrentCalls
+        self.recommendedConcurrency = Swift.max(1, recommendedConcurrency)
         self.supportsWordTimestamps = supportsWordTimestamps
         self.supportsDiarization = supportsDiarization
         self.supportedLocales = supportedLocales

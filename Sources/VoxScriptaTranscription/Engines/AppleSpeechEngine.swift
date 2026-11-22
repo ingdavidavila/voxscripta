@@ -47,7 +47,15 @@ public actor AppleSpeechEngine: TranscriptionEngine {
             supportsDiarization: false,
             supportedLocales: ShippingLanguages.filter(
                 await SpeechTranscriber.supportedLocales.map { $0.identifier(.bcp47) }),
-            maximumChunkDuration: nil
+            maximumChunkDuration: nil,
+            // One instance serves the whole plan: the analyzer is built per
+            // call and awaited, so the actor is released at every suspension
+            // and calls overlap without sharing anything mutable.
+            supportsConcurrentCalls: true,
+            // 4, from the measurement the default was chosen on: 4.74 s at 1,
+            // 2.72 s at 2, 2.14 s at 4, 1.99 s at 8, regressing at 12. Four
+            // keeps all but 7% of the benefit at two-thirds the memory of 8.
+            recommendedConcurrency: 4
         )
     }
 

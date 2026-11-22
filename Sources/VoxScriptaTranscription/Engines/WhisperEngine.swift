@@ -78,8 +78,37 @@ public actor WhisperEngine: TranscriptionEngine {
             // Whisper's encoder is trained on 30-second windows. Longer spans
             // are handled internally by sliding, but the chunk planner should
             // not be told it can hand over an hour in one call.
-            maximumChunkDuration: MediaTime.seconds(30 * 60)
+            maximumChunkDuration: MediaTime.seconds(30 * 60),
+            // One instance cannot serve two calls at once: whisper_full is
+            // synchronous and holds the actor for the whole inference.
+            supportsConcurrentCalls: false,
+            recommendedConcurrency: Self.recommendedWorkers
         )
+    }
+
+    /// How many contexts this machine should hold, from measurement.
+    ///
+    /// Measured on an M-series Mac, 4 performance and 6 efficiency cores,
+    /// over baseline, with ggml-base:
+    ///
+    ///     CPU   1 context   431 MB   49x real time
+    ///           2 contexts  869 MB   67x
+    ///           4 contexts 1821 MB   32x   — slower in aggregate than one
+    ///
+    /// Two things set the ceiling. Memory, because contexts do not share
+    /// weights and each costs about as much as the first — three times the
+    /// 141 MB file. And cores, because the engine already asks for cores/2
+    /// threads per context, so four contexts want twenty threads on ten
+    /// cores and spend their time contending rather than decoding.
+    ///
+    /// So: two where there is memory and cores to spare, one otherwise. A
+    /// phone gets one, which is the honest answer for 869 MB of resident
+    /// weights on a device whose low-memory killer is the real constraint.
+    static var recommendedWorkers: Int {
+        let cores = ProcessInfo.processInfo.activeProcessorCount
+        let gigabytes = Double(ProcessInfo.processInfo.physicalMemory) / 1_073_741_824
+        guard cores >= 8, gigabytes >= 8 else { return 1 }
+        return 2
     }
 
     /// The languages the multilingual models accept.

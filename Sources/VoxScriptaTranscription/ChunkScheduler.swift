@@ -21,6 +21,40 @@ public struct SchedulerOutcome: Sendable {
     public var completedCount: Int { records.filter { $0.state == .completed }.count }
 }
 
+/// Hands an engine to each chunk in flight, and takes it back afterwards.
+///
+/// Only needed for engines that cannot serve two calls at once — which is
+/// whisper.cpp, because `whisper_full` is synchronous and holds its actor for
+/// the whole inference. Several tasks against one instance queue rather than
+/// overlap, so parallelism there means an instance each.
+///
+/// An engine that *can* take concurrent calls is pooled too, with a pool of
+/// one: the same code path, one instance, and every task borrowing it in turn
+/// without ever waiting, because its calls suspend rather than block.
+///
+/// Borrowing spans the inference and nothing else. The engine goes back before
+/// the result is committed, so a slow write never holds a context, and so a
+/// failure in the commit path cannot leak one.
+actor EnginePool {
+    private var free: [any TranscriptionEngine]
+    private var waiting: [CheckedContinuation<any TranscriptionEngine, Never>] = []
+
+    init(_ engines: [any TranscriptionEngine]) {
+        precondition(!engines.isEmpty, "an engine pool needs at least one engine")
+        free = engines
+    }
+
+    func checkout() async -> any TranscriptionEngine {
+        if let engine = free.popLast() { return engine }
+        return await withCheckedContinuation { waiting.append($0) }
+    }
+
+    func checkin(_ engine: any TranscriptionEngine) {
+        if let next = waiting.popLast() { next.resume(returning: engine) }
+        else { free.append(engine) }
+    }
+}
+
 /// Drives chunk transcription with bounded concurrency and a retry budget.
 ///
 /// Two behaviours here are deliberate and worth stating.
@@ -53,6 +87,11 @@ public struct ChunkScheduler: ChunkScheduling {
         self.retryBackoff = retryBackoff
     }
 
+    /// The one-engine case, which is every caller that existed before pools.
+    ///
+    /// Kept so the public API is unchanged, and because it is the right call
+    /// for an engine whose own calls overlap: one instance, every chunk
+    /// borrowing it in turn and none of them waiting.
     public func run(
         plan: ChunkPlan,
         canonicalFile: URL,
@@ -62,6 +101,30 @@ public struct ChunkScheduler: ChunkScheduling {
         onChunkComplete: @escaping @Sendable (ChunkTranscript) async throws -> Void = { _ in },
         progress: @escaping @Sendable (Int, Int) -> Void = { _, _ in }
     ) async throws -> SchedulerOutcome {
+        // The pool is the set of slots, so one engine that serves concurrent
+        // calls fills every slot with itself: each task borrows the same
+        // instance and none of them waits, which is how this behaved before
+        // pools existed. One that cannot gets a pool of one, and its chunks
+        // queue — also exactly as before. Either way a caller holding a
+        // single engine gets the behaviour it used to get.
+        let slots = await engine.capabilities().supportsConcurrentCalls
+            ? Swift.max(1, options.concurrency) : 1
+        return try await run(plan: plan, canonicalFile: canonicalFile,
+                      engines: Array(repeating: engine, count: slots),
+                      options: options, skipping: completed,
+                      onChunkComplete: onChunkComplete, progress: progress)
+    }
+
+    public func run(
+        plan: ChunkPlan,
+        canonicalFile: URL,
+        engines: [any TranscriptionEngine],
+        options: TranscriptionOptions,
+        skipping completed: Set<ChunkID> = [],
+        onChunkComplete: @escaping @Sendable (ChunkTranscript) async throws -> Void = { _ in },
+        progress: @escaping @Sendable (Int, Int) -> Void = { _, _ in }
+    ) async throws -> SchedulerOutcome {
+        let pool = EnginePool(engines)
         let pending = plan.chunks.filter { !completed.contains($0.id) }
         let total = plan.chunks.count
         let alreadyDone = total - pending.count
@@ -71,16 +134,24 @@ public struct ChunkScheduler: ChunkScheduling {
         }
 
         let collector = ResultCollector(alreadyCompleted: alreadyDone, total: total)
-        let concurrency = Swift.max(1, Swift.min(options.concurrency, pending.count))
+        // Never more in flight than there are engines to serve them: an extra
+        // task would only queue on `checkout()`, which looks like parallelism
+        // and is not.
+        let concurrency = Swift.max(1, Swift.min(options.concurrency, pending.count, engines.count))
 
         try await withThrowingTaskGroup(of: Void.self) { group in
             var next = 0
 
             func addTask(_ chunk: ChunkSpec) {
                 group.addTask {
+                    // Borrowed for the inference only. `transcribeWithRetries`
+                    // returns an outcome rather than throwing, so there is no
+                    // path between these two lines that skips the return.
+                    let engine = await pool.checkout()
                     let outcome = await Self.transcribeWithRetries(
                         chunk: chunk, canonicalFile: canonicalFile, engine: engine,
                         options: options, backoff: retryBackoff)
+                    await pool.checkin(engine)
 
                     switch outcome {
                     case .success(let transcript, let record):

@@ -385,8 +385,41 @@ public struct JobRunner: Sendable {
 
         // ── Transcription ───────────────────────────────────────────────────
         try await advance(project, .transcribing, progress, 0.12, "Transcribing")
+        // The pool. An engine whose calls overlap needs only the one instance
+        // it already has; one whose calls queue needs an instance each, and
+        // says how many it can afford — measured, not guessed. See
+        // WhisperEngine.recommendedWorkers for the numbers.
+        //
+        // Capped by the caller's own concurrency setting, so asking for fewer
+        // chunks in flight still means fewer, and never loads a model this
+        // job will not use.
+        let capabilities = await engine.capabilities()
+        let slots = Swift.max(1, Swift.min(options.transcription.concurrency,
+                                           capabilities.recommendedConcurrency))
+
+        // Distinct instances only where one cannot serve several calls at
+        // once. Apple's can, so every slot holds the same engine and none of
+        // them waits; Whisper's cannot, so each slot needs a context of its
+        // own — which is the whole cost of the pool, measured at about
+        // 430 MB apiece on CPU.
+        let extras: [any TranscriptionEngine] = capabilities.supportsConcurrentCalls
+            ? []
+            : (1..<slots).map { _ in engineFactory() }
+
+        // Each distinct instance is prepared exactly once. Repeating the same
+        // engine across slots must not load its model `slots` times.
         try await engine.prepare(locale: options.transcription.locale)
-        defer { Task { await engine.release() } }
+        for extra in extras {
+            try await extra.prepare(locale: options.transcription.locale)
+        }
+        defer {
+            let releasing = [engine] + extras
+            Task { for member in releasing { await member.release() } }
+        }
+
+        let pool: [any TranscriptionEngine] = capabilities.supportsConcurrentCalls
+            ? Array(repeating: engine, count: slots)
+            : [engine] + extras
 
         // Chunks already committed on a previous run are skipped, and their
         // results are read back from disk rather than recomputed.
@@ -409,7 +442,7 @@ public struct JobRunner: Sendable {
 
             let outcome = try await ChunkScheduler().run(
                 plan: chunkPlan, canonicalFile: package.canonicalAudioURL,
-                engine: engine, options: options.transcription,
+                engines: pool, options: options.transcription,
                 skipping: alreadyHandled,
                 onChunkComplete: { transcript in
                     // The result file lands before the row, so a crash between
