@@ -57,8 +57,21 @@ void assert_invariants(const ChunkPlan& plan, const SilenceMap& map, const Chunk
     }
     VS_EXPECT_MSG(plan.chunks.front().original_range.start_time() == first_region.range.start_time(),
                   label + ": start");
-    VS_EXPECT_MSG(plan.chunks.back().original_range.end_time() == last_region.range.end_time(),
-                  label + ": end");
+
+    // The end used to be asserted equal to the last region's end. That is no
+    // longer the rule: the planner carries the final chunk past the last
+    // region, because a recogniser will not commit the final word without
+    // some quiet after it and because the region's own end can fall inside
+    // that word when the recording has no quiet passage to measure a floor
+    // against. See the note in chunk_planner.cpp, and ChunkPlanner.swift,
+    // which this must keep mirroring.
+    //
+    // So the rule is bracketing rather than equality: never cut the last
+    // region short, never run past the recording.
+    VS_EXPECT_MSG(plan.chunks.back().original_range.end_time() >= last_region.range.end_time(),
+                  label + ": end cuts the last region short");
+    VS_EXPECT_MSG(plan.chunks.back().original_range.end_time() <= map.source_duration,
+                  label + ": end runs past the recording");
 
     for (std::size_t i = 1; i < plan.chunks.size(); ++i) {
         const ChunkSpec& a = plan.chunks[i - 1];
