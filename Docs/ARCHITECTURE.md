@@ -444,9 +444,9 @@ gap between them is diagnostic: a high word rate with a low character rate is an
 orthography problem, the reverse is a hearing problem. On clean English the two
 are 1.3% and 0.8%; under hiss they move together to 3.8% and 2.0%.
 
-Still unmeasured, and listed so the gaps are not mistaken for passes: the
-mixed-language cases are composed but their behaviour is not yet recorded, and
-`ggml-medium` has not been compared against `ggml-small`.
+Still unmeasured, and listed so the gaps are not mistaken for passes:
+`ggml-medium` has not been compared against `ggml-small`, and no accuracy
+figure here comes from real rather than synthesized speech.
 
 ### Whisper base against Apple, same corpus
 
@@ -655,6 +655,72 @@ three-minute case plans as one chunk and measures nothing — and the measuremen
 fails rather than warns when a case produces a single chunk, because a passing
 test printing deltas of +0.00 reads like a result.
 
+
+### Language detection never fires
+
+`LanguageProbe` transcribes a 20-second sample from the midpoint of the speech
+in each candidate language and takes the winner if its confidence-weighted word
+count beats the runner-up by a factor of three. Measured across five cases on
+both engines, it chose a language **zero times out of ten**:
+
+| Case | Apple margin | Whisper margin |
+|---|---|---|
+| `en_clean` — pure English | **1.06×** | 1.86× |
+| `es_clean` — pure Spanish | 2.73× | 1.16× |
+| `mixed_en_then_es` | 1.42× | 1.25× |
+| `mixed_es_then_en` | 1.05× | 2.65× |
+| `mixed_es_dominant` | 1.74× | 1.13× |
+
+Required: 3.0×. Reproduce with `VOXSCRIPTA_CORPUS=1 ./Tools/test.sh --filter
+MixedLanguageMeasurement`.
+
+The controls are the finding. On **pure English** audio Apple's engine scored
+en-US at 59.8 and es-ES at 56.7 — a margin of 1.06, meaning it transcribed
+English as Spanish with 0.93 confidence and produced the same 61 words either
+way. Word counts carry almost no signal: Whisper returned 62 Spanish-ish words
+for English audio against 61 correct ones. Confidence discriminates better
+(0.97 against 0.51) but not by threefold, and `weighted = words × confidence`
+dilutes it by multiplying through a term that is nearly constant.
+
+**This is the mechanism working as specified, which is the problem.** The
+margin was deliberately set to 3.0, and the reasoning recorded on it is sound:
+a field recording had produced 37 English words against Spanish audio where the
+right language gave 50, and "a ratio of 1.35 is not a detection" — so the
+threshold exists to refuse exactly the kind of ratio seen above. The probe is
+not misfiring. It is declining, every time, as designed. The consequence is
+that it costs two extra transcriptions of a 20-second sample on every job and
+has never returned an answer on any audio that has been measured.
+
+**What this corpus cannot settle.** The audio is synthesized, and that is the
+best case for cross-language transliteration: a synthesizer reading Spanish
+produces clean, canonical phonetics that an English model can map onto English
+words with confidence. The real recording cited in the probe's own
+documentation behaved quite differently — Spanish audio asked for as `en-US`
+returned "fifty-three characters of commas and no words at all". So these
+numbers establish that the probe declines on synthesized speech; they do not
+establish that it would decline on real speech, and the corpus cannot be made
+to answer that because the property that makes it reproducible is the same one
+that makes it easy to transliterate.
+
+**Mixed-language behaviour, which was the question asked.** For a recording
+that changes language halfway, the midpoint sample lands on the seam and the
+probe sees roughly ten seconds of each language — so the two scores come out
+close and it declines. For `mixed_es_dominant`, two thirds Spanish with an
+English passage in the middle, the sample lands on the English passage, and
+Spanish still edges it (1.74× on Apple, 1.13× on Whisper) without reaching the
+threshold. So the feared failure — confidently reporting English for a mostly
+Spanish recording — does not occur. The probe declines instead, and falls back
+to the user's own setting, which for a bilingual recording is the defensible
+answer.
+
+**The fix for Whisper is not a better threshold.** `whisper_lang_auto_detect`
+exists in the C API: it reads the model's own language head from the mel
+spectrogram and returns a probability for every language it knows, at the cost
+of one encoder pass and no decoding at all. That is both cheaper than the
+current two transcriptions and a direct measurement rather than an inference
+from how many words came out. Whisper is now the default engine, so this is the
+path worth taking; Apple's engine has no equivalent and would keep the probe.
+Not yet implemented.
 
 ## 11. Security and privacy
 
