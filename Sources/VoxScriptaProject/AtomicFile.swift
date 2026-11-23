@@ -85,8 +85,15 @@ public enum AtomicFile {
     /// silently, succeeds when there is none, and is atomic within a
     /// filesystem — which is the guarantee the resume planner is owed and the
     /// reason ``fsyncDirectory(at:)`` below is worth making.
+    ///
+    /// `canImport(Android)` is in that condition because Bionic is its own
+    /// Swift module and matched none of the other three, so Android fell
+    /// through to the Windows branch below and did a delete-then-move. That is
+    /// not atomic: a crash between the two steps leaves no file at all where
+    /// the planner expects either the old one or the new one. Android is POSIX
+    /// and has `rename(2)`, so the fix is to say so.
     private static func moveIntoPlace(_ temporary: URL, onto destination: URL) throws {
-        #if canImport(Darwin) || canImport(Glibc) || canImport(Musl)
+        #if canImport(Darwin) || canImport(Glibc) || canImport(Musl) || canImport(Android)
         if rename(temporary.path, destination.path) != 0 {
             throw VoxScriptaError.ioFailure(
                 path: destination.path,
@@ -140,7 +147,7 @@ public enum AtomicFile {
     /// loss. The failure that allows is a project missing its newest artifact,
     /// not a half-written one, because the data flush is the part that is kept.
     private static func fsyncDirectory(at url: URL) throws {
-        #if canImport(Darwin) || canImport(Glibc) || canImport(Musl)
+        #if canImport(Darwin) || canImport(Glibc) || canImport(Musl) || canImport(Android)
         let descriptor = open(url.path, O_RDONLY)
         guard descriptor >= 0 else { return }
         defer { close(descriptor) }

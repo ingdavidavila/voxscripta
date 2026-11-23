@@ -212,7 +212,10 @@ var targets: [Target] = [
             // zlib's and bzip2's — both in the iOS SDK. zlib is what the mov
             // demuxer uses for compressed headers.
             .linkedLibrary("z", .when(platforms: [.linux, .android, .iOS])),
-            .linkedLibrary("bz2", .when(platforms: [.linux, .android, .iOS])),
+            // No .android: the NDK ships no libbz2, so the link fails with
+            // "unable to find library -lbz2", and FFmpeg's configure log for
+            // Android has no bzip2 in it, so nothing there needs it.
+            .linkedLibrary("bz2", .when(platforms: [.linux, .iOS])),
             .linkedLibrary("avformat"),
             .linkedLibrary("avcodec"),
             .linkedLibrary("avutil"),

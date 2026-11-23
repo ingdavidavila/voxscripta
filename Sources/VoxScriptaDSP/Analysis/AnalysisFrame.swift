@@ -1,4 +1,11 @@
 import Foundation
+#if canImport(Android)
+// Bionic is its own Swift module, neither Glibc nor Musl, and without it the
+// Float overloads of log10, log and exp are not visible. Added only to the
+// files the Android compiler actually rejected rather than to every file that
+// imports Foundation.
+import Android
+#endif
 #if canImport(Accelerate)
 import Accelerate
 #endif
