@@ -13,3 +13,10 @@
 
 # Keep Swift diffs readable.
 *.swift text diff=swift
+
+# Shell scripts must check out with LF even where core.autocrlf is on.
+# A Windows checkout otherwise hands WSL CRLF scripts, which fail with
+# "bad interpreter" and exit 126 — reported from the Android work, and
+# worth fixing here rather than with `tr -d '\r'` in each clone.
+*.sh   text eol=lf
+*.bash text eol=lf

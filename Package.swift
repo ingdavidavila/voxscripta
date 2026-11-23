@@ -61,7 +61,18 @@ let engineLinkerSettings: [LinkerSetting] = [
     // build fails with 'cannot find -lwhisper'.
     .unsafeFlags(["-Lbuild/engines/linux-musl/prefix/lib",
                   "-Lbuild/engines/host/prefix/lib"],
-                 .when(platforms: [.linux, .android])),
+                 .when(platforms: [.linux])),
+    // Android reads a staged directory rather than sharing Linux's. SwiftPM's
+    // `.when(platforms:)` can select Android but not an ABI, and the manifest
+    // only ever sees the host — so the manifest must not be the thing that
+    // knows about ABIs. `Tools/stage-android.sh <abi>` puts the chosen ABI
+    // here, and refuses to stage over a different ABI or a different NDK than
+    // the one in $ANDROID_NDK_HOME. Neither `host` nor `linux-musl` belongs on
+    // this path: a native glibc build and a musl cross-build are both the
+    // wrong libraries for a Bionic target, and the linker taking "whichever
+    // exists" would silently pick one.
+    .unsafeFlags(["-Lbuild/engines/android/prefix/lib"],
+                 .when(platforms: [.android])),
     .linkedLibrary("whisper"),
     .linkedLibrary("llama"),
     .linkedLibrary("ggml"),
@@ -200,7 +211,10 @@ var targets: [Target] = [
             // Both, for the reason given on the engine settings above.
             .unsafeFlags(["-Lbuild/ffmpeg/linux-musl/prefix/lib",
                           "-Lbuild/ffmpeg/host/prefix/lib"],
-                         .when(platforms: [.linux, .android])),
+                         .when(platforms: [.linux])),
+            // Staged per ABI, for the reason given on the engine settings.
+            .unsafeFlags(["-Lbuild/ffmpeg/android/prefix/lib"],
+                         .when(platforms: [.android])),
             // FFmpeg's own dependencies, which a shared build resolves for
             // itself and a static one hands to whoever links it. Both are
             // in the Static Linux SDK's sysroot; zlib is what the mov
