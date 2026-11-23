@@ -28,6 +28,10 @@ struct CorpusGen {
             USAGE
               corpus-gen <output-directory>              signal corpus for the detector
               corpus-gen <output-directory> --speech <minutes> [--disfluent]
+                                              [--language en-US|es-ES]
+
+            A fixture over five minutes plans several chunks, so it exercises
+            the merge seams that short fixtures cannot reach.
 
             Emits, for each case, an audio file plus a JSON sidecar holding the exact
             transcript and the exact silence boundaries used to build it.
@@ -40,8 +44,13 @@ struct CorpusGen {
             if let index = opts.firstIndex(of: "--speech") {
                 #if canImport(AVFoundation)
                 let minutes = index + 1 < opts.count ? Double(opts[index + 1]) ?? 1 : 1
+                var language = "en-US"
+                if let at = opts.firstIndex(of: "--language"), at + 1 < opts.count {
+                    language = opts[at + 1]
+                }
                 try await generateSpeech(into: URL(filePath: outPath), minutes: minutes,
-                                         disfluent: opts.contains("--disfluent"))
+                                         disfluent: opts.contains("--disfluent"),
+                                         language: language)
                 #else
                 // The signal corpus below is portable; the speech corpus needs
                 // AVSpeechSynthesizer. Said plainly rather than left to fail at
@@ -114,7 +123,9 @@ struct CorpusGen {
     /// Passages repeat with varied trailing pauses until the requested length is
     /// reached, so the file also exercises the chunk planner's boundary search
     /// rather than being one continuous block.
-    static func generateSpeech(into directory: URL, minutes: Double, disfluent: Bool = false) async throws {
+    static func generateSpeech(into directory: URL, minutes: Double,
+                               disfluent: Bool = false,
+                               language: String = "en-US") async throws {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 
         let targetSamples = Int(minutes * 60 * Double(CanonicalFormat.sampleRate))
@@ -122,14 +133,32 @@ struct CorpusGen {
         var spoken: [SpeechPassage] = []
         var round = 0
 
-        print("Synthesizing ~\(minutes) minute(s) of speech…")
+        // The widest pool available, not just the five entity passages.
+        //
+        // This used to loop `SpeechCorpus.standard`, five sentences, which is
+        // fine for a one-minute fixture and poor for the long ones: Whisper
+        // suppresses repeated text, so a five-minute recording of five
+        // sentences on a loop risks measuring that suppression rather than
+        // whatever the fixture was made for. The acoustic set adds eight more
+        // with no proper nouns in them, giving thirteen.
+        let pool: [SpeechPassage]
+        if disfluent {
+            pool = SpeechCorpus.disfluent
+        } else if language.hasPrefix("es") {
+            pool = SpeechCorpus.acousticSpanish + SpeechCorpus.spanish
+        } else {
+            pool = SpeechCorpus.acoustic + SpeechCorpus.standard
+        }
+
+        print("Synthesizing ~\(minutes) minute(s) of \(language) speech "
+            + "from \(pool.count) distinct passages…")
         while samples.count < targetSamples {
-            let passages = disfluent ? SpeechCorpus.disfluent : SpeechCorpus.standard
+            let passages = pool
             for (index, base) in passages.enumerated() {
                 // Vary the pause so boundaries are not perfectly periodic.
                 let pause = [0.6, 1.4, 2.2, 0.9, 3.1][(round + index) % 5]
                 let passage = SpeechPassage(name: base.name, text: base.text, trailingSilence: pause)
-                samples += try await SpeechCorpus.render([passage])
+                samples += try await SpeechCorpus.render([passage], language: language)
                 spoken.append(passage)
                 if samples.count >= targetSamples { break }
             }
@@ -145,9 +174,17 @@ struct CorpusGen {
         try reference.write(to: referenceURL, atomically: true, encoding: .utf8)
 
         let seconds = Double(samples.count) / Double(CanonicalFormat.sampleRate)
-        print(String(format: "  %@  %.1fs  %d passages  %d reference words",
-                     audio.lastPathComponent, seconds, spoken.count,
+        let distinct = Set(spoken.map(\.text)).count
+        print(String(format: "  %@  %.1fs  %d passages (%d distinct)  %d reference words",
+                     audio.lastPathComponent, seconds, spoken.count, distinct,
                      TextTokenizer.tokens(reference).count))
+        if seconds > 300 {
+            // The planner targets 240 s and hard-cuts at 300 s, so anything
+            // past five minutes exercises chunking and the merge.
+            print(String(format: "  long enough to plan ~%.0f chunks, so it "
+                               + "exercises the merge seams",
+                         (seconds / 240).rounded(.up)))
+        }
         print("  \(referenceURL.lastPathComponent) holds the exact spoken text.")
     }
     #endif

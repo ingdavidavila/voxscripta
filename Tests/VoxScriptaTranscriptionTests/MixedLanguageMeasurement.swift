@@ -43,13 +43,20 @@ struct MixedLanguageMeasurement {
         return (map.speechRegions.map(\.range), features.duration)
     }
 
+    // The run-wide conditions are a trait, not a #require: #require *fails* a
+    // test when its condition is false, which is the opposite of skipping, and
+    // a measurement that could not run must not read as a regression. The
+    // per-engine model check cannot be a trait because a trait cannot see the
+    // argument, so it returns early and says so.
     @Test("What the probe does with mixed-language audio",
+          .enabled(if: MixedLanguageMeasurement.requested
+                       && MixedLanguageMeasurement.hasSpanishVoice,
+                   "needs VOXSCRIPTA_CORPUS=1 and a Spanish voice"),
           arguments: ["whisper", "apple"])
     func probeOnMixedAudio(engineName: String) async throws {
-        try #require(Self.requested && Self.hasSpanishVoice,
-                     "needs VOXSCRIPTA_CORPUS=1 and a Spanish voice")
-        if engineName == "whisper" {
-            try #require(Self.whisperModelAvailable, "no Whisper model fetched")
+        if engineName == "whisper", !Self.whisperModelAvailable {
+            print("skipping whisper: no model fetched")
+            return
         }
         // if/else rather than a ternary: two closure literals in a ternary
         // defeat the type checker, which reports a compiler bug instead of an
