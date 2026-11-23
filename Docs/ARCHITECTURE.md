@@ -447,8 +447,8 @@ are 1.3% and 0.8%; under hiss they move together to 3.8% and 2.0%.
 Still unmeasured, and listed so the gaps are not mistaken for passes: merge
 cost is now *measurable* as the difference between transcribing a long recording
 whole and in chunks, but has not been run; the mixed-language cases are composed
-but their behaviour is not yet recorded; and `ggml-small` has not been compared
-against `ggml-base`.
+but their behaviour is not yet recorded; and `ggml-medium` has not been
+compared against `ggml-small`.
 
 ### Whisper base against Apple, same corpus
 
@@ -545,8 +545,55 @@ was meant to prevent.
 Against Apple's engine, the picture after this change: Whisper now beats Apple
 on **every** English condition, and on Spanish in quiet and hum, while Apple
 remains substantially better on Spanish under broadband hiss (5.4% against
-10.7%) and machinery noise (4.7% against 8.1%). Language-aware engine selection
-is still the open item; this narrows where it matters to noisy Spanish.
+10.7%) and machinery noise (4.7% against 8.1%). The next section closes that
+last gap and with it the case for routing between engines.
+### ggml-small against ggml-base, beam 5
+
+The decisive result, and the one that settles the engine question.
+
+| Condition | base en | small en | base es | small es | Apple es |
+|---|---|---|---|---|---|
+| clean | 0.0% | **0.0%** | 4.0% | **0.7%** | 2.7% |
+| quiet, −18 dB | 0.6% | **0.0%** | 1.3% | **0.7%** | 2.0% |
+| hum, 12 dB SNR | 0.6% | **0.0%** | 2.0% | **0.7%** | 2.7% |
+| music bed, 10 dB SNR | 0.6% | **0.0%** | 3.4% | **0.7%** | 2.0% |
+| machinery, 6 dB SNR | 1.9% | **1.3%** | 8.1% | **2.0%** | 4.7% |
+| broadband hiss, 12 dB SNR | 2.5% | **1.3%** | 10.7% | **2.7%** | 5.4% |
+| 3 s pauses | 3.2% | **1.3%** | 5.4% | **0.7%** | 2.0% |
+| abrupt ending | 0.0% | **0.0%** | 4.0% | **0.7%** | 2.7% |
+| decaying final word | 0.0% | **0.0%** | 4.0% | **0.7%** | 2.7% |
+
+**Small beats both base and Apple's engine on every condition in both
+languages.** Six of the eighteen cells reach 0.0% — the whole 149-word
+reference transcribed exactly. Spanish under hiss falls from 10.7% to 2.7% and
+under machinery noise from 8.1% to 2.0%; English long-pause error halves.
+
+This **retires language-aware engine selection** rather than solving it. The
+case for routing was that Apple won on noisy Spanish; with small there is no
+condition in the corpus where routing to Apple's engine wins. A problem that
+dissolves is better than a problem that is solved, and the selection code that
+was about to be written is not needed.
+
+The costs are a real-time factor of 0.01 moving to 0.03 — still around thirty
+times faster than playback — and 141 MB of weights becoming 465 MB.
+`defaultModelURL()` therefore prefers `ggml-small.bin` and falls back to
+`ggml-base.bin`, so a checkout that fetched only base still works. Which model
+*ships* stays a per-platform decision: 465 MB is a different proposition inside
+an iOS download than inside a desktop install.
+
+Memory is now the binding constraint rather than speed, and it is the number to
+watch on a phone. Two things were learned about it here. Each Whisper context
+costs roughly three times the model file, so one small context is about 1.4 GB
+resident against base's 430 MB. And the language probe used to load the model
+once per candidate language, which the Android session caught as three
+`loading model` sequences inside one ten-second job; that is fixed, and the job
+now loads twice — once to detect the language, once to transcribe.
+
+Not yet measured: whether `ggml-medium` improves on small (the gaps left are
+small enough that the corpus may not resolve it), and real-time factor and peak
+resident size on ARM hardware, where the hundredfold speed headroom measured on
+a Mac cannot be assumed.
+
 
 
 

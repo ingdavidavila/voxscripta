@@ -123,9 +123,48 @@ public actor WhisperEngine: TranscriptionEngine {
     /// Where a model is looked for when the caller does not name one.
     ///
     /// An environment variable first, so a benchmark can point at a specific
-    /// model without editing anything, then the project's own models folder.
+    /// model without editing anything; then `ggml-small.bin`; then
+    /// `ggml-base.bin`.
+    ///
+    /// Small is preferred because the project optimizes for accuracy and the
+    /// corpus says the difference is not close. Measured on the nine acoustic
+    /// conditions, both languages, beam 5:
+    ///
+    ///     base    English 0.0–3.2%   Spanish 0.7–10.7%
+    ///     small   English 0.0–1.3%   Spanish 0.7–2.7%
+    ///
+    /// Spanish under broadband hiss goes from 10.7% to 2.7% and under
+    /// machinery noise from 8.1% to 2.0%; English long-pause error falls from
+    /// 3.2% to 1.3%; six of the eighteen cells reach 0.0%, the whole reference
+    /// transcribed exactly. The cost is a real-time factor of 0.01 moving to
+    /// 0.03 — still around thirty times faster than playback — and 141 MB of
+    /// weights becoming 465 MB.
+    ///
+    /// Small also overtakes Apple's engine on **every** condition in both
+    /// languages, where base lost to it on noisy Spanish. That retires the
+    /// language-aware engine selection this comment used to point at: there is
+    /// no longer a condition in the corpus where routing to Apple's engine
+    /// wins.
+    ///
+    /// Falling back rather than requiring small is deliberate. A checkout that
+    /// has fetched only base still works, and which model *ships* stays a
+    /// per-platform decision — 465 MB is a different proposition inside an iOS
+    /// download than inside a desktop install, and `Tools/fetch-whisper-model.sh`
+    /// takes a name for exactly that reason.
     public static func defaultModelURL() -> URL {
-        ModelSearch.locate("ggml-base.bin", environmentKey: "VOXSCRIPTA_WHISPER_MODEL")
+        if let override = ProcessInfo.processInfo.environment["VOXSCRIPTA_WHISPER_MODEL"],
+           !override.isEmpty {
+            return URL(filePath: override)
+        }
+        // `candidates` rather than `locate` for the preferred name: `locate`
+        // returns a development path when it finds nothing, which would report
+        // a small model that is not there and fail at load instead of falling
+        // back to the base model that is.
+        if let small = ModelSearch.candidates(for: "ggml-small.bin")
+            .first(where: { FileManager.default.fileExists(atPath: $0.path) }) {
+            return small
+        }
+        return ModelSearch.locate("ggml-base.bin", environmentKey: "VOXSCRIPTA_WHISPER_MODEL")
     }
 
     // MARK: - Capabilities
