@@ -444,11 +444,9 @@ gap between them is diagnostic: a high word rate with a low character rate is an
 orthography problem, the reverse is a hearing problem. On clean English the two
 are 1.3% and 0.8%; under hiss they move together to 3.8% and 2.0%.
 
-Still unmeasured, and listed so the gaps are not mistaken for passes: merge
-cost is now *measurable* as the difference between transcribing a long recording
-whole and in chunks, but has not been run; the mixed-language cases are composed
-but their behaviour is not yet recorded; and `ggml-medium` has not been
-compared against `ggml-small`.
+Still unmeasured, and listed so the gaps are not mistaken for passes: the
+mixed-language cases are composed but their behaviour is not yet recorded, and
+`ggml-medium` has not been compared against `ggml-small`.
 
 ### Whisper base against Apple, same corpus
 
@@ -598,6 +596,65 @@ a Mac cannot be assumed.
 
 
 ---
+
+### Merge cost, and the two bugs found measuring it
+
+Chunking is free. Measured by transcribing the same recording twice — once
+whole, once through the real planner, scheduler and merger — so the difference
+is the seam and nothing else:
+
+| Case | chunks | whole | chunked | delta |
+|---|---|---|---|---|
+| `en_long_with_pauses` (15.7 min) | 4 | 1.07% | 1.11% | +0.04 |
+| `en_long_gapless` (12.1 min) | 3 | 0.87% | 0.75% | −0.12 |
+| `es_long_gapless` (12.1 min) | 4 | 2.52% | 2.44% | −0.08 |
+
+Eight seams across the three. On references of roughly 1,900 words a single
+error is about 0.05 points, so every delta here is one or two words and two of
+the three are negative. The honest reading is that the merge costs nothing
+measurable, not that chunking improves accuracy.
+
+That result was not available until two bugs were fixed, and **both made long
+recordings fail outright** — the merger's ordering check threw rather than
+shipping a corrupt transcript, so the symptom was no output rather than bad
+output. Together they meant no recording needing more than one chunk could be
+transcribed with Whisper at all, which is to say anything over about four
+minutes.
+
+**An engine reporting past the end of its own chunk.** Whisper's timestamps are
+quantized and the last segment of a window can land beyond the audio it was
+given: chunk 0 covered 0.00–242.86 s and reported a segment ending at
+243.32 s. The next chunk began at 242.86, so the merged sequence went
+backwards. Fixed in `ChunkScheduler.clamped`, which holds every engine's
+segments inside the chunk they came from — the constraint belongs to the chunk
+rather than to any engine's idea of time, so one implementation covers engines
+not yet written. Times are clamped and nothing is discarded: the engine heard
+only that chunk's audio, so the words came from inside it whatever the clock
+says, and dropping them would turn a timing error into missing words.
+
+**A word still being spoken across the splice.** On a hard cut the following
+chunk overlaps by three seconds and the merger deduplicates. It kept words
+ending after the cut — correct — but then took the trimmed segment's start from
+the first surviving word, which begins *before* the cut. Chunk 1's first
+segment started at 299.940 where chunk 0 ended at 300.000, a 60 ms overlap
+created entirely by that line. `trimByTime` now clamps the start to the cut,
+which keeps the word and moves only the claim about when the segment begins.
+
+The ordering check's message now names the offending pair, their chunks and the
+overlap in seconds. "Not in ascending time order" on its own cost two
+measurement runs spent guessing, because an engine overshooting its chunk and
+an overlap that was not deduplicated look identical from outside and need
+unrelated fixes.
+
+Neither bug was reachable by the existing tests. There was one asserting that
+chunked and single-chunk output are byte-identical, but it ran on audio short
+enough to plan as a single chunk either way, so it exercised the plumbing and
+never the seam. The corpus cases are now sized from `ChunkParameters` rather
+than from taste — the planner targets 240 s and hard-cuts at 300 s, so a
+three-minute case plans as one chunk and measures nothing — and the measurement
+fails rather than warns when a case produces a single chunk, because a passing
+test printing deltas of +0.00 reads like a result.
+
 
 ## 11. Security and privacy
 

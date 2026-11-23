@@ -208,8 +208,10 @@ public struct ChunkScheduler: ChunkScheduling {
 
             do {
                 try Task.checkCancellation()
-                let segments = try await engine.transcribe(
+                let reported = try await engine.transcribe(
                     chunk.sampleRange, in: canonicalFile, options: options)
+                // An engine may only speak about the audio it was given.
+                let segments = Self.clamped(reported, to: chunk.originalRange)
                 let elapsed = ContinuousClock.now - started
 
                 record.state = .completed
@@ -241,6 +243,40 @@ public struct ChunkScheduler: ChunkScheduling {
 
         record.state = .failedPermanent
         return .failure(record)
+    }
+
+    /// Keeps a chunk's segments inside the chunk.
+    ///
+    /// An engine is given one span of audio and may only speak about that span,
+    /// but Whisper's timestamps are quantized and its last segment of a window
+    /// can land past the end of what it was handed. Measured on a 15-minute
+    /// recording: chunk 0 covered 0.00–242.86 s and reported a segment ending
+    /// at 243.32 s, 0.46 s beyond its own audio.
+    ///
+    /// That is enough to break everything downstream. The merger requires
+    /// segments in ascending, non-overlapping order — rightly, since the whole
+    /// transcript's structure rests on it — so one overshooting segment makes
+    /// the next chunk's first segment start before the previous one ended and
+    /// the merge throws. The practical effect was that no recording long
+    /// enough to need more than one chunk could be transcribed at all.
+    ///
+    /// Clamped here rather than in each engine because the constraint belongs
+    /// to the chunk, not to any engine's idea of time, and one implementation
+    /// then covers every engine including ones not yet written.
+    ///
+    /// Times are clamped and nothing is dropped. A segment whose timestamps are
+    /// wrong still holds words that were really said — the engine heard only
+    /// this chunk's audio, so the text came from inside it whatever the clock
+    /// says — and discarding it would turn a timing error into missing words.
+    static func clamped(_ segments: [TranscriptSegment],
+                        to range: TimeRange) -> [TranscriptSegment] {
+        segments.map { segment in
+            var bounded = segment
+            let start = MediaTime.min(MediaTime.max(segment.originalStart, range.start), range.end)
+            bounded.originalStart = start
+            bounded.originalEnd = MediaTime.min(MediaTime.max(segment.originalEnd, start), range.end)
+            return bounded
+        }
     }
 }
 

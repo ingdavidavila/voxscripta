@@ -82,9 +82,30 @@ public struct TranscriptMerger: TranscriptMerging {
         // Ordering is the merger's core contract; a violation here would corrupt
         // every downstream export, so it fails loudly rather than shipping.
         guard transcript.isMonotonic else {
+            // Name the offending pair. "Not in ascending order" alone forces
+            // whoever hits this to re-derive the geometry by hand, and the two
+            // causes seen so far — an engine overshooting its chunk, and an
+            // overlap that was not deduplicated — look identical from the
+            // outside while needing completely different fixes.
+            let culprit = zip(segments, segments.dropFirst()).enumerated().first {
+                $0.element.0.originalEnd > $0.element.1.originalStart
+            }
+            var detail = ""
+            if let culprit {
+                let (left, right) = culprit.element
+                detail = String(
+                    format: " at %d→%d: %.3f…%.3f (chunk %@) then %.3f…%.3f (chunk %@), "
+                          + "overlapping by %.3f s",
+                    culprit.offset, culprit.offset + 1,
+                    left.originalStart.seconds, left.originalEnd.seconds,
+                    left.chunkID.map { "\($0)" } ?? "none",
+                    right.originalStart.seconds, right.originalEnd.seconds,
+                    right.chunkID.map { "\($0)" } ?? "none",
+                    (left.originalEnd - right.originalStart).seconds)
+            }
             throw VoxScriptaError.analysisFailed(
                 stage: "transcript merge",
-                reason: "merged segments are not in ascending time order")
+                reason: "merged segments are not in ascending time order" + detail)
         }
         return transcript
     }
@@ -170,18 +191,40 @@ public struct TranscriptMerger: TranscriptMerging {
     }
 
     /// Removes words and segments that end at or before `time`.
+    /// Drops everything spoken before `time`, and begins what is left at `time`.
+    ///
+    /// The second half of that sentence is load-bearing and used to be missing.
+    /// Words are kept when they *end* after the cut, which is right — a word
+    /// still being spoken across the splice belongs to what follows — but the
+    /// trimmed segment then took its start from that word, which begins
+    /// *before* the cut. The segment therefore started earlier than the
+    /// previous chunk ended, and the merger's own monotonicity check rejected
+    /// the transcript it had just built.
+    ///
+    /// Measured on a 15-minute recording with hard cuts: chunk 0 ended at
+    /// 300.000 s and chunk 1's first surviving segment began at 299.940 s, an
+    /// overlap of 60 ms created entirely by this line. Every such recording
+    /// failed to merge.
+    ///
+    /// Clamping the start rather than dropping the straddling word keeps the
+    /// text. The word was really spoken; only the claim about when the segment
+    /// begins was wrong.
     private func trimByTime(_ segments: [TranscriptSegment], before time: MediaTime) -> [TranscriptSegment] {
         var out: [TranscriptSegment] = []
         for var segment in segments {
             let kept = segment.words.filter { $0.originalEnd > time }
-            if kept.count == segment.words.count {
-                out.append(segment)
-                continue
+            if kept.isEmpty, !segment.words.isEmpty { continue }
+
+            if kept.count != segment.words.count {
+                segment.words = kept
+                segment.text = kept.map(\.text).joined(separator: " ")
+                segment.originalStart = kept[0].originalStart
             }
-            guard !kept.isEmpty else { continue }
-            segment.words = kept
-            segment.text = kept.map(\.text).joined(separator: " ")
-            segment.originalStart = kept[0].originalStart
+            // Applied whether or not anything was trimmed: a segment whose
+            // first word straddles the cut needs this even when every word
+            // survives, which is the case the original guard clause skipped.
+            segment.originalStart = Swift.max(segment.originalStart, time)
+            segment.originalEnd = Swift.max(segment.originalEnd, segment.originalStart)
             out.append(segment)
         }
         return out

@@ -233,42 +233,56 @@ public enum TranscriptionCorpus {
         ]
     }
 
-    /// Recordings long enough that chunking, merging and resumption all engage.
+    /// Recordings long enough that the planner actually cuts.
     ///
-    /// The short cases never cross a chunk boundary, so they cannot measure the
-    /// merge — which is why merge quality has been unmeasured. These exist to
-    /// put speech *across* the seam on purpose.
+    /// The length is set by `ChunkParameters.default`, not by taste: the
+    /// planner targets 240 s, forces a hard cut at 300 s, and will not make a
+    /// chunk shorter than 120 s. A three-minute recording therefore plans as
+    /// one chunk and measures nothing about merging — which is exactly what
+    /// the first run of the merge measurement found, three cases at one chunk
+    /// each and three deltas of +0.00 that meant nothing.
+    ///
+    /// So these run to roughly a quarter of an hour, which gives four or more
+    /// chunks and therefore three or more seams.
+    ///
+    /// The passage pool is the acoustic set plus the entity set rather than
+    /// one repeated five times. Repetition is acceptable in principle here —
+    /// what is under test is the seam, not the vocabulary — but Whisper
+    /// suppresses repeated text, so a corpus built from five sentences on a
+    /// loop risks measuring that suppression instead of the merge.
     public static var long: [TranscriptionCase] {
-        // The standard set repeated until it runs several minutes. Repetition is
-        // acceptable here because what is under test is the seam, not the
-        // vocabulary — and it keeps the reference exact.
-        let repeated = Array(repeating: SpeechCorpus.standard, count: 6).flatMap { $0 }
-        // The same, with the trailing silence stripped so the planner finds no
-        // comfortable cut and has to take a hard one mid-speech.
-        let gapless = repeated.map {
-            SpeechPassage(name: $0.name, text: $0.text, trailingSilence: 0)
+        // Enough repetitions of a 13-passage pool to pass 15 minutes.
+        let repeats = 11
+        func pool(_ base: [SpeechPassage], gapless: Bool) -> [SpeechPassage] {
+            Array(repeating: base, count: repeats).flatMap { $0 }.map {
+                SpeechPassage(name: $0.name, text: $0.text,
+                              trailingSilence: gapless ? 0 : 1.5)
+            }
         }
-        let spanishGapless = Array(repeating: SpeechCorpus.spanish, count: 6)
-            .flatMap { $0 }
-            .map { SpeechPassage(name: $0.name, text: $0.text, trailingSilence: 0) }
+        let english = SpeechCorpus.acoustic + SpeechCorpus.standard
+        let spanish = SpeechCorpus.acousticSpanish + SpeechCorpus.spanish
+
         return [
             TranscriptionCase(
                 name: "en_long_with_pauses",
-                purpose: "Several minutes with real pauses: the planner should cut at "
-                       + "silence and the merge should be invisible.",
-                segments: [CorpusSegment(passages: repeated, voiceLanguage: "en-US",
+                purpose: "A quarter of an hour with real pauses: the planner should cut "
+                       + "at silence and the merge should be invisible.",
+                segments: [CorpusSegment(passages: pool(english, gapless: false),
+                                         voiceLanguage: "en-US",
                                          scoringLanguage: .english)]),
             TranscriptionCase(
                 name: "en_long_gapless",
-                purpose: "Several minutes with no usable pause, forcing a hard cut "
-                       + "through speech. This is where merge errors live.",
-                segments: [CorpusSegment(passages: gapless, voiceLanguage: "en-US",
+                purpose: "The same length with no trailing silence, so the planner finds "
+                       + "no comfortable boundary and has to cut through speech. This is "
+                       + "where merge errors live.",
+                segments: [CorpusSegment(passages: pool(english, gapless: true),
+                                         voiceLanguage: "en-US",
                                          scoringLanguage: .english)]),
             TranscriptionCase(
                 name: "es_long_gapless",
                 purpose: "The hard-cut case in Spanish, because the merge heuristics "
                        + "were only ever checked against English.",
-                segments: [CorpusSegment(passages: spanishGapless,
+                segments: [CorpusSegment(passages: pool(spanish, gapless: true),
                                          voiceLanguage: "es-ES",
                                          scoringLanguage: .spanish)]),
         ]
