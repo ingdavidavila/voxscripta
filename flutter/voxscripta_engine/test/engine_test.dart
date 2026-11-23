@@ -19,10 +19,32 @@ void main() {
   _entitlementTests();
   final libraryPath = _findLibrary();
 
+  // A data directory of this run's own.
+  //
+  // Without it these tests read the entitlement record of whoever is running
+  // them, so a machine whose three-day trial lapsed weeks ago fails six tests
+  // that have nothing to do with the code — which is what happened here, and
+  // which trains everyone to read a red suite as normal. The Swift side made
+  // the same fix by taking the entitlement gate as a parameter rather than a
+  // process global; this is the Dart equivalent, using the data directory the
+  // engine now accepts.
+  //
+  // Named to contain "VoxScripta" because the engine appends its own
+  // subdirectories and one assertion below checks that the path it reports
+  // really is the one it was handed.
+  final dataDirectory =
+      Directory.systemTemp.createTempSync('VoxScripta-engine-test');
+  tearDownAll(() {
+    if (dataDirectory.existsSync()) {
+      dataDirectory.deleteSync(recursive: true);
+    }
+  });
+
   group('VoxScriptaEngine', skip: libraryPath == null ? 'engine not built' : null, () {
     late VoxScriptaEngine engine;
 
-    setUp(() => engine = VoxScriptaEngine.open(libraryPath: libraryPath));
+    setUp(() => engine = VoxScriptaEngine.open(
+        libraryPath: libraryPath, dataDirectory: dataDirectory.path));
 
     test('every symbol resolves and the ABI matches', () {
       // Construction looks up all twelve. If the hand-written bindings drift
@@ -146,13 +168,19 @@ void main() {
   group('library and defaults',
       skip: libraryPath == null ? 'engine not built' : null, () {
     late VoxScriptaEngine engine;
-    setUp(() => engine = VoxScriptaEngine.open(libraryPath: libraryPath));
+    setUp(() => engine = VoxScriptaEngine.open(
+        libraryPath: libraryPath, dataDirectory: dataDirectory.path));
 
     test('the library directory comes from the engine', () {
       // Not rebuilt here. If Dart constructed this path itself, the two
       // interfaces could end up pointing at different libraries.
       expect(engine.defaultLibraryDirectory, isNotEmpty);
       expect(engine.defaultLibraryDirectory, contains('VoxScripta'));
+      // And it is rooted where the host said, which is the whole point of
+      // being able to tell it: on Android the default is a read-only path
+      // that does not exist, so an engine that ignored this would write
+      // nowhere and report failures about unrelated things.
+      expect(engine.defaultLibraryDirectory, startsWith(dataDirectory.path));
     });
 
     test('an empty directory is an empty library, not a failure', () {
@@ -246,7 +274,8 @@ void main() {
   group('project summary',
       skip: libraryPath == null ? 'engine not built' : null, () {
     late VoxScriptaEngine engine;
-    setUp(() => engine = VoxScriptaEngine.open(libraryPath: libraryPath));
+    setUp(() => engine = VoxScriptaEngine.open(
+        libraryPath: libraryPath, dataDirectory: dataDirectory.path));
 
     test('a project with nothing in it reports no variants', () {
       final directory = Directory.systemTemp.createTempSync('summary-test');

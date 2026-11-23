@@ -40,6 +40,9 @@ final class VoxScriptaBindings {
             int Function(Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>,
                 Pointer<Utf8>, Pointer<Pointer<Uint8>>,
                 Pointer<Int64>)>('vs_export'),
+        setDataDirectory = library.lookupFunction<
+            Int32 Function(Pointer<Utf8>),
+            int Function(Pointer<Utf8>)>('vs_set_data_directory'),
         libraryDefaultDirectory = library.lookupFunction<Pointer<Utf8> Function(),
             Pointer<Utf8> Function()>('vs_library_default_directory'),
         libraryList = library.lookupFunction<Pointer<Utf8> Function(Pointer<Utf8>),
@@ -113,6 +116,12 @@ final class VoxScriptaBindings {
   final void Function(int) jobRelease;
   final int Function(Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>,
       Pointer<Pointer<Uint8>>, Pointer<Int64>) export;
+  /// Tells the engine where it may write. Must be called before anything
+  /// else, and on Android it must be called at all: the engine's default is
+  /// the platform application-support directory, which resolves there to a
+  /// read-only path that does not exist.
+  final int Function(Pointer<Utf8>) setDataDirectory;
+
   final Pointer<Utf8> Function() libraryDefaultDirectory;
   final Pointer<Utf8> Function(Pointer<Utf8>) libraryList;
   final int Function(Pointer<Utf8>, Pointer<Pointer<Utf8>>) projectDelete;

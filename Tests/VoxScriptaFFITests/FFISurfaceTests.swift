@@ -39,7 +39,7 @@ struct FFISurfaceTests {
 
     @Test("The ABI announces a version")
     func version() {
-        #expect(vs_abi_version() == 8)
+        #expect(vs_abi_version() == 9)
     }
 
     @Test("An unknown handle is reported, not crashed on")

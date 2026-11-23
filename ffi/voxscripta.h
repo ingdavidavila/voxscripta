@@ -144,6 +144,17 @@ int32_t vs_export(const char *project_path,
 
 /* ─── Library ──────────────────────────────────────────────────────────────── */
 
+/* Tells the engine where it may write. Call once, before any other vs_ call.
+ *
+ * Required on Android, where the default resolves to a read-only path that
+ * does not exist; harmless elsewhere. Pass an absolute path to a directory
+ * this process may write, typically Context.getFilesDir().
+ *
+ * Returns 0 on success, -1 on failure with vs_last_error_copy() saying why.
+ * Calling it again with the same path is accepted; a different path, after the
+ * engine has resolved one, fails. */
+int32_t vs_set_data_directory(const char *path);
+
 /* Where projects live when nobody says otherwise. Caller releases. */
 char *vs_library_default_directory(void);
 

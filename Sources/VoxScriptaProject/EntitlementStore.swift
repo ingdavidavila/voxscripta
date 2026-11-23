@@ -29,9 +29,10 @@ public final class EntitlementStore: @unchecked Sendable {
     /// any one recording, and a user who moved their library to an external
     /// disk should not take their trial with them.
     public static var defaultLocation: URL {
-        ProjectStore.defaultLibraryDirectory
-            .deletingLastPathComponent()
-            .appending(path: "entitlement.json")
+        // Taken from the data directory rather than by walking up from the
+        // project library, which was the same answer by a longer route and
+        // would have silently stopped being so the moment either moved.
+        DataDirectory.root.appending(path: "entitlement.json")
     }
 
     private let location: URL

@@ -164,9 +164,10 @@ public struct ProjectStore: Sendable {
     /// Flutter app have to agree about where the library is or they are two
     /// applications. `Docs/PARITY.md` is the contract this serves.
     public static var defaultLibraryDirectory: URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory,
-                                            in: .userDomainMask)[0]
-        return base.appending(path: "VoxScripta/Projects")
+        // Asking Foundation directly was right on Apple's platforms and wrong
+        // on Android, where application support resolves to a read-only path
+        // that does not exist. `DataDirectory` lets the host say instead.
+        DataDirectory.root.appending(path: "Projects")
     }
 
     /// Deletes a project package.

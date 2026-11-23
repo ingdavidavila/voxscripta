@@ -61,7 +61,7 @@ import VoxScriptaExport
 /// growing a second entry point beside them, because nothing has shipped
 /// against version 1 and a legacy variant kept forever costs more than a
 /// break that nobody can observe.
-private let abiVersion: Int32 = 8
+private let abiVersion: Int32 = 9
 
 // MARK: - Job states
 
@@ -456,6 +456,42 @@ public func vs_string_free(_ string: UnsafeMutablePointer<CChar>?) {
 ///
 /// Read from the engine rather than rebuilt in Dart, because the two interfaces
 /// disagreeing about where the library is would make them two applications.
+/// Tells the engine where it may write, before anything else is called.
+///
+/// Required on Android and harmless everywhere else. The engine's default is
+/// the platform's application-support directory, which on Android resolves to
+/// a read-only path that does not exist — so every write failed, and the
+/// failure surfaced as unrelated errors like the microphone refusing to open.
+/// Only the host knows its own private files directory, so only the host can
+/// answer this.
+///
+/// Pass an absolute path to a directory the process may write, typically
+/// `Context.getFilesDir()` on Android.
+///
+/// Returns `0` on success, `-1` on failure, with `vs_last_error_copy` saying
+/// why. Failing rather than falling back is the point: a silent fallback to an
+/// unwritable default is what produced the original confusion.
+///
+/// Call it once, before any other `vs_` function. Calling it twice with the
+/// same path is accepted; calling it with a different path after the engine
+/// has already resolved one fails, because splitting the library across two
+/// directories looks exactly like losing half of it.
+@_cdecl("vs_set_data_directory")
+public func vs_set_data_directory(_ path: UnsafePointer<CChar>?) -> Int32 {
+    setLastError(nil)
+    guard let path, let text = String(validatingCString: path), !text.isEmpty else {
+        setLastError("vs_set_data_directory needs a non-empty path")
+        return -1
+    }
+    do {
+        try DataDirectory.set(URL(filePath: text))
+        return 0
+    } catch {
+        setLastError(describe(error))
+        return -1
+    }
+}
+
 @_cdecl("vs_library_default_directory")
 public func vs_library_default_directory() -> UnsafeMutablePointer<CChar>? {
     copyOut(ProjectStore.defaultLibraryDirectory.path)

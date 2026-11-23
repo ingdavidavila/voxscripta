@@ -483,6 +483,48 @@ on Android, Windows or Linux, the English corpus should be run with the
 embedding disabled, the way `PolishReadiness` already gates by measurement
 rather than by assertion.
 
+## The host says where the engine may write
+
+`vs_set_data_directory(const char *path)` — call it once, before any other
+`vs_` function. Returns `0`, or `-1` with `vs_last_error_copy()` saying why.
+From Dart it is the `dataDirectory:` argument to `VoxScriptaEngine.open`.
+
+**Required on Android.** The engine used to ask Foundation for
+`.applicationSupportDirectory` and append its own folders, which is right on
+macOS and iOS and resolves on Android to `/home/.local/share/VoxScripta` — a
+path that does not exist, on a filesystem that is read-only. Only the host
+knows its own private files directory, so only the host can answer this; pass
+`Context.getFilesDir()`.
+
+The symptom is worth recording, because it is nothing like the cause. The
+Android session saw the library screen display that `/home` path verbatim, and
+tapping Record reported **"The microphone could not be opened — The operation
+could not be completed. The volume is read only."** The microphone was never
+touched. `EROFS` from a write arrived dressed as a recording failure, and the
+trial counter showed a plausible "3 days left" that was being recomputed from
+nothing on every launch because its record could not be written either.
+
+Three decisions behind the shape:
+
+- **A function, not an environment variable.** A `setenv` from Dart has to
+  happen before the engine first reads the value, and "before" is not something
+  the caller can guarantee against a library that may already be loaded. An
+  explicit call has an obvious ordering. An environment override
+  (`VOXSCRIPTA_DATA_DIR`) exists as well, but only for test harnesses, which
+  have no C ABI to call.
+- **It fails rather than falling back.** A silent fallback to an unwritable
+  default is exactly what produced the original confusion, and the next person
+  to hit it would have lost the same day.
+- **The ordering requirement is enforced, not documented.** Setting a different
+  directory after the engine has already resolved one throws. Honouring it
+  quietly would split the library across two places, which presents as projects
+  that have vanished — among the hardest symptoms to trace to a cause.
+
+`ProjectStore.defaultLibraryDirectory` and `EntitlementStore.defaultLocation`
+both derive from it, so there is one answer rather than two that agree by
+coincidence. The ABI version is now **9**; `Tools/check-abi.sh` pins it and the
+Dart package refuses to load an engine that disagrees.
+
 ## Order of work
 
 1. **whisper.cpp behind `TranscriptionEngine`, built and measured on the Mac.**

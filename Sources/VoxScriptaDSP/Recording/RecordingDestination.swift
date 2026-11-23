@@ -21,9 +21,18 @@ public enum RecordingDestination {
         let base = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         return base.appending(path: "Recordings")
         #else
-        let base = FileManager.default.urls(for: .applicationSupportDirectory,
-                                            in: .userDomainMask)[0]
-        return base.appending(path: "VoxScripta/Recordings")
+        // The same path as before on macOS, Linux and Windows, by way of the
+        // one place that decides. On Android the old expression resolved to a
+        // read-only `/home` that does not exist, so recordings had nowhere to
+        // go — and the failure surfaced as the microphone refusing to open,
+        // which is what sent the Android session looking at audio code.
+        //
+        // Android note, not yet resolved: the app's private files directory is
+        // no more reachable by the user than iOS's container was, so §5's
+        // promise that a recording is always retrievable needs the same answer
+        // there that `.documentDirectory` gives above. That belongs with the
+        // SAF work rather than here, and is recorded in PORTING.md.
+        return DataDirectory.root.appending(path: "Recordings")
         #endif
     }
 

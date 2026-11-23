@@ -22,7 +22,7 @@ class VoxScriptaEngine {
   /// The ABI this package was written against. A library announcing anything
   /// else is refused at open, rather than crashing later on a signature that
   /// moved — which is the whole reason the version exists.
-  static const int supportedAbiVersion = 8;
+  static const int supportedAbiVersion = 9;
 
   /// How often a running job is polled.
   ///
@@ -42,10 +42,22 @@ class VoxScriptaEngine {
   /// library sits beside the executable. Pass a path explicitly when driving a
   /// build tree, as the tests do.
   ///
-  /// Throws [VoxScriptaException] if the library will not load or announces an
-  /// ABI this package does not speak.
+  /// [dataDirectory] tells the engine where it may write. **Required on
+  /// Android**, where the engine's default resolves to a read-only path that
+  /// does not exist — pass the value of `Context.getFilesDir()`. Optional
+  /// elsewhere, where the platform's own application-support directory is the
+  /// right answer.
+  ///
+  /// It is a parameter of [open] rather than a method to call afterwards
+  /// because the engine must be told before it resolves a path for itself, and
+  /// an ordering requirement that the API cannot express is one every caller
+  /// gets to discover separately.
+  ///
+  /// Throws [VoxScriptaException] if the library will not load, announces an
+  /// ABI this package does not speak, or refuses the data directory.
   factory VoxScriptaEngine.open({
     String? libraryPath,
+    String? dataDirectory,
     Duration pollInterval = defaultPollInterval,
   }) {
     final path = libraryPath ?? defaultLibraryName;
@@ -62,6 +74,19 @@ class VoxScriptaEngine {
       throw VoxScriptaException(
         'engine speaks ABI $version, this package speaks $supportedAbiVersion',
       );
+    }
+    if (dataDirectory != null) {
+      final directory = dataDirectory.toNativeUtf8();
+      try {
+        if (bindings.setDataDirectory(directory) != 0) {
+          throw VoxScriptaException(
+            bindings.lastError() ??
+                'the engine refused the data directory $dataDirectory',
+          );
+        }
+      } finally {
+        calloc.free(directory);
+      }
     }
     return VoxScriptaEngine._(bindings, path, pollInterval);
   }
