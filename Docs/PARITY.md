@@ -718,6 +718,52 @@ otherwise — `CorpusRunner.missingVoices(for:)` reports what a run could not
 cover, and `run` prints each skipped case rather than quietly reporting a
 smaller table as complete.
 
+### Android needs `import Android` where libc is called directly
+
+Bionic is its own Swift module. On Linux, Foundation re-exports Glibc, so
+`rename`, `errno`, `open`, `fsync`, `getpid` and the rest are in scope for any
+file that imports Foundation. On Android, Foundation re-exports nothing
+equivalent, so the same file compiles its POSIX branch and then fails to find
+the symbols.
+
+Two files in the engine call libc directly and therefore carry
+`#if canImport(Android) import Android #endif`:
+
+| File | Symbols | How it was found |
+|---|---|---|
+| `VoxScriptaProject/AtomicFile.swift` | `rename`, `errno`, `strerror`, `open`, `O_RDONLY`, `close`, `fsync` | Compiler, after the POSIX branches were widened to Android without the import |
+| `VoxScriptaPipeline/JobRunner.swift` | `kill`, `getpid`, `SIGKILL`, `pause` | Audit; confirmed by a build failure at `8f52e2f` |
+
+Two more needed it for the Float overloads of `log10`, `log` and `exp` rather
+than for libc proper: `VoxScriptaDSP/Recording/PortableRecorder.swift` and
+`VoxScriptaDSP/Analysis/AnalysisFrame.swift`.
+
+**Take what the compiler asks for, not a blanket.** The Android spike first
+built by adding `import Android` to all 85 Foundation-importing files in the
+non-UI targets. That builds, and it also destroys the information this table
+records: `JobRunner`'s unguarded `kill(getpid(), SIGKILL)` — in the file since
+`5f0f3b0`, 2026-09-29 — compiled only because of the blanket, and the gap
+surfaced as a real error the moment the blanket came off. A blanket import does
+not fix a portability problem, it hides which files have one.
+
+**Re-running the audit.** The rule is: a `.swift` file under `Sources` that
+imports Foundation, calls a libc function or names a libc constant outside any
+`#if` that excludes Android, and has no `import Android`. Three traps, all of
+which produced a *clean* report on a file that was not clean:
+
+- A disjunction excludes Android only when **every** alternative does.
+  `canImport(Darwin) || canImport(Glibc) || canImport(Musl) || canImport(Android)`
+  mentions Darwin and is still reachable on Android.
+- The string `canImport(Android)` appearing in a file does not mean the file
+  imports it — that string is the branch condition whose presence *without* the
+  import is the bug. Match a real `import Android` statement.
+- A declaration looks like a call. `public func pause()` and
+  `public func close()` match any pattern that looks for `name(`, as do
+  `connection.close()` and SQLite's `bind(stmt)`; `CREATE TABLE IF NOT EXISTS`
+  matches a pattern for `E...` errno constants.
+
+With those handled, the audit returns exactly the two files in the table above.
+
 ### What now compiles for Linux
 
 Verified by cross-compiling on the Mac with the Static Linux SDK, which is a
