@@ -164,6 +164,22 @@ echo "building whisper.cpp for $ABI, against the installed ggml"
 "$CMAKE" --install "$OUT/whisper" --config Release >/dev/null
 
 echo
+# Provenance, read by Tools/stage-android.sh. Only the Android ABIs are staged
+# into the fixed folders the package reads, and a stale or mismatched set would
+# build a library that loads and then misbehaves, so each build records what it
+# was built for: the ABI and the NDK revision (the FFmpeg headers differ between
+# NDKs as well as between ABIs).
+case "$ABI" in
+    host|ios|ios-sim|linux-musl) ;;
+    *)
+        NDK_DIR="${ANDROID_NDK_HOME:-$(ls -d "$HOME/Library/Android/sdk/ndk/"* 2>/dev/null | tail -1 || true)}"
+        NDK_REV="$(sed -n 's/^Pkg.Revision *= *//p' "$NDK_DIR/source.properties" 2>/dev/null | head -1)"
+        printf 'abi=%s
+ndk=%s
+' "$ABI" "${NDK_REV:-unknown}" > "$PREFIX/.build-info"
+        ;;
+esac
+
 echo "installed into $PREFIX"
 find "$PREFIX/lib" -name '*.a' 2>/dev/null | sort | while read -r lib; do
     printf "  %-34s %s\n" "$(basename "$lib")" "$(du -h "$lib" | cut -f1)"
