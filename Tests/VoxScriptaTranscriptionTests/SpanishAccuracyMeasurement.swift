@@ -88,6 +88,15 @@ struct SpanishAccuracyMeasurement {
         // one scored Spanish under English number rules and charged it for
         // "500" against "quinientas".
         //
+        // Both figures are name-dominated and neither is this engine's
+        // acoustic accuracy. `CorpusMeasurement` later established that on
+        // name-free prose the same engine scores 1.3% English and 2.7%
+        // Spanish, and that "sara", "chen", "quizá" and "unidades" fail in
+        // every single row of this corpus. That is not a flaw in this test —
+        // these passages exist to exercise what the polish validator
+        // protects, and names are the thing it protects most. It is a reason
+        // not to quote 7.0% as how well Spanish is heard.
+        //
         // What is left is almost entirely proper nouns: "Sara Chen" comes
         // back as "Sarachen" and "Northwind" as "Norteña". Names are the hard
         // case in every recogniser, and they are also what the polish
@@ -115,6 +124,8 @@ struct SpanishAccuracyMeasurement {
           word error rate: \(String(format: "%.1f", rate * 100))%
         """)
         // Measured: 5.6%, which matches the figure the engine was chosen on.
+        // Also name-dominated: see the note above, and `CorpusMeasurement`
+        // for the 1.3% the same engine scores once the names are removed.
         #expect(rate < 0.10, "English word error rate \(rate)")
     }
 }

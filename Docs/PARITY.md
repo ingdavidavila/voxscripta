@@ -696,6 +696,28 @@ and `.available` let a caller ask instead of failing.
 guards only `render`, which needs `AVSpeechSynthesizer`. `VideoFileWriter` is
 `AVAssetWriter` end to end and is guarded whole.
 
+The benchmark corpus is split along the same line, and deliberately so. The
+platforms that most need an accuracy corpus are the ones that cannot speak it,
+so the half that can be portable is:
+
+| Piece | Portability |
+|---|---|
+| `SpeechConditions` — noise, gain, music bed, pauses, tail shapes | **Everywhere.** Pure arithmetic over `[Float]`, no AVFoundation, seeded so the audio is identical on every machine. |
+| `TranscriptionCorpus` — the cases and their reference text | **Everywhere.** Plain data. |
+| `CharacterErrorRate`, `WordErrorRate` | **Everywhere.** |
+| `CorpusRunner.score`, `CorpusReport` | **Everywhere.** Scoring takes a transcript, not audio. |
+| `CorpusRunner.render` / `measure` / `run` | **Apple only.** Needs `AVSpeechSynthesizer`. |
+
+So a Linux or Windows host can condition audio, score a transcript produced
+anywhere and emit the same report; what it cannot do is generate the speech. The
+practical consequence is that the conditioned figures in `ARCHITECTURE.md` are
+Apple measurements, and reproducing them off Apple needs either rendered WAVs
+committed or carried across, or a platform text-to-speech renderer behind the
+same `render` signature. Neither exists yet and the corpus does not pretend
+otherwise — `CorpusRunner.missingVoices(for:)` reports what a run could not
+cover, and `run` prints each skipped case rather than quietly reporting a
+smaller table as complete.
+
 ### What now compiles for Linux
 
 Verified by cross-compiling on the Mac with the Static Linux SDK, which is a

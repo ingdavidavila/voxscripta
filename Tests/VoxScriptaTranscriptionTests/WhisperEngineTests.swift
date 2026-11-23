@@ -163,7 +163,12 @@ struct WhisperEngineTests {
         print("WHISPER TEXT: \(text)")
 
         #expect(!segments.isEmpty, "the engine returned nothing")
-        // The Apple engine measures about 5.6% on this material. Whisper base
+        // The Apple engine measures about 5.6% on this material — a figure
+        // `CorpusMeasurement` has since shown to be mostly proper-noun error
+        // rather than acoustic error, so it is a comparison point on *this*
+        // corpus and not a statement about hearing. Whisper has not yet been
+        // run through the conditioned corpus, so the two engines have no
+        // like-for-like acoustic comparison. Whisper base
         // is a smaller model than Apple's, so the bar is set where a usable
         // transcript sits rather than at parity; a regression past this means
         // something is wrong with the wiring, not with the model.

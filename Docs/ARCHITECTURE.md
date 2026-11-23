@@ -375,15 +375,80 @@ commands in the README. Nothing here is estimated.
 | Metric | Value | Conditions |
 |---|---|---|
 | Throughput | **113× real time** | 8 min speech, concurrency 4, whole pipeline |
-| Word error rate | **4.4 – 5.6%** | synthesized speech, 273–1080 reference words |
 | Peak footprint | **14 MB** | 8 min file, concurrency 4 |
 | Chunked vs single-chunk agreement | **0.00% WER** | identical text either way |
 
-Two caveats stated plainly. The WER figure is against *synthesized* speech, which
-is clean and free of overlap, accents and background noise — it is a regression
-guard, not a claim about real recordings, and it is not comparable to a published
-LibriSpeech number. And the throughput figure comes from an 8-minute file; a
-six-hour recording has not yet been measured end to end.
+Two caveats stated plainly. The throughput figure comes from an 8-minute file; a
+six-hour recording has not yet been measured end to end. And every accuracy
+figure here is against *synthesized* speech, which is clean and free of overlap
+and real background noise — these are regression guards, not claims about real
+recordings, and none of them is comparable to a published LibriSpeech number.
+
+### Accuracy (Phase 3, 10-core / 24 GB Mac, macOS 26.6.2, Apple engine)
+
+The single word-error-rate figure that used to sit in the table above — 4.4 to
+5.6% — has been withdrawn, because the benchmark corpus showed it was not
+measuring what it appeared to.
+
+The passages it ran on were built to exercise what the polish validator
+protects: names, numbers, dates, negations, hedges. Names are the hardest case
+in any recogniser, and on a seventy-word reference a handful of them *is* the
+whole rate. `northwind` was lost in all eighteen rows of the first conditioned
+run; `sara`, `chen`, `quizá` and `unidades` in all nine rows of their
+language's. Four fixed errors out of seventy words is 5.6%. The acoustic
+conditions were moving one or two other words, which rounds back to the same
+number — which is why that first table was flat across every condition.
+
+Measured again on name-free prose of ordinary vocabulary (149–157 reference
+words, so one error is about 0.67 points and a difference under ~1.3 points is a
+single word and not signal):
+
+| Condition | English | Spanish |
+|---|---|---|
+| clean | **1.3%** | **2.7%** |
+| quiet, −18 dB | 1.3% | 2.0% |
+| hum, 12 dB SNR | 1.3% | 2.7% |
+| music bed, 10 dB SNR | 1.3% | 2.0% |
+| machinery noise, 6 dB SNR | 1.9% | **4.7%** |
+| broadband hiss, 12 dB SNR | **3.8%** | **5.4%** |
+| 3 s pauses | **5.1%** | 2.0% |
+| abrupt ending | 1.3% | 2.7% |
+| decaying final word, 1.2 s fade | 1.3% | 2.7% |
+
+Reproduce with `VOXSCRIPTA_CORPUS=1 swift test --filter CorpusMeasurementRun`.
+Four results carry consequences:
+
+- **The engine hears roughly four times better than the old figure suggested,
+  and names roughly four times worse.** Both halves were invisible while the two
+  were averaged into one number. Name accuracy is now its own pair of cases
+  (`en_entities`, `es_entities`) rather than contaminating the acoustic figures.
+- **Signal-to-noise ratio does not predict damage.** Broadband hiss roughly
+  triples English error; 60 Hz hum at the *same* ratio costs nothing measurable
+  in either language. Anything that judges whether a recording is usable has to
+  look at the spectrum, not the level.
+- **Spanish degrades about 2.5× harder than English under machinery noise**
+  (2.7 → 4.7 against 1.3 → 1.9), though the two are within 1.4 points on clean
+  audio. The Spanish complaint is a noise-robustness problem, not a flat
+  accuracy deficit.
+- **Three-second pauses are the worst English condition** at 5.1%, four times
+  clean, and the only condition producing deletions *and* insertions together.
+  Spanish is untouched by the same pauses. Insertions at pause boundaries from a
+  streaming recogniser point at premature finalization — and pauses are what the
+  chunk planner cuts on.
+
+Both tail conditions scoring exactly as clean is the evidence that the
+final-word truncation fix holds.
+
+Character error rate is reported beside word error rate throughout, because the
+gap between them is diagnostic: a high word rate with a low character rate is an
+orthography problem, the reverse is a hearing problem. On clean English the two
+are 1.3% and 0.8%; under hiss they move together to 3.8% and 2.0%.
+
+Still unmeasured, and listed so the gaps are not mistaken for passes: Whisper
+has never been run through this corpus (every figure above is Apple's engine);
+merge cost is now *measurable* as the difference between transcribing a long
+recording whole and in chunks, but has not been run; and the mixed-language
+cases are composed but their behaviour is not yet recorded.
 
 ---
 

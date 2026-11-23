@@ -71,6 +71,80 @@ xcrun stapler staple build/VoxScripta.app
 spctl -a -vv build/VoxScripta.app        # now: accepted
 ```
 
+## iOS and iPadOS
+
+The Mac path above is notarization. iOS has no notarization — it has App Store
+Connect, and nothing else. There is no ad-hoc equivalent of a shippable build:
+every route to another person's device goes through an Apple account.
+
+What already works:
+
+- `ios/VoxScripta.xcodeproj` builds and runs on a physical iPhone and iPad with
+  a free personal team, which is how the app has been tested so far. A free-team
+  build expires after 7 days and cannot be given to anyone else.
+- `ITSAppUsesNonExemptEncryption` is already `false` in
+  `ios/VoxScripta/Info.plist`. This is correct and deliberate: the app performs
+  no encryption of its own and makes no network connection, so the annual
+  self-classification report does not apply. Getting this wrong is the single
+  most common cause of a build being held at submission, so it is set in the
+  plist rather than answered by hand in the web form each time.
+- Device and simulator are different *platforms*, not architectures, so their
+  slices cannot be combined with `lipo`. `VOXSCRIPTA_IOS_SLICE` selects which
+  one the engine dependencies are built for; a mismatch shows up as a link
+  error naming the missing architecture, not as a runtime failure.
+
+What needs the paid Apple Developer Program, in order:
+
+**1. Enroll.** $99/year. Everything below is blocked until this clears, which
+takes 24–48 hours and sometimes longer for an organization rather than an
+individual. This is the long-lead item: start it before anything else on this
+list.
+
+**2. Register the bundle identifier and create the App Store Connect record.**
+The identifier has to match the project's `PRODUCT_BUNDLE_IDENTIFIER` exactly.
+
+**3. Create the subscription products.** `configuredSubscriptionService()` in
+`Sources/VoxScriptaUI/Paywall/SubscriptionConfiguration.swift` returns `nil`
+today, which means the paywall renders but cannot sell anything. StoreKit
+products have to exist in App Store Connect before that function can return a
+real service, so the product definitions come first and the code change second.
+Guideline 3.1.2 governs what a subscription may be sold as; 5.1.1(v) governs
+what may be required to use the app at all.
+
+**4. Archive and upload:**
+
+```
+xcodebuild -project ios/VoxScripta.xcodeproj -scheme VoxScripta \
+    -configuration Release -destination 'generic/platform=iOS' \
+    -archivePath build/VoxScripta.xcarchive archive
+xcodebuild -exportArchive -archivePath build/VoxScripta.xcarchive \
+    -exportOptionsPlist ios/ExportOptions.plist -exportPath build/ios-export
+xcrun altool --upload-app -f build/ios-export/VoxScripta.ipa \
+    -t ios --apiKey KEYID --apiIssuer ISSUERID
+```
+
+`ios/ExportOptions.plist` does not exist yet and has to name the real team ID,
+so it is written once enrollment completes rather than committed with a
+placeholder.
+
+**5. Screenshots.** Required per device class, and the iPad set has never been
+captured. 6.7" iPhone and 13" iPad are the two mandatory sizes; the simulator
+can produce both.
+
+**6. Replace the placeholder contact address.** `Docs/privacy-policy.md` still
+publishes `privacy@example.com`. App Review reads the privacy policy, and a
+policy with a non-functional address on it is a rejection. `Docs/PRIVACY.md`
+lists this as the first of its outstanding items.
+
+### Android
+
+`Docs/PORTING.md` holds the plan of record: the Flutter interface over
+`libVoxScriptaFFI.so`, with the Swift engine built by the Swift SDK for Android.
+No Android build exists yet, and the manifest deliberately declares **no
+permissions at all** — including no `INTERNET`. That stays until billing
+requires it, because an app that cannot reach the network is a privacy claim a
+user can verify from the Play listing without trusting us.
+
 ## Sandboxing
 
 The app currently ships **unsandboxed** with
