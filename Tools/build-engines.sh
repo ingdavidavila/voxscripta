@@ -120,6 +120,13 @@ common_flags() {
         echo "-DANDROID_ABI=$ABI"
         echo "-DANDROID_PLATFORM=android-26"
         echo "-DGGML_OPENMP=OFF"
+        # The NDK toolchain file restricts find_package to the Android sysroot,
+        # so whisper.cpp cannot see the ggml that llama.cpp just installed and
+        # configure fails with "Could not find a package configuration file
+        # provided by ggml". The iOS branch carries the same flag for the same
+        # reason. Found by building for Android x86_64 and arm64-v8a with
+        # NDK r30; with it both ABIs build.
+        echo "-DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH"
     fi
 }
 
