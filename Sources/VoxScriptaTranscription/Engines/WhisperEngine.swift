@@ -338,6 +338,75 @@ public actor WhisperEngine: TranscriptionEngine {
         }
     }
 
+    // MARK: - Language identification
+
+    /// Asks the model what language it is hearing.
+    ///
+    /// Whisper's weights include a language head: given a mel spectrogram it
+    /// produces a probability for each of the ~100 languages it was trained on,
+    /// from a single encoder pass with no decoding at all. That is both cheaper
+    /// than the alternative and a different kind of answer.
+    ///
+    /// The alternative was ``LanguageProbe``, which transcribes a sample in
+    /// each candidate language and compares how many words came out. It was
+    /// built because Apple's recogniser has no language identifier, and it was
+    /// measured across five cases on both engines: it chose a language zero
+    /// times out of ten, including on pure single-language audio, where Apple
+    /// scored English-over-Spanish at 1.06 against a required 3.0. Word counts
+    /// barely discriminate — Whisper returns about as many English-looking
+    /// words for Spanish audio as for English — so no threshold on that signal
+    /// was going to work.
+    ///
+    /// Only the shipping locales are reported. The model knows a hundred
+    /// languages and the app offers two, so answering about the other
+    /// ninety-eight would invite a caller to act on a language the rest of the
+    /// pipeline has no lexicons for — which §6's text stages would then apply
+    /// English rules to.
+    public func identifyLanguage(
+        _ range: SampleRange, in canonicalFile: URL
+    ) async throws -> [LanguageLikelihood] {
+        guard let context else {
+            throw VoxScriptaError.engineUnavailable(
+                identifier, reason: "identifyLanguage called before prepare")
+        }
+        let samples = try Self.readSamples(range, from: canonicalFile)
+        guard !samples.isEmpty else { return [] }
+
+        // The language head reads the mel, so it has to exist first. Whisper's
+        // own `whisper_full` computes it internally; here it is explicit.
+        guard samples.withUnsafeBufferPointer({ audio in
+            whisper_pcm_to_mel(context, audio.baseAddress, Int32(audio.count), threads)
+        }) == 0 else {
+            throw VoxScriptaError.transcriptionFailed(
+                chunk: ChunkID(), reason: "whisper_pcm_to_mel failed during language detection")
+        }
+
+        let slots = Int(whisper_lang_max_id()) + 1
+        var probabilities = [Float](repeating: 0, count: slots)
+        let top = probabilities.withUnsafeMutableBufferPointer { buffer in
+            whisper_lang_auto_detect(context, 0, threads, buffer.baseAddress)
+        }
+        guard top >= 0 else {
+            throw VoxScriptaError.transcriptionFailed(
+                chunk: ChunkID(), reason: "whisper_lang_auto_detect returned \(top)")
+        }
+
+        // Walked per shipping locale rather than per model language, so the
+        // mapping runs in the direction the project already has: locale to
+        // two-letter code. Locales sharing a code — en-US and en-GB — get the
+        // same probability, which is correct: Whisper identifies languages, not
+        // regions, and pretending otherwise would invent a distinction.
+        var found: [LanguageLikelihood] = []
+        for locale in ShippingLanguages.locales {
+            let code = Self.whisperLanguage(for: locale)
+            let id = whisper_lang_id(code)
+            guard id >= 0, Int(id) < slots else { continue }
+            found.append(LanguageLikelihood(locale: locale,
+                                            probability: Double(probabilities[Int(id)])))
+        }
+        return found.sorted { $0.probability > $1.probability }
+    }
+
     // MARK: - Reading the canonical file
 
     /// Reads one span of the canonical 16 kHz mono `Float32` file.

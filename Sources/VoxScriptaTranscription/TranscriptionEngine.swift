@@ -178,6 +178,27 @@ public protocol TranscriptionEngine: Sendable {
 
     /// Releases model resources. Called before the language phase loads its own.
     func release() async
+
+    /// See the default implementation below for what an empty answer means.
+    func identifyLanguage(_ range: SampleRange,
+                          in canonicalFile: URL) async throws -> [LanguageLikelihood]
+}
+
+/// How likely a language is, as the engine itself judges it.
+///
+/// Distinct from ``LanguageProbe/Score``, which counts words a transcription
+/// produced. This is a model's own answer rather than an inference from how
+/// much text came out, and the two are not comparable: a word count is
+/// evidence about a language, a probability is a claim about it.
+public struct LanguageLikelihood: Sendable, Hashable {
+    public let locale: String
+    /// The model's probability for this language, in `0...1`.
+    public let probability: Double
+
+    public init(locale: String, probability: Double) {
+        self.locale = locale
+        self.probability = probability
+    }
 }
 
 public extension TranscriptionEngine {
@@ -185,4 +206,17 @@ public extension TranscriptionEngine {
     /// nothing. An empty identity contributes nothing to the hash, which
     /// leaves those engines behaving exactly as they did.
     nonisolated var modelIdentity: String { "" }
+
+    /// What language the engine thinks this audio is in.
+    ///
+    /// Empty means the engine cannot tell — not that it is unsure — and the
+    /// caller should fall back to inferring it. Apple's recogniser has no
+    /// language identifier, so it returns empty and ``LanguageProbe`` probes
+    /// by transcribing instead; Whisper's weights carry a language head and
+    /// answer directly.
+    ///
+    /// Defaulted rather than required so that adding it broke no engine and no
+    /// test double.
+    func identifyLanguage(_ range: SampleRange,
+                          in canonicalFile: URL) async throws -> [LanguageLikelihood] { [] }
 }

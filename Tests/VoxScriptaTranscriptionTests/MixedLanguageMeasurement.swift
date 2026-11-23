@@ -84,6 +84,7 @@ struct MixedLanguageMeasurement {
 
         var undetermined: [String] = []
         var answers: [String: String] = [:]
+        var nativeAnswers: [String: [LanguageLikelihood]] = [:]
 
         for testCase in cases {
             let rendered: CorpusRunner.Rendered
@@ -104,6 +105,21 @@ struct MixedLanguageMeasurement {
                 options: .default,
                 makeEngine: makeEngine)
 
+            // The model's own answer, beside the probe's inference, on the
+            // identical sample — so the two are comparable rather than merely
+            // both present.
+            if engineName == "whisper", let sample {
+                let engine = WhisperEngine()
+                try await engine.prepare(locale: "en-US")
+                let native = try await engine.identifyLanguage(sample, in: rendered.canonical)
+                await engine.release()
+                let line = native.prefix(3).map {
+                    String(format: "%@ %.3f", $0.locale, $0.probability)
+                }.joined(separator: "  ")
+                nativeAnswers[testCase.name] = native
+                print("  native: \(line)")
+            }
+
             let sampleStart = sample.map {
                 Double($0.start) / Double(CanonicalFormat.sampleRate)
             } ?? -1
@@ -120,9 +136,10 @@ struct MixedLanguageMeasurement {
                 print(String(format: "  %@  %4d words  confidence %.2f  weighted %7.1f",
                              score.locale, score.words, score.confidence, score.weighted))
             }
-            print(String(format: "  margin %.2fx against a required %.1fx  →  %@",
+            print(String(format: "  margin %.2fx against a required %.1fx  →  %@  [%@]",
                          margin, LanguageProbe.decisiveMargin,
-                         outcome.locale ?? "UNDETERMINED (falls back to the user's setting)"))
+                         outcome.locale ?? "UNDETERMINED (falls back to the user's setting)",
+                         outcome.method.rawValue))
             print("  purpose: \(testCase.purpose)\n")
 
             answers[testCase.name] = outcome.locale ?? "undetermined"
@@ -144,6 +161,22 @@ struct MixedLanguageMeasurement {
             : "\ncontrols: NOT detected — the probe cannot identify even "
               + "single-language audio on \(engineName)")
         print("undetermined: \(undetermined.count) of \(answers.count)")
+
+        if !nativeAnswers.isEmpty {
+            print("\nthe model's own language head, same samples:")
+            for (name, scores) in nativeAnswers.sorted(by: { $0.key < $1.key }) {
+                let top = scores.first
+                let runnerUp = scores.first { $0.locale.prefix(2) != top?.locale.prefix(2) }
+                let ratio = (runnerUp?.probability ?? 0) > 0
+                    ? (top?.probability ?? 0) / (runnerUp?.probability ?? 1)
+                    : Double.infinity
+                print(String(format: "  %@ top %@ %.4f  next %@ %.4f  ratio %.0fx",
+                             name.padding(toLength: 20, withPad: " ", startingAt: 0),
+                             top?.locale ?? "-", top?.probability ?? 0,
+                             runnerUp?.locale ?? "-", runnerUp?.probability ?? 0,
+                             ratio))
+            }
+        }
         #expect(!answers.isEmpty, "nothing was measured")
     }
 }

@@ -720,7 +720,66 @@ of one encoder pass and no decoding at all. That is both cheaper than the
 current two transcriptions and a direct measurement rather than an inference
 from how many words came out. Whisper is now the default engine, so this is the
 path worth taking; Apple's engine has no equivalent and would keep the probe.
-Not yet implemented.
+Done — see the next section for what it measures.
+
+### Fixed, for Whisper: the model's own language head
+
+`whisper_lang_auto_detect` reads the language head from the mel spectrogram and
+returns a probability for every language the model knows, from one encoder pass
+with no decoding. `LanguageProbe` now asks the engine first and only falls back
+to transcribing when the engine cannot tell or is not sure enough.
+
+Measured on the same five cases and the same samples:
+
+| Case | probe margin | head probability | answer |
+|---|---|---|---|
+| `en_clean` | 1.86× | **0.9994** | en-US |
+| `es_clean` | 1.16× | **0.9987** | es-ES |
+| `mixed_es_dominant` | 1.13× | **0.9814** | es-ES |
+| `mixed_es_then_en` | 2.65× | 0.8546 | undetermined |
+| `mixed_en_then_es` | 1.25× | 0.8091 | undetermined |
+
+Three of five rather than none of five, and the two that remain undetermined
+are the two with no correct answer. The threshold is 0.90, set from the table
+rather than from taste: single-language audio clears it by nine percentage
+points, the field-report shape — two thirds Spanish with an English passage in
+the middle — clears it by eight, and a recording that changes language halfway
+misses it by five. That last case declining is the desired behaviour, not a
+shortfall: there is no single correct language for it, and the user's own
+setting beats a coin toss weighted by where the sample happened to land.
+
+The outcome now records *how* it was reached (`modelLanguageHead`,
+`transcriptionProbe`, `notAttempted`) and carries the probabilities, because a
+locale from a model's language head and one inferred from word counts are
+different kinds of claim and provenance should not flatten them.
+
+Two deliberate restrictions. Only the shipping locales are reported, because
+the model knows about a hundred languages and the app has text lexicons for
+two — answering "Portuguese" would invite a caller to act on a language whose
+cleaning and polish stages would then apply Spanish rules. And a confident
+answer in a language nobody asked about returns no answer rather than the
+nearest candidate.
+
+**Apple's engine is unchanged and still never detects.** It has no language
+identifier, so it keeps the probe, and the probe cannot work there: on pure
+English audio it scored en-US at 59.8 against es-ES at 56.7, because Apple
+transcribed English as Spanish with 0.93 confidence and produced the same 61
+words either way. No threshold on that signal helps. The honest position is
+that auto-detection works on Whisper and not on Apple, and that where Apple is
+the engine the user's own language setting is what is used.
+
+The path for Apple, if it is wanted, is not a better threshold either: it is to
+transcribe once in the user's locale and identify the language of the resulting
+*text* with `NLLanguageRecognizer`. That is one transcription rather than two
+and text-based identification is reliable, but it is a different mechanism and
+is not implemented.
+
+Per-chunk detection has also become affordable, which it was not before. At one
+encoder pass per chunk, a recording that changes language could be detected
+chunk by chunk rather than from a single sample at the midpoint — which is the
+real answer for the two cases that decline above. Not implemented, and worth
+noting that it would change what a transcript is: one with per-chunk languages
+is a different object from one with a language.
 
 ## 11. Security and privacy
 

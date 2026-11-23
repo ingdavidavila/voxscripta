@@ -41,16 +41,55 @@ public enum LanguageProbe {
         }
     }
 
+    /// How the answer was reached, recorded on the outcome.
+    ///
+    /// Provenance keeps this honest. A locale chosen from the model's own
+    /// language head and one inferred from word counts are different kinds of
+    /// claim, and a transcript's provenance should not flatten them.
+    public enum Method: String, Sendable, Codable {
+        /// The engine's own language identifier.
+        case modelLanguageHead
+        /// Transcribing a sample in each candidate and comparing word counts.
+        case transcriptionProbe
+        /// Fewer than two candidates, or too little speech to sample.
+        case notAttempted
+    }
+
+    /// How sure the model must be before its answer is taken.
+    ///
+    /// 0.90, set from measurement rather than taste. On the corpus the head
+    /// returns 0.999 for single-language audio — 0.9994 for English and 0.9987
+    /// for Spanish, against runner-ups of 0.0000 and 0.0006 — so a threshold
+    /// anywhere below 0.99 accepts those with room to spare.
+    ///
+    /// What 0.90 buys is the behaviour at the other end. A recording that is
+    /// two-thirds Spanish with an English passage in the middle scores 0.9814
+    /// and is accepted, which is the case that matters: it is the shape of the
+    /// field report that started this work, and the old probe declined it. A
+    /// recording that changes language halfway scores 0.81 to 0.85 and is
+    /// declined, which is right — there is no single correct language for it,
+    /// and the user's own setting is a better answer than a coin toss weighted
+    /// by where the sample happened to land.
+    public static let minimumLanguageProbability = 0.90
+
     public struct Outcome: Sendable {
         /// The chosen locale, or `nil` when no candidate was convincing.
         public let locale: String?
         /// Every candidate's score, for the provenance and for explaining the
-        /// choice to someone who disagrees with it.
+        /// choice to someone who disagrees with it. Empty when the model
+        /// answered directly and nothing was transcribed.
         public let scores: [Score]
+        public let method: Method
+        /// The model's own probabilities, when it had any.
+        public let likelihoods: [LanguageLikelihood]
 
-        public init(locale: String?, scores: [Score]) {
+        public init(locale: String?, scores: [Score],
+                    method: Method = .transcriptionProbe,
+                    likelihoods: [LanguageLikelihood] = []) {
             self.locale = locale
             self.scores = scores
+            self.method = method
+            self.likelihoods = likelihoods
         }
     }
 
@@ -97,7 +136,7 @@ public enum LanguageProbe {
     ) async -> Outcome {
         guard candidates.count > 1, let sample = sampleRange(from: speech, sampleRate: sampleRate)
         else {
-            return Outcome(locale: candidates.first, scores: [])
+            return Outcome(locale: candidates.first, scores: [], method: .notAttempted)
         }
 
         // One engine is built up front either way, and it is asked whether it
@@ -113,17 +152,48 @@ public enum LanguageProbe {
         // this function. At `ggml-small`'s 487 MB that is about a gigabyte of
         // weights loaded to answer a question that needs one copy.
         let first = makeEngine()
+
+        // Ask the model before inferring. Whisper's weights carry a language
+        // head that answers from one encoder pass with no decoding, which is
+        // both cheaper than the probe below — two full transcriptions of the
+        // sample — and a different kind of answer: a probability rather than a
+        // guess from how many words came out.
+        //
+        // Measured, which is why this is first rather than a fallback: the
+        // head returns 0.999 for single-language audio where the probe's
+        // margin on the same samples was 1.06 to 1.86 against a required 3.0,
+        // so the probe declined every case including pure English.
         let reusable = await first.capabilities().localeSelectedPerCall
 
+        // Prepared once, here, rather than inside both the identification
+        // below and the loop after it. The counting tests caught that: asking
+        // the language head and then probing prepared the same engine twice.
+        // Harmless for Whisper, whose `prepare` returns early when the context
+        // exists, and wasteful for anything whose does not — and a wasted
+        // model load is 487 MB with ggml-small.
+        var prepared = (try? await first.prepare(locale: candidates[0])) != nil
+
+        if prepared,
+           let native = try? await identify(sample, in: canonicalFile,
+                                            using: first, candidates: candidates),
+           native.locale != nil {
+            await first.release()
+            return native
+        }
+
         var scores: [Score] = []
-        var prepared = false
 
         for (index, locale) in candidates.enumerated() {
             let engine: any TranscriptionEngine
             if reusable {
                 engine = first
+            } else if index == 0 {
+                // The first candidate uses the engine prepared above, for the
+                // locale it was prepared with. Clearing `prepared` here as
+                // well would prepare it a second time.
+                engine = first
             } else {
-                engine = index == 0 ? first : makeEngine()
+                engine = makeEngine()
                 prepared = false
             }
 
@@ -158,6 +228,42 @@ public enum LanguageProbe {
 
         if reusable { await first.release() }
         return Outcome(locale: decide(scores), scores: scores)
+    }
+
+    /// Asks the engine's own language identifier, if it has one.
+    ///
+    /// Returns an outcome whose `locale` is `nil` when the engine cannot tell
+    /// or is not sure enough, so the caller falls through to probing.
+    ///
+    /// The answer is narrowed to the candidates the caller offered. The model
+    /// names languages and the project uses locales, so a top answer of
+    /// Spanish selects whichever Spanish locale was asked about — Whisper does
+    /// not distinguish es-ES from es-MX and should not be made to appear to.
+    /// - Parameter engine: already prepared. Which locale it was prepared for
+    ///   does not matter: the language head is a property of the model, not of
+    ///   the locale.
+    static func identify(
+        _ sample: SampleRange,
+        in canonicalFile: URL,
+        using engine: any TranscriptionEngine,
+        candidates: [String]
+    ) async throws -> Outcome {
+        let likelihoods = try await engine.identifyLanguage(sample, in: canonicalFile)
+        guard let top = likelihoods.first else {
+            return Outcome(locale: nil, scores: [], method: .transcriptionProbe)
+        }
+        guard top.probability >= minimumLanguageProbability else {
+            return Outcome(locale: nil, scores: [], method: .modelLanguageHead,
+                           likelihoods: likelihoods)
+        }
+        let language = top.locale.split(separator: "-").first.map(String.init)?.lowercased()
+        let chosen = candidates.first {
+            $0.split(separator: "-").first.map(String.init)?.lowercased() == language
+        }
+        // A confident answer in a language nobody asked about is not an answer
+        // to the question, so it falls through rather than being forced.
+        return Outcome(locale: chosen, scores: [], method: .modelLanguageHead,
+                       likelihoods: likelihoods)
     }
 
     /// Picks a winner, or `nil` when the scores do not justify one.
