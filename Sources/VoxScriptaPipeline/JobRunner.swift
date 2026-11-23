@@ -1,4 +1,12 @@
 import Foundation
+#if canImport(Android)
+// For `kill`, `getpid`, `SIGKILL` and `pause` in the crash simulator below,
+// which are C library symbols rather than Foundation ones. Same reason as
+// AtomicFile: Foundation re-exports Glibc on Linux and nothing equivalent on
+// Android. Added on the audit rather than on a compiler error, so if this
+// target already built for Android the import is simply harmless.
+import Android
+#endif
 import VoxScriptaCore
 import VoxScriptaDSP
 import VoxScriptaTranscription

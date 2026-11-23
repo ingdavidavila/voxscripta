@@ -1,4 +1,12 @@
 import Foundation
+#if canImport(Android)
+// Bionic is its own Swift module. On Linux, Foundation re-exports Glibc so
+// `rename`, `errno`, `open`, `close` and `fsync` come for free; on Android it
+// re-exports nothing of the kind, so the POSIX branches below compile and then
+// fail to find their symbols. The Android session hit exactly that on the
+// branches this file enables for Android.
+import Android
+#endif
 import VoxScriptaCore
 
 /// Durable, all-or-nothing file writes.
