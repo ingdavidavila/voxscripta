@@ -142,7 +142,13 @@ public actor WhisperEngine: TranscriptionEngine {
             // One instance cannot serve two calls at once: whisper_full is
             // synchronous and holds the actor for the whole inference.
             supportsConcurrentCalls: false,
-            recommendedConcurrency: Self.recommendedWorkers
+            recommendedConcurrency: Self.recommendedWorkers,
+            // The language is applied from `options.locale` inside
+            // `transcribe`; `prepare` only validates the locale and loads the
+            // weights. So one context serves every language the model knows,
+            // which is what lets the language probe hold one engine instead of
+            // loading 487 MB of `ggml-small` once per candidate.
+            localeSelectedPerCall: true
         )
     }
 

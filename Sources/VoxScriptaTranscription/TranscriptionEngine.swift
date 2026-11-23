@@ -24,6 +24,13 @@ public struct EngineCapabilities: Hashable, Sendable {
     /// with no suspension inside it, so an actor method holds the actor for
     /// the entire inference. Several tasks against one instance do not run in
     /// parallel — they queue. Parallelism there needs an instance each.
+    /// Whether one prepared engine can serve several locales.
+    ///
+    /// True when the locale is chosen per `transcribe` call, so a caller that
+    /// needs more than one language — the language probe — can hold one engine
+    /// instead of one per language. False is the safe answer and the default:
+    /// an engine built around a locale must be rebuilt to change it.
+    public let localeSelectedPerCall: Bool
     public let supportsConcurrentCalls: Bool
 
     /// How many calls this engine should have in flight, measured rather than
@@ -36,8 +43,10 @@ public struct EngineCapabilities: Hashable, Sendable {
         supportedLocales: Set<String>,
         maximumChunkDuration: MediaTime? = nil,
         supportsConcurrentCalls: Bool = true,
-        recommendedConcurrency: Int = 4
+        recommendedConcurrency: Int = 4,
+        localeSelectedPerCall: Bool = false
     ) {
+        self.localeSelectedPerCall = localeSelectedPerCall
         self.supportsConcurrentCalls = supportsConcurrentCalls
         self.recommendedConcurrency = Swift.max(1, recommendedConcurrency)
         self.supportsWordTimestamps = supportsWordTimestamps

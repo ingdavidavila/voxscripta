@@ -76,9 +76,13 @@ public enum LanguageProbe {
     /// - Parameters:
     ///   - candidates: Locales to try, one per language. Probing nine English
     ///     variants would cost nine times as much to learn the same thing.
-    ///   - makeEngine: A fresh engine per candidate, because `prepare(locale:)`
-    ///     is stateful and switching locales mid-engine is not part of the
-    ///     protocol.
+    ///   - makeEngine: Builds an engine. Called once when the engine reports
+    ///     `localeSelectedPerCall`, and once per candidate when it does not.
+    ///     The old contract here was a fresh engine per candidate on the
+    ///     reasoning that `prepare(locale:)` is stateful — true of Apple's
+    ///     engine and not of Whisper, where the locale is an argument to
+    ///     `transcribe`. Asking the engine is cheaper than assuming the
+    ///     stricter case for both.
     /// - Returns: The decision and every score behind it. A candidate that
     ///   throws — an uninstalled model, an unsupported locale — scores zero
     ///   rather than failing the probe, since the point is to find one that
@@ -96,9 +100,33 @@ public enum LanguageProbe {
             return Outcome(locale: candidates.first, scores: [])
         }
 
+        // One engine is built up front either way, and it is asked whether it
+        // can be reused across locales. Whisper can: its language comes from
+        // `options.locale` on each `transcribe` call, and `prepare` only
+        // validates and loads weights. Apple's cannot, because its transcriber
+        // is built around a locale.
+        //
+        // This matters more than it reads. Probing used to build a fresh engine
+        // per candidate, which loads the model once per language — the Android
+        // session saw the Whisper model loaded three times inside a single
+        // ten-second job and could not account for it. Two of those three were
+        // this function. At `ggml-small`'s 487 MB that is about a gigabyte of
+        // weights loaded to answer a question that needs one copy.
+        let first = makeEngine()
+        let reusable = await first.capabilities().localeSelectedPerCall
+
         var scores: [Score] = []
-        for locale in candidates {
-            let engine = makeEngine()
+        var prepared = false
+
+        for (index, locale) in candidates.enumerated() {
+            let engine: any TranscriptionEngine
+            if reusable {
+                engine = first
+            } else {
+                engine = index == 0 ? first : makeEngine()
+                prepared = false
+            }
+
             var probeOptions = options
             probeOptions.locale = locale
             // One chunk, so concurrency is irrelevant and a lower value keeps
@@ -108,7 +136,10 @@ public enum LanguageProbe {
             var words = 0
             var confidence = 0.0
             do {
-                try await engine.prepare(locale: locale)
+                if !prepared {
+                    try await engine.prepare(locale: locale)
+                    prepared = true
+                }
                 let segments = try await engine.transcribe(sample, in: canonicalFile,
                                                            options: probeOptions)
                 let text = segments.map(\.text).joined(separator: " ")
@@ -121,10 +152,11 @@ public enum LanguageProbe {
                 words = 0
                 confidence = 0
             }
-            await engine.release()
+            if !reusable { await engine.release() }
             scores.append(Score(locale: locale, words: words, confidence: confidence))
         }
 
+        if reusable { await first.release() }
         return Outcome(locale: decide(scores), scores: scores)
     }
 
