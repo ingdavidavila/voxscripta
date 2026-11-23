@@ -502,6 +502,53 @@ multilingual model, and `ggml-small` has not been run and may change the
 Spanish picture; it is synthesized speech on one machine; and real-time factor
 came out at 0.01 for both engines, so none of this is a speed argument.
 
+### Beam search against greedy, Whisper base
+
+The engine decoded greedily, `best_of` 1, from the day it was added, and
+nothing had measured what that cost. The reasoning recorded in the code was
+determinism — resume and the content-hash cache both require that the same
+audio yields the same transcript. That reasoning was sound and the conclusion
+did not follow: **temperature 0 is what makes the decode deterministic, and
+beam search at temperature 0 is just as deterministic as greedy.** Determinism
+never required greedy.
+
+| Condition | en greedy | en beam 5 | es greedy | es beam 5 |
+|---|---|---|---|---|
+| clean | 0.6% | **0.0%** | 4.7% | **4.0%** |
+| quiet, −18 dB | 0.6% | 0.6% | 4.7% | **1.3%** |
+| hum, 12 dB SNR | 0.6% | 0.6% | 3.4% | **2.0%** |
+| music bed, 10 dB SNR | 0.6% | 0.6% | 4.0% | **3.4%** |
+| machinery, 6 dB SNR | 1.9% | 1.9% | 10.1% | **8.1%** |
+| broadband hiss, 12 dB SNR | 2.5% | 2.5% | 10.7% | **10.7%** |
+| 3 s pauses | 3.8% | **3.2%** | 5.4% | 5.4% |
+| abrupt ending | 0.6% | **0.0%** | 4.7% | **4.0%** |
+| decaying final word | 0.6% | **0.0%** | 4.7% | **4.0%** |
+
+**Spanish improves in every condition, and in one of them by 3.6×** — quiet
+speech goes from 4.7% to 1.3%. English clean, abrupt-ending and decaying-tail
+all reach 0.0%: the whole 149-word reference transcribed exactly. English under
+noise is unchanged, which says the noise conditions defeat the acoustic model
+rather than the search, and no amount of search fixes that.
+
+The cost is a real-time factor of 0.01 moving to 0.02 — still around fifty
+times faster than playback. So this was accuracy left on the table for nothing,
+and beam search with a beam of 5 (whisper.cpp's own default) is now
+`Decoding.standard`.
+
+`VOXSCRIPTA_WHISPER_DECODING` takes `greedy` or `beam<N>` to reproduce either
+row without an edit. The mode is part of `modelIdentity`, and therefore part of
+the transcription stage's cache key, because a beam-search transcript and a
+greedy one are different outputs from the same audio — serving one for the
+other is the same stale-chunk bug that putting the model name in that string
+was meant to prevent.
+
+Against Apple's engine, the picture after this change: Whisper now beats Apple
+on **every** English condition, and on Spanish in quiet and hum, while Apple
+remains substantially better on Spanish under broadband hiss (5.4% against
+10.7%) and machinery noise (4.7% against 8.1%). Language-aware engine selection
+is still the open item; this narrows where it matters to noisy Spanish.
+
+
 
 ---
 

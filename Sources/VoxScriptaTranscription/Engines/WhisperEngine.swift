@@ -41,12 +41,53 @@ public actor WhisperEngine: TranscriptionEngine {
             .attributesOfItem(atPath: modelURL.path)[.size] as? Int64 else {
             return "\(name)|absent"
         }
-        return "\(name)|\(size)"
+        // The decoding mode belongs in the identity because the identity is
+        // the transcription stage's cache key. A beam-search transcript and a
+        // greedy one are different outputs from the same audio, and serving
+        // one for the other is the stale-chunk bug the model name was added to
+        // this string to prevent.
+        return "\(name)|\(size)|\(decoding.slug)"
+    }
+
+    /// How the decoder searches.
+    ///
+    /// Whisper has been run here on the cheapest setting available since the
+    /// engine was added — greedy, `best_of` 1 — and nothing had measured what
+    /// that costs. Greedy takes the highest-probability token at every step and
+    /// never reconsiders; beam search keeps several candidate sequences alive
+    /// and picks the best complete one, which recovers exactly the case where a
+    /// locally attractive token leads somewhere worse.
+    ///
+    /// Both are deterministic at temperature 0, which is the property that
+    /// matters here: resume and the content-hash cache both require that the
+    /// same audio produces the same transcript. Determinism never required
+    /// greedy — that was a conflation, and it cost accuracy for nothing.
+    public enum Decoding: Sendable, Hashable {
+        case greedy
+        /// Keeps `size` candidate sequences. whisper.cpp's own default is 5.
+        case beamSearch(size: Int32)
+
+        /// Beam search, because the project optimizes for accuracy.
+        ///
+        /// At the measured real-time factor of 0.01 there is roughly a
+        /// hundredfold headroom over playback speed, so spending some of it on
+        /// search quality is close to free in anything a person would notice.
+        public static let standard = Decoding.beamSearch(size: 5)
+
+        /// Part of the cache key, so a transcript decoded one way is never
+        /// served for a request decoded the other.
+        public var slug: String {
+            switch self {
+            case .greedy: "greedy"
+            case .beamSearch(let size): "beam\(size)"
+            }
+        }
     }
 
     private var context: OpaquePointer?
     private let modelURL: URL
     private let threads: Int32
+    private let decoding: Decoding
 
     /// - Parameters:
     ///   - modelURL: A ggml model file. Resolved by ``defaultModelURL()`` when
@@ -54,10 +95,29 @@ public actor WhisperEngine: TranscriptionEngine {
     ///   - threads: CPU threads for decoding. Defaults to the physical core
     ///     count, which is what whisper.cpp's own tools use; more threads than
     ///     cores makes it slower, not faster.
-    public init(modelURL: URL? = nil, threads: Int? = nil) {
+    ///   - decoding: How the decoder searches. Defaults to
+    ///     ``Decoding/standard``, which is beam search, overridable from the
+    ///     environment so a benchmark can compare the two without an edit.
+    public init(modelURL: URL? = nil, threads: Int? = nil, decoding: Decoding? = nil) {
         self.modelURL = modelURL ?? Self.defaultModelURL()
         let cores = ProcessInfo.processInfo.activeProcessorCount
         self.threads = Int32(max(1, threads ?? max(1, cores / 2)))
+        self.decoding = decoding ?? Self.decodingFromEnvironment()
+    }
+
+    /// `VOXSCRIPTA_WHISPER_DECODING` as `greedy` or `beam<N>`.
+    ///
+    /// An unrecognized value falls back to the standard setting rather than
+    /// throwing: this is a benchmarking convenience, and a typo should not stop
+    /// someone transcribing.
+    static func decodingFromEnvironment() -> Decoding {
+        guard let raw = ProcessInfo.processInfo.environment["VOXSCRIPTA_WHISPER_DECODING"],
+              !raw.isEmpty else { return .standard }
+        if raw == "greedy" { return .greedy }
+        if raw.hasPrefix("beam"), let size = Int32(raw.dropFirst(4)), size > 0 {
+            return .beamSearch(size: size)
+        }
+        return .standard
     }
 
     /// Where a model is looked for when the caller does not name one.
@@ -177,12 +237,26 @@ public actor WhisperEngine: TranscriptionEngine {
         let samples = try Self.readSamples(range, from: canonicalFile)
         guard !samples.isEmpty else { return [] }
 
-        var params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY)
-        // Deterministic, because a transcript that changes between runs cannot
-        // be compared against a reference or resumed from a content hash.
+        var params: whisper_full_params
+        switch decoding {
+        case .greedy:
+            params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY)
+            params.greedy.best_of = 1
+        case .beamSearch(let size):
+            params = whisper_full_default_params(WHISPER_SAMPLING_BEAM_SEARCH)
+            params.beam_search.beam_size = size
+            // `best_of` is read by the beam decoder too, and leaving it at 1
+            // while asking for a beam of five is a contradiction that whisper
+            // resolves in the direction of doing less work.
+            params.greedy.best_of = size
+        }
+        // Temperature stays at zero in both modes, because resume and the
+        // content-hash cache require the same audio to produce the same
+        // transcript. Zero temperature is what makes it deterministic; the
+        // search strategy above does not affect that, which is why beam search
+        // is available at all.
         params.temperature = 0
         params.temperature_inc = 0
-        params.greedy.best_of = 1
         params.n_threads = threads
         params.token_timestamps = true
         // Whisper can translate to English. Vox Scripta does not: a
