@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:voxscripta_engine/voxscripta_engine.dart';
 
+import 'src/app_directories.dart';
 import 'src/auth/account_section.dart';
 import 'src/auth/auth_backend.dart';
 import 'src/auth/auth_gate.dart';
@@ -58,7 +59,25 @@ class _VoxScriptaAppState extends State<VoxScriptaApp> {
   void initState() {
     super.initState();
     _host.addListener(_onHostChanged);
-    _host.open();
+    if (AppDirectories.isRequired) {
+      _openWithHostDirectories();
+    } else {
+      _host.open();
+    }
+  }
+
+  /// Android has no home directory, so the host is asked where the app may
+  /// write before the engine is opened, and the engine is given that. Asking
+  /// is asynchronous; every other platform opens immediately, as before.
+  Future<void> _openWithHostDirectories() async {
+    try {
+      final directories = await AppDirectories.load();
+      if (!mounted) return;
+      _host.open(dataDirectory: directories?.files);
+    } on AppDirectoriesException catch (error) {
+      if (!mounted) return;
+      _host.reportFailure(error.message);
+    }
   }
 
   /// Starts watching the trial as soon as there is an engine to ask.

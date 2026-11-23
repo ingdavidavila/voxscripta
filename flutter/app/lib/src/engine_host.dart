@@ -21,14 +21,35 @@ class EngineHost extends ChangeNotifier {
 
   bool get isReady => _engine != null;
 
-  void open() {
+  /// [dataDirectory] is where the engine may write. Required on Android, where
+  /// there is no home directory to derive one from; the other platforms leave it
+  /// null and the engine uses the per-user directory it resolves itself.
+  void open({String? dataDirectory}) {
     try {
-      _engine = VoxScriptaEngine.open(libraryPath: _locateLibrary());
+      _engine = VoxScriptaEngine.open(
+        libraryPath: _locateLibrary(),
+        dataDirectory: dataDirectory,
+      );
       _failure = null;
     } on VoxScriptaException catch (error) {
       _engine = null;
       _failure = error.message;
+    } on ArgumentError catch (error) {
+      // dart:ffi reports a symbol the library does not export as an
+      // ArgumentError. That is a library older than this interface, and the
+      // useful thing is to say so rather than leave an unhandled exception and
+      // a screen that claims no reason.
+      _engine = null;
+      _failure = 'The engine library does not match this app: ${error.message}';
     }
+    notifyListeners();
+  }
+
+  /// Records that the engine could not be opened for a reason found before
+  /// trying, so the screen says why instead of showing an empty library.
+  void reportFailure(String message) {
+    _engine = null;
+    _failure = message;
     notifyListeners();
   }
 
