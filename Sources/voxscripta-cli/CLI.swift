@@ -35,6 +35,7 @@ struct CLI {
             case "transcribe": try await runTranscribe(args)
             case "bench":     try await runBench(args)
             case "wer":       try runWER(args)
+            case "accuracy":  try await runAccuracy(args)
             case "run":       try await runProject(args)
             case "export":    try runExport(args)
             case "render-audio": try await runRenderAudio(args)
@@ -281,6 +282,100 @@ struct CLI {
             if !gaps.isEmpty { log("  gaps       \(gaps.count) chunk(s) could not be transcribed") }
             log("  total      \(String(format: "%.1fs", result.totalSeconds))")
         }
+    }
+
+    /// Transcribes a recording and compares it word by word to a known script.
+    ///
+    /// The point of this command is the word-by-word list rather than the
+    /// rate. Every other accuracy figure in this project comes from
+    /// synthesized speech, where the speaker reads the script exactly and any
+    /// difference is the recogniser's. A person misreads, hesitates, and says
+    /// "the" where the page says "a" — so a rate alone cannot be acted on,
+    /// because it mixes two causes with different remedies. The list can:
+    /// "quarter → courter" is the engine, "a → the" is the reader.
+    static func runAccuracy(_ args: [String]) async throws {
+        let opts = Options(args)
+        guard opts.positional.count == 2 else {
+            throw VoxScriptaError.ioFailure(
+                path: "<args>",
+                reason: "usage: voxscripta-cli accuracy <recording> <reference.txt> "
+                      + "[--locale es-ES] [--json]")
+        }
+        let audio = URL(filePath: opts.positional[0])
+        let referenceURL = URL(filePath: opts.positional[1])
+        let reference = try String(contentsOf: referenceURL, encoding: .utf8)
+        let locale = opts.value("locale") ?? "en-US"
+        let language = TranscriptLanguage(localeIdentifier: locale) ?? .english
+        let json = opts.flag("json")
+
+        let result = try await runPipeline(url: audio, opts: opts, quiet: json)
+        let hypothesis = result.transcript.plainText()
+
+        let wer = WordErrorRate.measure(reference: reference, hypothesis: hypothesis,
+                                        language: language)
+        let cer = CharacterErrorRate.measure(reference: reference, hypothesis: hypothesis,
+                                             language: language)
+        let operations = Alignment.align(reference: reference, hypothesis: hypothesis,
+                                         language: language)
+
+        if json {
+            struct Report: Encodable {
+                let locale: String
+                let audioSeconds: Double
+                let wallSeconds: Double
+                let wer: WERResult
+                let cer: CERResult
+                let differences: [String]
+                let hypothesis: String
+            }
+            let report = Report(
+                locale: locale, audioSeconds: result.duration.seconds,
+                wallSeconds: result.totalSeconds, wer: wer, cer: cer,
+                differences: Alignment.differences(operations).map { "\($0.kind): \($0.text)" },
+                hypothesis: hypothesis)
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            print(String(decoding: try encoder.encode(report), as: UTF8.self))
+            return
+        }
+
+        print("")
+        print("REAL SPEECH · \(audio.lastPathComponent) · \(locale)")
+        // `duration` is the recording; `totalSeconds` is how long the
+        // pipeline took. Reporting the second as the first made a 122-second
+        // file read as 1.8 seconds of audio.
+        print(String(format: "  %.1fs of audio, %d reference words, transcribed in %.1fs",
+                     result.duration.seconds, wer.referenceWords, result.totalSeconds))
+        print("")
+        print(String(format: "  word error rate      %5.2f%%   (S%d D%d I%d)",
+                     wer.rate * 100, wer.substitutions, wer.deletions, wer.insertions))
+        print(String(format: "  character error rate %5.2f%%",
+                     cer.rate * 100))
+        // The gap between the two is diagnostic, and saying so beats expecting
+        // the reader to remember: a high word rate with a low character rate
+        // is spelling, the reverse is hearing.
+        if wer.rate > 0, cer.rate > 0 {
+            let ratio = wer.rate / cer.rate
+            print(String(format: "  ratio %.1f×  — %@", ratio,
+                         ratio > 4 ? "near-misses: mostly spelling and word boundaries"
+                                   : "whole words wrong: mostly mishearing"))
+        }
+
+        let differences = Alignment.differences(operations)
+        print("")
+        if differences.isEmpty {
+            print("  no differences at all.")
+        } else {
+            print("  every difference, in order. A misreading looks like a")
+            print("  plausible other word; a mishearing usually does not:")
+            print("")
+            for difference in differences {
+                print("    \(difference.kind.prefix(3))  \(difference.text)")
+            }
+        }
+        print("")
+        print("  Compare against Docs/ARCHITECTURE.md, which reports 1.3% English")
+        print("  and 0.7% Spanish on these same passages read by a synthesizer.")
     }
 
     /// Runs the pipeline repeatedly across concurrency settings and reports timings.
@@ -765,6 +860,8 @@ struct CLI {
           transcribe   Run the full pipeline to a merged transcript
           bench        Run the pipeline and emit a JSON measurement report
           wer          Compare a transcript against a known reference
+          accuracy     Transcribe a recording and compare it word by word to a
+                       script, for measuring real speech rather than synthesized
           run          Create or resume a persistent project and transcribe it
           clean        Reclaim a finished project's intermediate files
           export       Write a finished project's transcripts to files

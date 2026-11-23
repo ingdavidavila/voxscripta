@@ -30,8 +30,15 @@ struct CorpusGen {
               corpus-gen <output-directory> --speech <minutes> [--disfluent]
                                               [--language en-US|es-ES]
 
+              corpus-gen <output-directory> --reading-script
+                                              [--language en-US|es-ES]
+
             A fixture over five minutes plans several chunks, so it exercises
             the merge seams that short fixtures cannot reach.
+
+            --reading-script writes a passage for a person to read aloud, and
+            the exact reference text to measure the recording against. Every
+            other figure in this project comes from synthesized speech.
 
             Emits, for each case, an audio file plus a JSON sidecar holding the exact
             transcript and the exact silence boundaries used to build it.
@@ -41,7 +48,15 @@ struct CorpusGen {
 
         let opts = Array(args.dropFirst())
         do {
-            if let index = opts.firstIndex(of: "--speech") {
+            if opts.contains("--reading-script") {
+                // No synthesizer needed: this writes text for a person to
+                // read, so it works on every platform.
+                var language = "en-US"
+                if let at = opts.firstIndex(of: "--language"), at + 1 < opts.count {
+                    language = opts[at + 1]
+                }
+                try generateReadingScript(into: URL(filePath: outPath), language: language)
+            } else if let index = opts.firstIndex(of: "--speech") {
                 #if canImport(AVFoundation)
                 let minutes = index + 1 < opts.count ? Double(opts[index + 1]) ?? 1 : 1
                 var language = "en-US"
@@ -188,6 +203,91 @@ struct CorpusGen {
         print("  \(referenceURL.lastPathComponent) holds the exact spoken text.")
     }
     #endif
+
+    /// Writes a passage for a person to read aloud, plus the exact reference.
+    ///
+    /// Every accuracy figure in this project comes from synthesized speech,
+    /// which is clean, evenly paced, free of accent and free of the small
+    /// disfluencies real speaking has. Those figures are honest regression
+    /// guards and they are not an estimate of how the app performs for a
+    /// person. This is how to get one.
+    ///
+    /// The passages are deliberately the *same* ones the synthetic corpus
+    /// uses. Reading a different text would give a number that could only be
+    /// compared with itself; reading this one makes real speech directly
+    /// comparable to the 1.3% English and 0.7% Spanish the synthetic corpus
+    /// reports on identical words — so the difference between the two figures
+    /// is the difference between a synthesizer and a person, which is the
+    /// quantity actually wanted.
+    static func generateReadingScript(into directory: URL, language: String) throws {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+
+        let spanish = language.hasPrefix("es")
+        let passages = spanish
+            ? SpeechCorpus.acousticSpanish + SpeechCorpus.spanish
+            : SpeechCorpus.acoustic + SpeechCorpus.standard
+
+        let reference = SpeechCorpus.referenceText(for: passages)
+        let referenceURL = directory.appending(path: "reading.reference.txt")
+        try reference.write(to: referenceURL, atomically: true, encoding: .utf8)
+
+        var script = spanish ? """
+        GUION DE LECTURA — Vox Scripta
+        ==============================
+
+        Lee las frases siguientes en voz alta, con naturalidad y a tu ritmo
+        normal. No hace falta leer perfectamente: si te equivocas, sigue
+        adelante sin repetir. La comparación muestra cada diferencia palabra
+        por palabra, así que una lectura equivocada se distingue de un error
+        de reconocimiento.
+
+
+        """ : """
+        READING SCRIPT — Vox Scripta
+        ============================
+
+        Read the sentences below aloud, naturally and at your normal pace.
+        It does not need to be perfect: if you misread, carry on rather than
+        repeating. The comparison lists every difference word by word, so a
+        misreading can be told apart from a mishearing.
+
+
+        """
+
+        for (index, passage) in passages.enumerated() {
+            script += "\(index + 1).  \(passage.text)\n\n"
+        }
+
+        let words = TextTokenizer.tokens(reference).count
+        script += spanish ? """
+        ------------------------------------------------------------------
+        \(passages.count) frases, \(words) palabras. Unos dos o tres minutos.
+
+        Cuando termines:
+          voxscripta-cli accuracy <tu-grabación> \(referenceURL.lastPathComponent) --locale es-ES
+        """ : """
+        ------------------------------------------------------------------
+        \(passages.count) sentences, \(words) words. Two to three minutes.
+
+        When you are done:
+          voxscripta-cli accuracy <your-recording> \(referenceURL.lastPathComponent)
+        """
+
+        let scriptURL = directory.appending(path: "reading-script.txt")
+        try (script + "\n").write(to: scriptURL, atomically: true, encoding: .utf8)
+
+        print("Reading script for \(language):")
+        print("  \(scriptURL.path)")
+        print("    \(passages.count) passages, \(words) reference words — read this one aloud")
+        print("  \(referenceURL.path)")
+        print("    the exact words, for `voxscripta-cli accuracy`")
+        print("""
+
+          These are the same passages the synthetic corpus uses, so the result
+          is directly comparable to the figures in Docs/ARCHITECTURE.md rather
+          than only to itself.
+        """)
+    }
 
     /// The sidecar written next to each rendered case.
     struct GroundTruth: Encodable {
