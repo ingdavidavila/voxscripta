@@ -444,11 +444,64 @@ gap between them is diagnostic: a high word rate with a low character rate is an
 orthography problem, the reverse is a hearing problem. On clean English the two
 are 1.3% and 0.8%; under hiss they move together to 3.8% and 2.0%.
 
-Still unmeasured, and listed so the gaps are not mistaken for passes: Whisper
-has never been run through this corpus (every figure above is Apple's engine);
-merge cost is now *measurable* as the difference between transcribing a long
-recording whole and in chunks, but has not been run; and the mixed-language
-cases are composed but their behaviour is not yet recorded.
+Still unmeasured, and listed so the gaps are not mistaken for passes: merge
+cost is now *measurable* as the difference between transcribing a long recording
+whole and in chunks, but has not been run; the mixed-language cases are composed
+but their behaviour is not yet recorded; and `ggml-small` has not been compared
+against `ggml-base`.
+
+### Whisper base against Apple, same corpus
+
+Same machine, same renderer, same conditions, so the two are comparable.
+Reproduce with `VOXSCRIPTA_CORPUS=1 swift test --filter
+CorpusMeasurementRun/whisperEveryCondition`.
+
+| Condition | Apple en | Whisper en | Apple es | Whisper es |
+|---|---|---|---|---|
+| clean | 1.3% | **0.6%** | 2.7% | 4.7% |
+| quiet, −18 dB | 1.3% | 0.6% | 2.0% | 4.7% |
+| hum, 12 dB SNR | 1.3% | 0.6% | 2.7% | 3.4% |
+| music bed, 10 dB SNR | 1.3% | 0.6% | 2.0% | 4.0% |
+| machinery, 6 dB SNR | 1.9% | 1.9% | 4.7% | **10.1%** |
+| broadband hiss, 12 dB SNR | 3.8% | **2.5%** | 5.4% | **12.8%** |
+| 3 s pauses | 5.1% | **3.8%** | 2.0% | 5.4% |
+| abrupt ending | 1.3% | 0.6% | 2.7% | 4.7% |
+| decaying final word | 1.3% | 0.6% | 2.7% | 4.7% |
+
+**The better engine depends on the language, and nothing in the app knows
+that.** Whisper base halves Apple's English error on clean audio and beats it
+under hiss and under pauses as well. On Spanish it is about 1.7× worse clean,
+and the gap widens hard under noise — 12.8% against 5.4% under hiss, 10.1%
+against 4.7% under machinery. Engine selection is compile-time today
+(`JobRunner` prefers Apple's where it exists), so a Spanish speaker on a
+platform that falls to Whisper gets more than twice the error, and nothing
+measures or surfaces it. This is the concrete case for making selection
+language-aware, which §9's `EngineCapabilities` gap otherwise describes only in
+the abstract.
+
+**Whisper's Spanish falls off faster, not just from lower down**: 2.7× its own
+clean rate under hiss, against Apple's 2×. That matters because the platforms
+Whisper exists to serve — Windows, Linux, Android — are precisely the ones with
+no Apple engine to fall back to.
+
+**Long pauses produce insertions in both engines**, which is the more
+interesting half of that row. Apple is a streaming recogniser, so its
+insertions are plausibly premature finalization. Whisper is a batch engine and
+cannot finalize prematurely, yet it also inserts — two insertions, no
+deletions. Two unrelated mechanisms producing the same failure on the same
+input means the pause problem is not one engine's design artefact. Pauses are
+what the chunk planner cuts on.
+
+**The accented Spanish verbs fail in both engines, worse in Whisper.**
+`preguntó`, `escuchó`, `oscurezca` and `notó` are lost in most Whisper rows,
+all final-stress forms carrying a written accent; Apple loses `preguntó` and
+`escuchó` too. A consistent, nameable weakness rather than scattered error.
+
+Three caveats so the table is not over-read: this is `ggml-base`, the smallest
+multilingual model, and `ggml-small` has not been run and may change the
+Spanish picture; it is synthesized speech on one machine; and real-time factor
+came out at 0.01 for both engines, so none of this is a speed argument.
+
 
 ---
 
