@@ -32,6 +32,7 @@ class RecordingProgress {
     required this.elapsed,
     required this.level,
     this.failure,
+    this.inputIsSilent = false,
   });
 
   final RecordingState state;
@@ -44,11 +45,20 @@ class RecordingProgress {
   /// far is still good, which is why this is a report rather than a state.
   final String? failure;
 
+  /// True when capture is running and the device has delivered nothing but
+  /// zeroes since it started, for long enough to be worth saying. An
+  /// observation and not a diagnosis: the recording is kept and continues,
+  /// because a muted interface about to be unmuted reads identically from here.
+  /// The engine retires the check on the first nonzero sample, so it never
+  /// reports a pause or a recording that started well and went quiet.
+  final bool inputIsSilent;
+
   bool sameAs(RecordingProgress other) =>
       state == other.state &&
       elapsed.inMilliseconds == other.elapsed.inMilliseconds &&
       (level - other.level).abs() < 0.004 &&
-      failure == other.failure;
+      failure == other.failure &&
+      inputIsSilent == other.inputIsSilent;
 }
 
 /// What a finished recording produced.
@@ -104,6 +114,7 @@ class Recording {
           microseconds: (_bindings.recordingElapsed(handle) * 1e6).round()),
       level: _bindings.recordingLevel(handle),
       failure: _bindings.takeString(_bindings.recordingFailureCopy(handle)),
+      inputIsSilent: _bindings.recordingInputIsSilent(handle) == 1,
     );
     final changed = !next.sameAs(_latest);
     _latest = next;

@@ -143,6 +143,24 @@ void main() {
       expect(find.text('Finish'), findsOne);
     });
 
+    testWidgets('a silent input is reported, and recording carries on',
+        (tester) async {
+      final stub = _Stub();
+      await show(tester, stub);
+      stub.emit();
+      await settle(tester);
+      expect(find.text('No sound is reaching the microphone'), findsNothing);
+
+      stub.emit(inputIsSilent: true);
+      await settle(tester);
+
+      expect(find.text('No sound is reaching the microphone'), findsOne);
+      expect(find.textContaining('will be kept'), findsOne);
+      // An observation, not a stop: nothing is discarded and Finish stays.
+      expect(find.text('Finish'), findsOne);
+      expect(stub.job?.discarded ?? false, isFalse);
+    });
+
     testWidgets('discarding asks first', (tester) async {
       final stub = _Stub();
       await show(tester, stub);
@@ -193,12 +211,14 @@ class _Stub implements RecordingSource {
     Duration elapsed = Duration.zero,
     double level = 0.4,
     String? failure,
+    bool inputIsSilent = false,
   }) =>
       job?.emit(RecordingProgress(
         state: state,
         elapsed: elapsed,
         level: level,
         failure: failure,
+        inputIsSilent: inputIsSilent,
       ));
 
   @override

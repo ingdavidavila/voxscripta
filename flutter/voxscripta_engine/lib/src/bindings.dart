@@ -72,6 +72,8 @@ final class VoxScriptaBindings {
             double Function(int)>('vs_recording_level'),
         recordingFailureCopy = library.lookupFunction<Pointer<Utf8> Function(Int64),
             Pointer<Utf8> Function(int)>('vs_recording_failure_copy'),
+        recordingInputIsSilent = library.lookupFunction<Int32 Function(Int64),
+            int Function(int)>('vs_recording_input_is_silent'),
         recordingPause = library
             .lookupFunction<Int32 Function(Int64), int Function(int)>('vs_recording_pause'),
         recordingResume = library
@@ -143,6 +145,7 @@ final class VoxScriptaBindings {
   final double Function(int) recordingElapsed;
   final double Function(int) recordingLevel;
   final Pointer<Utf8> Function(int) recordingFailureCopy;
+  final int Function(int) recordingInputIsSilent;
   final int Function(int) recordingPause;
   final int Function(int) recordingResume;
   final int Function(int, Pointer<Pointer<Utf8>>) recordingFinish;

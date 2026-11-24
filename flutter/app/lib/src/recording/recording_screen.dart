@@ -85,6 +85,10 @@ class _RecordingScreenState extends State<RecordingScreen> {
                       const SizedBox(height: 24),
                       _WriteFailure(message: message),
                     ],
+                    if (progress.inputIsSilent) ...[
+                      const SizedBox(height: 24),
+                      const _SilentInput(),
+                    ],
                     const SizedBox(height: 28),
                     Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                       Icon(Icons.lock_outline,
@@ -308,6 +312,44 @@ class _WriteFailure extends StatelessWidget {
               '$message\n\nWhat was recorded before this is still on disk.',
               style: theme.textTheme.bodySmall
                   ?.copyWith(color: theme.colorScheme.onErrorContainer),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Capture is running but the device has delivered nothing but zeroes.
+///
+/// Worded as an observation, not a diagnosis, and recording carries on: a muted
+/// interface that someone is about to unmute reads identically from here, and
+/// audio is never thrown away on an inference. The engine only raises this for
+/// an input that has produced nothing at all since capture began, so it does not
+/// appear during an ordinary pause or a quiet stretch.
+class _SilentInput extends StatelessWidget {
+  const _SilentInput();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      color: theme.colorScheme.tertiaryContainer,
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('No sound is reaching the microphone',
+                style: theme.textTheme.labelLarge
+                    ?.copyWith(color: theme.colorScheme.onTertiaryContainer)),
+            const SizedBox(height: 4),
+            Text(
+              'Recording is still running and will be kept. Check that the '
+              'right input is selected and that it is not muted.',
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.onTertiaryContainer),
             ),
           ],
         ),
