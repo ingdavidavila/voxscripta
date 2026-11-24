@@ -320,7 +320,8 @@ class _WriteFailure extends StatelessWidget {
   }
 }
 
-/// Capture is running but the device has delivered nothing but zeroes.
+/// Capture is running but nothing the device delivered has risen above
+/// what a microphone could hear. See RecordingProgress.inputIsSilent.
 ///
 /// Worded as an observation, not a diagnosis, and recording carries on: a muted
 /// interface that someone is about to unmute reads identically from here, and

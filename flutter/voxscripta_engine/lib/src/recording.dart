@@ -45,12 +45,15 @@ class RecordingProgress {
   /// far is still good, which is why this is a report rather than a state.
   final String? failure;
 
-  /// True when capture is running and the device has delivered nothing but
-  /// zeroes since it started, for long enough to be worth saying. An
-  /// observation and not a diagnosis: the recording is kept and continues,
-  /// because a muted interface about to be unmuted reads identically from here.
-  /// The engine retires the check on the first nonzero sample, so it never
-  /// reports a pause or a recording that started well and went quiet.
+  /// True when capture is running and nothing the device delivered has risen
+  /// above what a microphone could hear, for long enough to be worth saying.
+  /// The engine's floor is -120 dBFS rather than exact zero, because capture
+  /// is float: a dead input that emits dither is still silence, and keying
+  /// this to zero would mean it never fired. An observation and not a
+  /// diagnosis: the recording is kept and continues, because a muted
+  /// interface about to be unmuted reads identically from here. The engine
+  /// retires the check on the first audible sample, so it never reports a
+  /// pause or a recording that started well and went quiet.
   final bool inputIsSilent;
 
   bool sameAs(RecordingProgress other) =>

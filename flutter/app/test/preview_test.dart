@@ -55,13 +55,18 @@ void main() {
     });
   });
 
-  // Relative to the real clock, not a fixed date.
+  // Two kinds of fixture date, because the row renders two different things.
   //
-  // The rows show "2 days ago", computed against DateTime.now(). A hardcoded
-  // fixture date drifts away from that every midnight, so these goldens
-  // failed on whatever day someone next ran them and the diff was pure noise.
-  // Deriving the fixture from now keeps the *difference* constant, which is
-  // what the row actually renders.
+  // Inside seven days it shows "4 days ago", computed against DateTime.now(),
+  // so a hardcoded date there drifts every midnight and the diff is pure
+  // noise; deriving it from now keeps the *difference* constant, which is
+  // what those rows render.
+  //
+  // Past seven days the row stops being relative: Formatting.relativeDate
+  // prints the stored date itself and ignores the clock. A now-relative
+  // fixture there renders a different string every midnight, which is the
+  // opposite of what the rule above wants, so those rows are pinned to the
+  // date the golden holds. Use `dated` for anything older than a week.
   final now = DateTime.now();
 
   ProjectEntry entry(String name, Duration length, Duration ago) => ProjectEntry(
@@ -74,12 +79,22 @@ void main() {
         modifiedAt: now.subtract(ago),
       );
 
+  ProjectEntry dated(String name, Duration length, DateTime at) => ProjectEntry(
+        id: name,
+        path: '/Users/you/Library/Application Support/VoxScripta/Projects/'
+            '$name.voxscripta',
+        displayName: name,
+        duration: length,
+        state: JobState.complete,
+        modifiedAt: at,
+      );
+
   final populated = [
     entry('Board meeting 2026-10-28.m4a', const Duration(hours: 1, minutes: 12, seconds: 4, milliseconds: 120), const Duration(minutes: 6)),
     entry('Entrevista con Marta.wav', const Duration(minutes: 47, seconds: 31, milliseconds: 880), const Duration(hours: 3)),
     entry('Voice memo 014.m4a', const Duration(minutes: 3, seconds: 7, milliseconds: 250), const Duration(days: 1)),
     entry('Site visit notes.mp3', const Duration(minutes: 18, seconds: 2, milliseconds: 5), const Duration(days: 4)),
-    entry('Lecture — portable DSP.m4a', const Duration(hours: 2, minutes: 4, seconds: 56, milliseconds: 700), const Duration(days: 12)),
+    dated('Lecture — portable DSP.m4a', const Duration(hours: 2, minutes: 4, seconds: 56, milliseconds: 700), DateTime(2026, 10, 23, 9, 14)),
   ];
 
   Future<void> render(
