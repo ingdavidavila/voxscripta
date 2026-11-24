@@ -29,6 +29,8 @@ android {
         versionName = flutter.versionName
     }
 
+    assetPacks += listOf(":speech_model")
+
     buildTypes {
         release {
             // TODO: Add your own signing config for the release build.
@@ -46,4 +48,36 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+// The speech model ships as a Play Asset Delivery pack (see :speech_model), which
+// only an app bundle carries. Without this a bundle would build happily with an
+// empty pack and every install would then say it has no model, so a bundle is
+// refused unless the pack holds a real ggml model. APK builds, the everyday
+// development path, ignore the pack and are not held up by it.
+val verifySpeechModel = tasks.register("verifySpeechModel") {
+    val models = rootProject.file("speech_model/src/main/assets/models")
+    doLast {
+        val found = models.listFiles { f -> f.name.startsWith("ggml-") && f.name.endsWith(".bin") }
+            .orEmpty()
+        if (found.isEmpty()) {
+            throw GradleException(
+                "The speech model pack is empty. Run Tools/stage-android-model.sh " +
+                    "(small by default) before building an app bundle.",
+            )
+        }
+        for (file in found) {
+            val magic = file.inputStream().use { input -> ByteArray(4).also { input.read(it) } }
+            // ggml's magic 0x67676d6c, written little-endian: 6c 6d 67 67 on disk.
+            if (!magic.contentEquals(byteArrayOf(0x6c, 0x6d, 0x67, 0x67))) {
+                throw GradleException("${file.name} in the speech model pack is not a ggml model.")
+            }
+        }
+    }
+}
+
+tasks.whenTaskAdded {
+    if (name in setOf("bundleRelease", "bundleDebug", "bundleProfile")) {
+        dependsOn(verifySpeechModel)
+    }
 }

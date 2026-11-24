@@ -262,7 +262,7 @@ should, on the release variant only.
 - **The x86_64 engine is a debug build** (73 MB). Release engine sizes have not
   been measured, and the size of a `small` model on top of them is the
   deciding number for how it is delivered.
-- **The model comes from the Play Store, and the pack does not exist yet.**
+- **The model comes from the Play Store, as an install-time asset pack.**
   Decided: the speech model is delivered by Google Play itself, as a Play Asset
   Delivery **install-time** pack, so the app needs no `INTERNET` permission and
   the "cannot reach the network" claim above stays true. An in-app download would
@@ -281,15 +281,25 @@ should, on the release variant only.
   again. *With a real model:* copied in by hand, `ggml-small` transcribed
   `jfk.wav` to its words and the transcript showed after a restart; peak memory
   about 0.9 GB.
-  *Not verified, because it cannot be here:* the asset pack itself. There is no
-  pack module in the Gradle build, no Play developer account, and the emulator
-  has no room for a 487 MB install. The build must fetch the model into the
-  pack with `Tools/fetch-whisper-model.sh small`, and the first test of it is a
-  `bundletool` local install of the bundle, which has not been set up. Small is
-  487 MB; Play's limit for one install-time pack is 1 GB (from memory, to be
-  checked against current Play documentation). The progress card has
-  a widget test but was not seen on the emulator, where the stand-in copies in
-  about two seconds.
+  *The pack module exists* (`flutter/app/android/speech_model`, delivery
+  `install-time`). `Tools/stage-android-model.sh` fetches the model if needed,
+  checks it is a ggml model and stages it into the pack (small by default, one
+  model at a time); the content is git-ignored. A bundle is refused if the pack is
+  empty or holds something that is not a ggml model (`verifySpeechModel`, tested:
+  it fails with a message saying to run the staging script). APK builds ignore the
+  pack and are unaffected. With the model staged, `flutter build appbundle
+  --release` produced a 532 MB bundle whose `speech_model` module is an
+  asset-pack with install-time delivery and holds `models/ggml-small.bin`
+  (487,601,967 bytes), and the base module does not.
+  *Not verified, because it cannot be here:* that Play installs the pack and the
+  app then finds it. That needs a `bundletool` local install of the bundle, which
+  is not set up, and ultimately Play itself, for which there is no developer
+  account; the emulator also has no room for a 487 MB install. Play's limit for
+  one install-time pack is 1 GB (from memory, to be checked against current Play
+  documentation). The progress card has a widget test but was not seen on the
+  emulator, where the stand-in copies in about two seconds. The bundle is still
+  debug-signed and has the engine for x86_64 only (above), so it is not
+  submittable.
 - **Emulator stall after a job.** On the 2 GB emulator the screen sometimes
   stops updating after a job (the progress screen stays on "Starting", or a
   loading spinner never clears) until the app is restarted, after which
