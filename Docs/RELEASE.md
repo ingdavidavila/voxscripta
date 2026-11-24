@@ -252,16 +252,23 @@ should, on the release variant only.
 - **Signed with the debug key.** `build.gradle.kts` still says "Signing with the
   debug keys for now". Play rejects that. An upload keystore and a signing
   config are needed, and the keystore is David's to create and keep.
-- **The engine is present for x86_64 only.** The bundle's `arm64-v8a` and
-  `armeabi-v7a` folders hold Flutter's libraries but no `libVoxScriptaFFI.so`
-  and no FFmpeg libraries, so on a phone the engine would fail to load. Phones
-  are arm64; x86_64 is only the emulator. The arm64 build route is the same
-  (`Tools/stage-android.sh arm64-v8a`) but has not been run, and the engine
-  libraries are git-ignored under `jniLibs/`, so CI cannot build the app until
-  that step is part of it.
-- **The x86_64 engine is a debug build** (73 MB). Release engine sizes have not
-  been measured, and the size of a `small` model on top of them is the
-  deciding number for how it is delivered.
+- **The arm64 engine builds, and has not been run.** `Tools/build-ffmpeg.sh` and
+  `Tools/build-engines.sh arm64-v8a`, then `Tools/stage-android.sh arm64-v8a` and
+  `swift build -c release --swift-sdk aarch64-unknown-linux-android26
+  --static-swift-stdlib --product VoxScriptaFFI` (about six minutes on 16 cores,
+  under WSL2 with NDK r30) produce an AArch64 `libVoxScriptaFFI.so` that exports
+  the ABI 10 functions, among them `vs_recording_input_is_silent`: 139 MB
+  unstripped, 62 MB stripped. A release bundle built with `--target-platform
+  android-arm64` carries it with the FFmpeg libraries, and `bundletool` estimates
+  the download for an arm64 phone at 161 MB with the `base` model, so about 20 MB
+  is the app and engine and `small` would come to roughly 485 MB. **No arm64
+  device or emulator exists here, so that library has never been loaded**; the
+  first run on a real phone is still to come. The libraries are git-ignored under
+  `jniLibs/`, so CI cannot build the app until those steps are part of it, and the
+  bundle still carries a stale x86_64 folder that should not ship.
+- **The release engine is large for what it is**: the static Swift runtime is most
+  of those 139 MB, and the release build is barely smaller than the debug one, so
+  the stripped 62 MB is what ships. Whether that can shrink has not been looked at.
 - **The model comes from the Play Store, as an install-time asset pack.**
   Decided: the speech model is delivered by Google Play itself, as a Play Asset
   Delivery **install-time** pack, so the app needs no `INTERNET` permission and
