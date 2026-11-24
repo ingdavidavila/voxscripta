@@ -291,15 +291,22 @@ should, on the release variant only.
   --release` produced a 532 MB bundle whose `speech_model` module is an
   asset-pack with install-time delivery and holds `models/ggml-small.bin`
   (487,601,967 bytes), and the base module does not.
-  *Not verified, because it cannot be here:* that Play installs the pack and the
-  app then finds it. That needs a `bundletool` local install of the bundle, which
-  is not set up, and ultimately Play itself, for which there is no developer
-  account; the emulator also has no room for a 487 MB install. Play's limit for
-  one install-time pack is 1 GB (from memory, to be checked against current Play
-  documentation). The progress card has a widget test but was not seen on the
-  emulator, where the stand-in copies in about two seconds. The bundle is still
-  debug-signed and has the engine for x86_64 only (above), so it is not
-  submittable.
+  *Verified through `bundletool` (1.18.3, Google's jar, checksum checked), not
+  through Play:* a debug bundle with `ggml-base` staged was turned into
+  device-specific APKs for the emulator and installed. The install-time pack
+  arrived as its own split (`split_speech_model.apk`). On first launch the app
+  found the model in it and copied it to `files/models/ggml-base.bin`, 147,951,465
+  bytes, identical in size to the staged file. `jfk.wav` then transcribed to "And
+  so my fellow Americans, ask not what your country can do for you, ask what you
+  can do for your country." (a mechanism check on the 2 GB emulator, with the
+  smaller model, since small installed twice does not fit its disk).
+  *Not verified:* installation by Play itself, for which there is no developer
+  account, and `small` through this path on a device with room for it. Play's
+  limit for one install-time pack is 1 GB (from memory, to be checked against
+  current Play documentation). The progress card has a widget test but was not
+  seen on the emulator, where the copy takes a couple of seconds. The release
+  bundle is still debug-signed and has the engine for x86_64 only (above), so it
+  is not submittable.
 - **Emulator stall after a job.** On the 2 GB emulator the screen sometimes
   stops updating after a job (the progress screen stays on "Starting", or a
   loading spinner never clears) until the app is restarted, after which
