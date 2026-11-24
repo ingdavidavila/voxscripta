@@ -81,7 +81,7 @@ public final class AudioRecorder {
     ///
     /// Distinct from both of the above: nothing has failed and nothing is on
     /// hold — capture is running, the clock is advancing, and the input is
-    /// handing over buffers of pure zeroes. Left to itself that writes a file
+    /// handing over buffers with nothing in them. Left to itself that writes a file
     /// of silence and tells the user it recorded, which is worse than an
     /// error, because they find out when they play it back.
     ///

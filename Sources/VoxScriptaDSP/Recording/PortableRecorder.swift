@@ -64,7 +64,7 @@ public final class PortableRecorder: @unchecked Sendable {
     /// at all since it started.
     ///
     /// The condition an undeclared `RECORD_AUDIO` produced on Android: the
-    /// device opens, the clock runs, every buffer is zeroes, and what lands
+    /// device opens, the clock runs, every buffer is silent, and what lands
     /// on disk is a file of silence the user believes is a recording. The
     /// rule is ``SilentInputWatch``, shared so that every interface calls the
     /// same thing a dead microphone.

@@ -320,8 +320,10 @@ double vs_recording_elapsed(int64_t handle);
  * microphone would describe two different recordings. */
 double vs_recording_level(int64_t handle);
 
-/* 1 when the microphone is open but has delivered no audio at all since
- * capture began. Not a failure and not a state: recording is running and the
+/* 1 when the microphone is open but has delivered no audible signal at all
+ * since capture began — measured against a floor far below anything a
+ * microphone hears, not against exact zero, because a dead input does not
+ * always hand over exact zeroes. Not a failure and not a state: recording is running and the
  * file is being written, from silence. This is the condition an undeclared
  * RECORD_AUDIO produced on Android, where the screen showed a running clock
  * and a flat meter and finished with a silent file.

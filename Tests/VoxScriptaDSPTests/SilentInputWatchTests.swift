@@ -84,18 +84,23 @@ struct SilentInputWatchTests {
         }
     }
 
-    @Test("Only an exactly-zero buffer counts as nothing")
-    func onlyTrueZeroCounts() {
-        // `RecordingSession.level(of:)` returns −160 for a buffer whose
-        // samples are all zero and a real measurement otherwise, so the
-        // boundary is where that sentinel sits and nowhere else.
-        var atFloor = SilentInputWatch()
-        let silent = atFloor.observe(level: RecordingLevel.digitalSilenceDB, elapsed: 30)
-        #expect(silent)
-
-        var justAbove = SilentInputWatch()
-        let live = justAbove.observe(level: RecordingLevel.digitalSilenceDB + 0.1, elapsed: 30)
-        #expect(!live)
+    @Test("Nothing a microphone can hear is counted as silence")
+    func theBoundaryIsBelowAnyRealSignal() {
+        // Keyed to exact zero this would never fire on an input that hands
+        // over dither instead — a tested warning that silently does nothing,
+        // which is worse than not having written it.
+        for level in [RecordingLevel.digitalSilenceDB, -150.0, -130.0, -121.0] {
+            var watch = SilentInputWatch()
+            let silent = watch.observe(level: level, elapsed: 30)
+            #expect(silent, "\(level) dB should count as nothing")
+        }
+        // And the other side of the line is a live microphone, however quiet.
+        for level in [-119.0, -100.0, -90.3, -60.0] {
+            var watch = SilentInputWatch()
+            let silent = watch.observe(level: level, elapsed: 30)
+            #expect(!silent, "\(level) dB should count as audio")
+            #expect(watch.hasHeardAudio)
+        }
     }
 
     // ── The clock it counts against ─────────────────────────────────────────

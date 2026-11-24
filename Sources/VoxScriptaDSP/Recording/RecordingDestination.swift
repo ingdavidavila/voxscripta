@@ -121,6 +121,22 @@ public struct SilentInputWatch: Sendable, Equatable {
     /// hour of silence is not discovered at the end of the hour.
     public static let patience: TimeInterval = 8
 
+    /// The level below which an input counts as delivering nothing.
+    ///
+    /// Not ``RecordingLevel/digitalSilenceDB``, which is the sentinel for a
+    /// buffer of exact zeroes. Capture is f32, and a dead input does not
+    /// always hand over exact zeroes — a driver or a muted interface may emit
+    /// dither a hair above it. Keyed to exact zero, this check would read that
+    /// as a live microphone and never fire at all, which is the worst outcome
+    /// available: a warning that exists, is tested, and silently does nothing
+    /// on the platforms it was written for.
+    ///
+    /// −120 dBFS is an amplitude of about one in a million. The quietest
+    /// nonzero sample 16-bit audio can carry is −90 dB, and a quiet room sits
+    /// far above that, so nothing a microphone actually hears falls below
+    /// this line. What does fall below it is an input that is not working.
+    public static let inaudibleDB = -120.0
+
     /// True once the microphone has been heard, which settles it permanently.
     public private(set) var hasHeardAudio = false
 
@@ -142,7 +158,7 @@ public struct SilentInputWatch: Sendable, Equatable {
     public mutating func observe(level decibels: Double,
                                  elapsed: TimeInterval) -> Bool {
         if hasHeardAudio { return false }
-        if decibels > RecordingLevel.digitalSilenceDB {
+        if decibels > Self.inaudibleDB {
             hasHeardAudio = true
             isSilent = false
             return false
