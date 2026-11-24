@@ -1,37 +1,35 @@
 import Foundation
 
-/// The store this build sells through, or nil when it cannot yet.
+/// The store this build sells through.
 ///
 /// ``StoreKitSubscriptionService`` is written, real and ready: StoreKit 2
-/// verifies on the device, so it needs no server. Two things are still
-/// missing, and both are outside the code:
+/// verifies on the device, so it needs no server. The Terms of Use and
+/// Privacy Policy URLs it requires are published from the `gh-pages` branch
+/// and named in ``SubscriptionLinks`` below.
 ///
-///  1. **The two products in App Store Connect** — `voxscripta.monthly` and
-///     `voxscripta.yearly`, with a price tier per territory. Until they
-///     exist, `Product.products(for:)` returns nothing.
-///  2. ~~A public Terms of Use URL and Privacy Policy URL.~~ **Done.** Both
-///     are published from the `gh-pages` branch and are named in
-///     ``SubscriptionLinks`` below. Guideline 3.1.2 requires them on the
-///     paywall itself, which is why they are required arguments rather than
-///     optional ones. Two placeholders remain *inside* those pages — the
-///     contact address and the state for the governing-law clause — and both
-///     must be filled before submission.
+/// One thing is still missing, and it is outside the code: **the two products
+/// in App Store Connect** — `voxscripta.monthly` and `voxscripta.yearly`,
+/// with a price tier per territory. Until they exist,
+/// `Product.products(for:)` returns nothing and the paywall says so instead
+/// of inventing prices.
 ///
-/// Returning nil until those exist is the honest state. The alternative —
-/// shipping the service with placeholder links — would put two dead URLs in
-/// front of a buyer on the screen where the law expects real ones.
+/// This returns the service anyway, rather than nil, so that the code path
+/// exercised in a debug build is the same one that ships. A debug build run
+/// from Xcode gets its products from `ios/VoxScripta.storekit` instead of the
+/// real store, which is the only way to see a purchase complete before the
+/// products exist. Returning nil would have meant the purchase flow was
+/// untested until the day it was also unchangeable.
 ///
-/// To turn the paywall on, return the service with the published links:
-///
-///     StoreKitSubscriptionService(
-///         termsOfUse: SubscriptionLinks.termsOfUse,
-///         privacyPolicy: SubscriptionLinks.privacyPolicy)
-///
-/// Note what does *not* change when you do: the engine already enforces the
-/// wall in `JobRunner`, on every platform, whether or not anything is for
-/// sale. A build shipped before this returns a service stops transcribing on
-/// day four with no way to pay.
-public func configuredSubscriptionService() -> (any SubscriptionService)? { nil }
+/// Note what does *not* change here: the engine enforces the wall in
+/// `JobRunner`, on every platform, whether or not anything is for sale. A
+/// release build shipped before those products exist still stops transcribing
+/// on day four with no way to pay — a wired service does not fix that, and
+/// only App Store Connect can.
+public func configuredSubscriptionService() -> (any SubscriptionService)? {
+    StoreKitSubscriptionService(
+        termsOfUse: SubscriptionLinks.termsOfUse,
+        privacyPolicy: SubscriptionLinks.privacyPolicy)
+}
 
 
 /// Where the legal pages live.

@@ -103,13 +103,56 @@ list.
 **2. Register the bundle identifier and create the App Store Connect record.**
 The identifier has to match the project's `PRODUCT_BUNDLE_IDENTIFIER` exactly.
 
-**3. Create the subscription products.** `configuredSubscriptionService()` in
-`Sources/VoxScriptaUI/Paywall/SubscriptionConfiguration.swift` returns `nil`
-today, which means the paywall renders but cannot sell anything. StoreKit
-products have to exist in App Store Connect before that function can return a
-real service, so the product definitions come first and the code change second.
+**3. Create the subscription products.** Two of them, with these exact
+identifiers, both auto-renewing and both **in the same subscription group** so
+that holding one replaces the other rather than stacking:
+
+| Identifier | Duration |
+| --- | --- |
+| `voxscripta.monthly` | 1 month |
+| `voxscripta.yearly` | 1 year |
+
+They are compiled into `SubscriptionProducts` and the store is asked for those
+two strings and nothing else, so a typo here is a paywall that silently offers
+nothing. Set **no introductory offer**: the three-day trial is the engine's,
+enforced from `firstSeen` in `JobRunner` on every platform including the ones
+with no store, and a StoreKit free trial would hand a second free period on top
+of it. Price tiers are set per territory; the prices are never formatted in
+code, so nothing needs changing here when they move.
+
 Guideline 3.1.2 governs what a subscription may be sold as; 5.1.1(v) governs
 what may be required to use the app at all.
+
+Selling also needs the **Paid Applications Agreement** active, with banking and
+tax details on file. That is a separate step from enrollment and usually the
+slower one, because it waits on bank verification rather than on Apple. The
+products can be drafted without it but nothing can be sold, so start it in the
+same sitting as enrollment.
+
+**3a. Before any of that: run the purchase flow against the local
+configuration.** `ios/VoxScripta.storekit` defines both products with
+test prices, so a debug build launched **from Xcode** sells them without App
+Store Connect having anything in it. The scheme already references the file, so
+it is active on ⌘R with no setup; the purchases are local, cost nothing and can
+be cleared from Xcode's **Debug ▸ StoreKit ▸ Manage Transactions**.
+
+The prices in that file are for the simulator only and are not a pricing
+decision — the real ones come from App Store Connect per territory.
+
+What to check while it is running: both plans appear with prices, the yearly row
+shows its computed saving, a purchase completes and the trial banner stops
+offering, **Restore Purchase** finds the subscription afterwards, and the Terms
+of Use and Privacy Policy links open. Pair it with
+`VOXSCRIPTA_ENTITLEMENT=expired` in the scheme's environment to see the wall
+and the purchase that clears it, without waiting three days.
+
+`Tests/VoxScriptaAppTests/StoreKitConfigurationTests.swift` holds that file to
+the code — identifiers, periods, one group, no introductory offer, the
+advertised saving — and runs in the ordinary suite. What it cannot do is run a
+purchase: `SKTestSession` needs a host application with a container, and a
+SwiftPM test bundle runs inside `swiftpm-testing-helper`, which has neither. So
+the checks above are a manual pass done once from Xcode, not a test that guards
+them.
 
 **4. Archive and upload:**
 
@@ -132,7 +175,9 @@ captured. 6.7" iPhone and 13" iPad are the two mandatory sizes; the simulator
 can produce both.
 
 **6. Replace the placeholder contact address.** `Docs/privacy-policy.md` still
-publishes `privacy@example.com`. App Review reads the privacy policy, and a
+publishes `privacy@example.com`, and so do the two pages actually served from
+the `gh-pages` branch — `privacy.html` and `terms.html`, which are the ones App
+Review reads and which are public now. App Review reads the privacy policy, and a
 policy with a non-functional address on it is a rejection. `Docs/PRIVACY.md`
 lists this as the first of its outstanding items.
 

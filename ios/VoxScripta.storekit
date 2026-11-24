@@ -1,0 +1,87 @@
+{
+  "appPolicies" : {
+    "eula" : "",
+    "policies" : [
+      {
+        "locale" : "en_US",
+        "policyText" : "",
+        "policyURL" : "https://ingdavidavila.github.io/voxscripta/terms.html"
+      }
+    ]
+  },
+  "identifier" : "A1F3C7D2",
+  "nonRenewingSubscriptions" : [],
+  "products" : [],
+  "settings" : {
+    "_applicationInternalID" : "",
+    "_developerTeamID" : "",
+    "_failTransactionsEnabled" : false,
+    "_lastSynchronizedDate" : 0,
+    "_locale" : "en_US",
+    "_storefront" : "USA",
+    "_storeKitErrors" : []
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "21489153",
+      "localizations" : [
+        {
+          "description" : "Unlimited local transcription.",
+          "displayName" : "Vox Scripta",
+          "locale" : "en_US"
+        }
+      ],
+      "name" : "Vox Scripta",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [],
+          "codeOffers" : [],
+          "displayPrice" : "29.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "6478392012",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Unlimited local transcription, billed once a year.",
+              "displayName" : "Yearly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "voxscripta.yearly",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Vox Scripta Yearly",
+          "subscriptionGroupID" : "21489153",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : []
+        },
+        {
+          "adHocOffers" : [],
+          "codeOffers" : [],
+          "displayPrice" : "3.99",
+          "familyShareable" : false,
+          "groupNumber" : 2,
+          "internalID" : "6478392011",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Unlimited local transcription, billed once a month.",
+              "displayName" : "Monthly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "voxscripta.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Vox Scripta Monthly",
+          "subscriptionGroupID" : "21489153",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : []
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

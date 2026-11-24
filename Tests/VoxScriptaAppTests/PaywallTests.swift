@@ -114,13 +114,20 @@ struct PaywallTests {
 
     // ── What is not wired ───────────────────────────────────────────────────
 
-    @Test("This build sells nothing, and the engine walls anyway")
-    func noStoreIsConfigured() {
-        // The honest state, asserted so it is a decision rather than
-        // something forgotten. Two things outside the code are missing: the
-        // products in App Store Connect, and the public Terms of Use and
-        // Privacy Policy URLs that Guideline 3.1.2 requires on the paywall.
-        #expect(configuredSubscriptionService() == nil)
+    @Test("The paywall is wired to a store, with the links 3.1.2 requires")
+    func storeIsConfigured() {
+        // This asserted `== nil` until `ios/VoxScripta.storekit` existed, on
+        // the grounds that a store with no products is not a store. What
+        // changed is not that the products appeared — they are still missing
+        // from App Store Connect — but that a debug build can now get them
+        // from the configuration file, so the purchase path that ships is the
+        // one a simulator run exercises. See `StoreKitConfigurationTests`.
+        let service = configuredSubscriptionService()
+        #expect(service != nil)
+        // Required *on the paywall itself* by Guideline 3.1.2. A missing one
+        // is a rejection, and a silent one.
+        #expect(service?.termsOfUse == SubscriptionLinks.termsOfUse)
+        #expect(service?.privacyPolicy == SubscriptionLinks.privacyPolicy)
     }
 
     @Test("A cancelled purchase is flagged rather than described")

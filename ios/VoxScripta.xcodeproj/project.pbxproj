@@ -21,6 +21,7 @@
 		85673086EF6CFD3A1F8591AF /* Vox Scripta.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Vox Scripta.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF4A3B9EDD821B77A1EA3F3C /* es.lproj */ = {isa = PBXFileReference; lastKnownFileType = folder; name = es.lproj; path = ../Resources/Localization/es.lproj; sourceTree = SOURCE_ROOT; };
 		C21398BBBF4F166D213BFDEA /* en.lproj */ = {isa = PBXFileReference; lastKnownFileType = folder; name = en.lproj; path = ../Resources/Localization/en.lproj; sourceTree = SOURCE_ROOT; };
+		5F0C7A3B91D4E6820AC15D47 /* VoxScripta.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = VoxScripta.storekit; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -47,6 +48,7 @@
 			isa = PBXGroup;
 			children = (
 				DB89E782D488330EABE72BF7 /* VoxScripta */,
+				5F0C7A3B91D4E6820AC15D47 /* VoxScripta.storekit */,
 				328EC33DF3954DC9B83FA285 /* Products */,
 			);
 			sourceTree = "<group>";
