@@ -43,7 +43,10 @@ class _ProcessingScreenState extends State<ProcessingScreen> {
   void _onChanged() {
     if (!mounted) return;
     setState(() {});
-    if (widget.model.isFinished && !_announced) {
+    // Only a job that completed moves on to the transcript. A failed or
+    // cancelled one stays here: this screen is where the engine's reason is
+    // shown, and replacing it would hide why there is no transcript.
+    if (widget.model.progress.state == JobState.complete && !_announced) {
       _announced = true;
       // After the frame, because a screen must not be replaced from inside the
       // build that is drawing it.

@@ -139,6 +139,37 @@ void main() {
     expect(find.textContaining('no speech was detected'), findsOne);
   });
 
+  testWidgets('a failed job is not handed on, so its reason stays visible',
+      (tester) async {
+    var announced = 0;
+    final stub = _Stub(audio: facts(buckets: 4));
+    await tester.pumpWidget(MaterialApp(
+      home: ProcessingScreen(
+        model: ProcessingModel(
+          source: stub,
+          projectPath: '/p',
+          displayName: 'p',
+        ),
+        onFinished: (_, _) => announced += 1,
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    stub.emit(const JobProgress(
+      state: JobState.failed,
+      fraction: 0.4,
+      detail: 'Transcribing',
+      failure: 'the speech model is not installed',
+    ));
+    await tester.pumpAndSettle();
+
+    // Moving on to the transcript screen here replaced this one and lost the
+    // reason, leaving "Nothing transcribed yet" with no explanation.
+    expect(announced, 0);
+    expect(find.text('This job stopped'), findsOne);
+    expect(find.textContaining('not installed'), findsOne);
+  });
+
   testWidgets('finishing is announced once, after the frame', (tester) async {
     var announced = 0;
     final stub = _Stub(audio: facts(buckets: 4));
