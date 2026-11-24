@@ -41,6 +41,7 @@ public final class PortableRecorder: @unchecked Sendable {
     private var _state: State = .idle
     private var _level: Double = -160
     private var _failure: String?
+    private var _silence = SilentInputWatch()
     private var deviceOpen = false
 
     /// Capture format. Mono at 44.1 kHz, matching the Apple recorder, and far
@@ -58,6 +59,20 @@ public final class PortableRecorder: @unchecked Sendable {
     public var level: Double { lock.withLock { _level } }
     /// Set when capture or writing failed part-way through.
     public var failure: String? { lock.withLock { _failure } }
+
+    /// True when capture is running but the device has delivered no audio
+    /// at all since it started.
+    ///
+    /// The condition an undeclared `RECORD_AUDIO` produced on Android: the
+    /// device opens, the clock runs, every buffer is zeroes, and what lands
+    /// on disk is a file of silence the user believes is a recording. The
+    /// rule is ``SilentInputWatch``, shared so that every interface calls the
+    /// same thing a dead microphone.
+    ///
+    /// Reported, never acted on. The recording belongs to whoever made it and
+    /// §5 does not permit discarding it on an inference — a muted interface
+    /// about to be unmuted reads exactly the same from here.
+    public var inputIsSilent: Bool { lock.withLock { _silence.isSilent } }
 
     // MARK: - Transport
 
@@ -100,6 +115,7 @@ public final class PortableRecorder: @unchecked Sendable {
             writer = newWriter
             deviceOpen = true
             _state = .recording
+            _silence = SilentInputWatch()
         }
     }
 
@@ -160,6 +176,9 @@ public final class PortableRecorder: @unchecked Sendable {
         _level = decibels
         let writing = _state == .recording
         let target = writer
+        // Against the writer's clock, which does not advance while paused, so
+        // a long pause cannot accumulate towards a dead-microphone warning.
+        if writing { _silence.observe(level: decibels, elapsed: target?.elapsed ?? 0) }
         lock.unlock()
 
         guard writing, let target else { return }

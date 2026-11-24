@@ -148,6 +148,26 @@ public func vs_recording_level(_ handle: Int64) -> Double {
     return RecordingLevel.normalize(box.recorder.level)
 }
 
+/// 1 when the microphone is open but has delivered no audio at all.
+///
+/// Not a failure and not a state: capture is running normally and the file is
+/// being written — it is simply being written from silence. The condition an
+/// undeclared `RECORD_AUDIO` produced on Android, where the recording screen
+/// showed a running clock and a flat meter and finished with a silent file.
+///
+/// An interface should say so and let the recording continue. It must not
+/// stop or discard it: §5 does not permit destroying audio on an inference,
+/// and a muted interface about to be unmuted reads identically from here.
+///
+/// The rule lives in `SilentInputWatch`, in the engine, so that every
+/// interface calls the same thing a dead microphone rather than each
+/// inventing a threshold.
+@_cdecl("vs_recording_input_is_silent")
+public func vs_recording_input_is_silent(_ handle: Int64) -> Int32 {
+    guard let box = RecordingRegistry.shared.box(handle) else { return 0 }
+    return box.recorder.inputIsSilent ? 1 : 0
+}
+
 /// Why capture or writing failed part-way through, or NULL. Caller releases it.
 ///
 /// A recording can fail after it has started — a disk filling, a device

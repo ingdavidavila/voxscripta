@@ -61,7 +61,7 @@ import VoxScriptaExport
 /// growing a second entry point beside them, because nothing has shipped
 /// against version 1 and a legacy variant kept forever costs more than a
 /// break that nobody can observe.
-private let abiVersion: Int32 = 9
+private let abiVersion: Int32 = 10
 
 // MARK: - Job states
 

@@ -77,6 +77,22 @@ public final class AudioRecorder {
     /// disk is still a readable file, and it is the user's.
     private(set) public var writeFailure: String?
 
+    /// True when the microphone is open but has never delivered any audio.
+    ///
+    /// Distinct from both of the above: nothing has failed and nothing is on
+    /// hold — capture is running, the clock is advancing, and the input is
+    /// handing over buffers of pure zeroes. Left to itself that writes a file
+    /// of silence and tells the user it recorded, which is worse than an
+    /// error, because they find out when they play it back.
+    ///
+    /// A warning rather than a stop. The recording is the user's and §5 says
+    /// it is never taken away on a guess — a muted interface they are about
+    /// to unmute is also this condition.
+    private(set) public var inputIsSilent = false
+
+    /// The rule behind ``inputIsSilent``, shared so Android agrees with it.
+    private var silence = SilentInputWatch()
+
     /// How many level samples the meter keeps.
     private static let meterHistory = 48
 
@@ -183,6 +199,8 @@ public final class AudioRecorder {
         levels = []
         writeFailure = nil
         interruption = nil
+        inputIsSilent = false
+        silence = SilentInputWatch()
 
         // Unstructured on purpose. A task group awaits every one of its
         // children before it exits, so a group cannot put a deadline on work
@@ -363,6 +381,7 @@ public final class AudioRecorder {
         fileURL = nil
         state = .idle
         levels = []
+        inputIsSilent = false
     }
 
     private func startTicking() {
@@ -382,7 +401,12 @@ public final class AudioRecorder {
                 self.interruption = session.interruption
                 let now = session.elapsed
                 if Int(now) != Int(self.elapsed) { self.elapsed = now }
-                self.append(level: Self.normalize(Float(session.level)))
+                let level = session.level
+                self.append(level: Self.normalize(Float(level)))
+                // Against the recording's own clock, not the wall's: a clock
+                // that has stopped is a writer failure, reported above on its
+                // own terms, and should not raise this warning as well.
+                self.inputIsSilent = self.silence.observe(level: level, elapsed: now)
             }
         }
     }

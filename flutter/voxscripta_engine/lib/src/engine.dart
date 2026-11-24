@@ -22,7 +22,7 @@ class VoxScriptaEngine {
   /// The ABI this package was written against. A library announcing anything
   /// else is refused at open, rather than crashing later on a signature that
   /// moved — which is the whole reason the version exists.
-  static const int supportedAbiVersion = 9;
+  static const int supportedAbiVersion = 10;
 
   /// How often a running job is polled.
   ///

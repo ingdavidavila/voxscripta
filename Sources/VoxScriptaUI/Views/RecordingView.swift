@@ -50,6 +50,23 @@ struct RecordingView: View {
                 .multilineTextAlignment(.center)
             }
 
+            // Capture is running and the input is handing over nothing. Not
+            // an error and not a pause, so it reads as neither: the recording
+            // continues, and this says what to look at while it does.
+            if recorder.inputIsSilent {
+                Label {
+                    VStack(spacing: 2) {
+                        Text(Strings.recordingSilentInput)
+                        Text(Strings.recordingSilentInputHelp)
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                } icon: {
+                    Image(systemName: "mic.slash.fill").foregroundStyle(.orange)
+                }
+                .font(.callout)
+                .multilineTextAlignment(.center)
+            }
+
             if let failure = recorder.writeFailure {
                 Label {
                     VStack(spacing: 2) {

@@ -320,6 +320,17 @@ double vs_recording_elapsed(int64_t handle);
  * microphone would describe two different recordings. */
 double vs_recording_level(int64_t handle);
 
+/* 1 when the microphone is open but has delivered no audio at all since
+ * capture began. Not a failure and not a state: recording is running and the
+ * file is being written, from silence. This is the condition an undeclared
+ * RECORD_AUDIO produced on Android, where the screen showed a running clock
+ * and a flat meter and finished with a silent file.
+ *
+ * Say so and let the recording continue. Do NOT stop or discard it: §5 does
+ * not permit destroying audio on an inference, and a muted interface about to
+ * be unmuted reads identically from here. */
+int32_t vs_recording_input_is_silent(int64_t handle);
+
 /* Why capture or writing failed part-way through, or NULL. A report rather
  * than a state: a recording can fail after it started and what was written so
  * far is still good. Caller releases. */

@@ -28,6 +28,16 @@ struct PortableRecorderTests {
         #expect(!FileManager.default.fileExists(atPath: url.path))
     }
 
+    @Test("An idle recorder does not claim its microphone is dead")
+    func idleIsNotSilentInput() throws {
+        // Nothing has started, so there is nothing to be wrong. A recorder
+        // that reported a dead input before it was opened would put the
+        // warning on screen the moment the Record screen appeared.
+        let tmp = try TempDirectory()
+        let recorder = PortableRecorder(url: tmp.url.appending(path: "r.m4a"))
+        #expect(!recorder.inputIsSilent)
+    }
+
     @Test("The meter starts at silence, not at full scale")
     func meterFloor() throws {
         // Decibels full scale: zero means pegged, so an unstarted meter

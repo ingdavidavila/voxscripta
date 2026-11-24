@@ -57,6 +57,22 @@ enum Strings {
         Record from the microphone. The recording is saved as a file and \
         transcribed when you stop.
         """
+    /// The microphone is open but delivering nothing at all.
+    ///
+    /// Worded as an observation rather than a diagnosis: the app can see that
+    /// no audio is arriving, but not why, and the commonest causes — a muted
+    /// interface, the wrong input selected — are the user's to check and are
+    /// fixed in a second. Saying "your microphone is broken" would be a guess
+    /// presented as a finding.
+    static let recordingSilentInput: LocalizedStringKey =
+        "No sound is reaching the microphone"
+
+    /// What to do about it, which is the part worth putting on screen.
+    static let recordingSilentInputHelp: LocalizedStringKey = """
+        Recording is still running and will be kept. Check that the right \
+        input is selected and that it is not muted.
+        """
+
     static let recordingInterrupted: LocalizedStringKey = """
         On hold — recording continues by itself when the microphone is free.
         """
