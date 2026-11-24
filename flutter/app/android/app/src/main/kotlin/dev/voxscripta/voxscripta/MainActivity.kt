@@ -25,6 +25,7 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        pointEngineAtModel()
         val messenger = flutterEngine.dartExecutor.binaryMessenger
 
         MethodChannel(messenger, PATHS_CHANNEL).setMethodCallHandler { call, result ->
@@ -45,6 +46,32 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+    }
+
+    /**
+     * Tells the engine where the speech model is, when there is one.
+     *
+     * The engine looks beside its executable and under a development build
+     * tree, and neither exists inside an Android app, so without help every
+     * transcription fails with "a required model asset is missing". It also
+     * honours `VOXSCRIPTA_WHISPER_MODEL`, which is the one place to say so
+     * without changing the engine; this sets it from the app's private
+     * `models` directory, preferring small over base in the engine's own order.
+     *
+     * Deliberately does nothing when no model has been put there. How a model
+     * reaches the phone (bundled with the install, or fetched once) is a
+     * distribution decision this does not make: whichever it is only has to
+     * leave a file in that directory. An absent model then fails with the
+     * engine's own message naming the path, which is the honest outcome.
+     */
+    private fun pointEngineAtModel() {
+        val models = java.io.File(filesDir, "models")
+        val model = listOf("ggml-small.bin", "ggml-base.bin")
+            .map { java.io.File(models, it) }
+            .firstOrNull { it.isFile } ?: return
+        // In-process, before the engine is opened: the engine reads the
+        // environment when it resolves a model, not when the library loads.
+        android.system.Os.setenv("VOXSCRIPTA_WHISPER_MODEL", model.absolutePath, true)
     }
 
     /**
