@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:voxscripta_engine/voxscripta_engine.dart';
 
+import '../l10n.dart';
+
 /// The strip above the library saying where the trial stands.
 ///
 /// Shown during the trial as well as after it. A paywall that appears for the
@@ -34,7 +36,7 @@ class TrialBanner extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                _message(entitlement),
+                _message(context, entitlement),
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: walled
                       ? scheme.onErrorContainer
@@ -45,7 +47,7 @@ class TrialBanner extends StatelessWidget {
             if (onSubscribe case final subscribe?)
               TextButton(
                 onPressed: () => subscribe(context),
-                child: Text(walled ? 'Subscribe' : 'See plans'),
+                child: Text(walled ? context.l10n.subscribe : context.l10n.seePlans),
               ),
           ],
         ),
@@ -53,21 +55,18 @@ class TrialBanner extends StatelessWidget {
     );
   }
 
-  static String _message(Entitlement entitlement) {
+  static String _message(BuildContext context, Entitlement entitlement) {
+    final l10n = context.l10n;
     switch (entitlement.state) {
       case EntitlementState.trialing:
         final days = entitlement.trialDaysRemaining ?? 0;
         // Counted in days because that is the unit the trial is sold in.
         // Hours would be more precise and would read as a countdown clock.
-        return days == 1
-            ? 'Last day of your free trial.'
-            : '$days days left in your free trial.';
+        return days == 1 ? l10n.trialLastDay : l10n.trialDaysLeft(days);
       case EntitlementState.trialExpired:
-        return 'Your ${entitlement.trialDays}-day trial has ended. '
-            'Everything already transcribed stays yours.';
+        return l10n.trialEnded(entitlement.trialDays);
       case EntitlementState.subscriptionLapsed:
-        return 'Your subscription has lapsed. '
-            'Everything already transcribed stays yours.';
+        return l10n.subscriptionLapsed;
       case EntitlementState.subscribed:
         return '';
     }

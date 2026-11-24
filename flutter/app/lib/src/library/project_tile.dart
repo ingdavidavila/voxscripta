@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:voxscripta_engine/voxscripta_engine.dart';
 
 import '../formatting.dart';
+import '../l10n.dart';
 import '../platform_traits.dart';
 
 /// One recording in the list.
@@ -37,7 +38,7 @@ class ProjectTile extends StatelessWidget {
       title: Text(project.displayName, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text(
         '${Formatting.duration(project.duration)}  ·  '
-        '${Formatting.relativeDate(project.modifiedAt)}',
+        '${Formatting.relativeDate(context.l10n, project.modifiedAt)}',
         style: theme.textTheme.bodySmall?.copyWith(
           // Tabular figures so a column of durations lines up, which is what
           // the SwiftUI row's monospacedDigit does.
@@ -58,8 +59,8 @@ class ProjectTile extends StatelessWidget {
     if (!PlatformTraits.hasPointer) return tile;
 
     return Tooltip(
-      message: '${project.displayName} · ${Formatting.duration(project.duration)}. '
-          'Click to open its transcript.',
+      message: context.l10n.projectTileTooltip(
+          project.displayName, Formatting.duration(project.duration)),
       waitDuration: const Duration(milliseconds: 600),
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
@@ -88,10 +89,10 @@ class ProjectTile extends StatelessWidget {
       items: [
         PopupMenuItem(
           value: _RowAction.reveal,
-          child: Text('Show in ${PlatformTraits.fileManagerName}'),
+          child: Text(context.l10n.showInFileManager(PlatformTraits.fileManagerName)),
         ),
         const PopupMenuDivider(),
-        const PopupMenuItem(value: _RowAction.delete, child: Text('Delete…')),
+        PopupMenuItem(value: _RowAction.delete, child: Text(context.l10n.deleteEllipsis)),
       ],
     );
 

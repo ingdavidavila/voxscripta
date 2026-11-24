@@ -1,0 +1,10 @@
+arb-dir: lib/l10n
+template-arb-file: app_en.arb
+output-localization-file: app_localizations.dart
+# English is the template and the fallback, so every string exists at least in
+# English and a missing translation shows English rather than nothing.
+#
+# nullable-getter: true makes AppLocalizations.of(context) return null when the
+# delegates are not installed, which lets lib/src/l10n.dart fall back to English
+# for the widget tests that build a bare MaterialApp.
+nullable-getter: true

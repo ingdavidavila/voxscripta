@@ -1,3 +1,5 @@
+import 'l10n.dart';
+
 /// Display formatting, kept deliberately identical to the SwiftUI app's.
 class Formatting {
   const Formatting._();
@@ -30,17 +32,13 @@ class Formatting {
   ///
   /// Interface-only — nothing downstream reads it — so it is written for a
   /// library list rather than for precision.
-  static String relativeDate(DateTime when, {DateTime? now}) {
+  static String relativeDate(AppLocalizations l10n, DateTime when, {DateTime? now}) {
     final reference = now ?? DateTime.now();
     final difference = reference.difference(when);
-    if (difference.inMinutes < 1) return 'just now';
-    if (difference.inMinutes < 60) return '${difference.inMinutes} min ago';
-    if (difference.inHours < 24) {
-      return '${difference.inHours} hour${difference.inHours == 1 ? '' : 's'} ago';
-    }
-    if (difference.inDays < 7) {
-      return '${difference.inDays} day${difference.inDays == 1 ? '' : 's'} ago';
-    }
+    if (difference.inMinutes < 1) return l10n.justNow;
+    if (difference.inMinutes < 60) return l10n.minutesAgo(difference.inMinutes);
+    if (difference.inHours < 24) return l10n.hoursAgo(difference.inHours);
+    if (difference.inDays < 7) return l10n.daysAgo(difference.inDays);
     final month = when.month.toString().padLeft(2, '0');
     final day = when.day.toString().padLeft(2, '0');
     return '${when.year}-$month-$day';

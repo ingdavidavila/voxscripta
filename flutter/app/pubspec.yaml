@@ -35,6 +35,13 @@ dependencies:
   # dependency rather than a published package: the two move together,
   # and an ABI version mismatch should be a build error here rather
   # than a runtime refusal in front of a user.
+  # Part of the Flutter SDK, not a download: the Material and Cupertino strings
+  # (back, copy, paste, dialog buttons) in each supported language.
+  flutter_localizations:
+    sdk: flutter
+  # Pinned by flutter_localizations to the version it was built against; `any`
+  # leaves that choice to it instead of competing with it.
+  intl: any
   voxscripta_engine:
     path: ../voxscripta_engine
 
@@ -63,6 +70,8 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+  # Generates lib/l10n/app_localizations*.dart from the .arb files (l10n.yaml).
+  generate: true
 
   # To add assets to your application, add an assets section, like this:
   # assets:

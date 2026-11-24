@@ -8,6 +8,7 @@ import 'src/auth/auth_backend.dart';
 import 'src/auth/auth_gate.dart';
 import 'src/auth/auth_service.dart';
 import 'src/engine_host.dart';
+import 'src/l10n.dart';
 import 'src/library/library_model.dart';
 import 'src/library/library_screen.dart';
 import 'src/platform_traits.dart';
@@ -114,6 +115,11 @@ class _VoxScriptaAppState extends State<VoxScriptaApp> {
     return MaterialApp(
       title: 'Vox Scripta',
       debugShowCheckedModeBanner: false,
+      // The interface follows the device's language; English is the fallback.
+      // This is the language of the interface only — what the speech engine
+      // transcribes is chosen separately, in Settings.
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       theme: _theme(Brightness.light),
       darkTheme: _theme(Brightness.dark),
       home: AuthGate(auth: _auth, builder: (context, _) => _home()),

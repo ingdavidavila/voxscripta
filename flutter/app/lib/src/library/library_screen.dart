@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:voxscripta_engine/voxscripta_engine.dart';
 
+import '../l10n.dart';
+
 import '../platform_traits.dart';
 import 'library_model.dart';
 import 'project_tile.dart';
@@ -91,29 +93,29 @@ class _LibraryScreenState extends State<LibraryScreen> {
         autofocus: true,
         child: Scaffold(
           appBar: AppBar(
-            title: const Text('Recordings'),
+            title: Text(context.l10n.libraryTitle),
             actions: [
               IconButton(
                 icon: const Icon(Icons.refresh),
-                tooltip: 'Look again for recordings on disk.',
+                tooltip: context.l10n.libraryRefreshTooltip,
                 onPressed: model.refresh,
               ),
               if (widget.openImporter case final open?)
                 IconButton(
                   icon: const Icon(Icons.audio_file_outlined),
-                  tooltip: 'Open an audio file you already have.',
+                  tooltip: context.l10n.libraryOpenTooltip,
                   onPressed: () => _returned(open(context)),
                 ),
               if (widget.openRecorder case final record?)
                 IconButton(
                   icon: const Icon(Icons.mic_none),
-                  tooltip: 'Record something now.',
+                  tooltip: context.l10n.libraryRecordTooltip,
                   onPressed: () => _returned(record(context)),
                 ),
               if (widget.openSettings case final open?)
                 IconButton(
                   icon: const Icon(Icons.settings_outlined),
-                  tooltip: 'Silence detection, language, clean and polish.',
+                  tooltip: context.l10n.librarySettingsTooltip,
                   onPressed: () => open(context),
                 ),
               const SizedBox(width: 4),
@@ -136,11 +138,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
     if (model.error case final message?) {
       return _Message(
         icon: Icons.error_outline,
-        title: 'The library could not be read',
+        title: context.l10n.libraryUnreadableTitle,
         // The engine's own words. Paraphrasing them would lose the path, which
         // is usually the only part that makes this fixable.
         detail: message,
-        action: FilledButton(onPressed: model.refresh, child: const Text('Try again')),
+        action: FilledButton(onPressed: model.refresh, child: Text(context.l10n.tryAgain)),
       );
     }
     if (model.isLoading && model.projects.isEmpty) {
@@ -149,10 +151,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
     if (model.projects.isEmpty) {
       return _Message(
         icon: Icons.graphic_eq,
-        title: 'No recordings yet',
+        title: context.l10n.libraryEmptyTitle,
         // Matches the SwiftUI empty state, plus the folder — "nothing here" is
         // much more useful when it says where "here" is.
-        detail: 'Record something, or open a file.\n\n${model.directory}',
+        detail: context.l10n.libraryEmptyDetail(model.directory),
         // An empty list with nothing to tap is a dead end, which is why the
         // SwiftUI app shows the import screen instead of an empty sidebar on a
         // phone. Here the offer is the button.
@@ -167,7 +169,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     FilledButton.icon(
                       onPressed: () => _returned(record(context)),
                       icon: const Icon(Icons.mic),
-                      label: const Text('Record'),
+                      label: Text(context.l10n.record),
                     ),
                   if (widget.openRecorder != null && widget.openImporter != null)
                     const SizedBox(width: 12),
@@ -175,7 +177,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     OutlinedButton.icon(
                       onPressed: () => _returned(open(context)),
                       icon: const Icon(Icons.audio_file_outlined),
-                      label: const Text('Open a file'),
+                      label: Text(context.l10n.openFile),
                     ),
                 ],
               ),
@@ -209,7 +211,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
   /// Kept so a row never silently does nothing.
   void _noTranscriptScreen(ProjectEntry project) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('${project.displayName} cannot be opened here.'),
+      content: Text(context.l10n.projectCannotOpen(project.displayName)),
     ));
   }
 
@@ -217,7 +219,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     final shown = await PlatformTraits.revealInFileManager(project.path);
     if (!mounted || shown) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('Could not open ${PlatformTraits.fileManagerName}.'),
+      content: Text(context.l10n.couldNotOpenFileManager(PlatformTraits.fileManagerName)),
     ));
   }
 
@@ -234,23 +236,22 @@ class _LibraryScreenState extends State<LibraryScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Delete ${project.displayName}?'),
+        title: Text(context.l10n.deleteProjectTitle(project.displayName)),
         // The §5 promise, stated where the user is deciding rather than in a
         // document they will not read: the audio is not destroyed.
         content: Text(
           PlatformTraits.hasPointer && Theme.of(context).platform == TargetPlatform.macOS
-              ? 'The project moves to the Trash. Your original audio file is not touched.'
-              : 'The project moves to a Deleted folder beside the library. '
-                  'Your original audio file is not touched.',
+              ? context.l10n.deleteExplainTrash
+              : context.l10n.deleteExplainFolder,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: Text(context.l10n.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete'),
+            child: Text(context.l10n.delete),
           ),
         ],
       ),
@@ -262,8 +263,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(movedTo == null
-            ? 'Deleted ${project.displayName}.'
-            : 'Moved ${project.displayName} to $movedTo'),
+            ? context.l10n.deletedProject(project.displayName)
+            : context.l10n.movedProjectTo(project.displayName, movedTo)),
       ));
     } on VoxScriptaException catch (failure) {
       if (!mounted) return;
