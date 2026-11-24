@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:voxscripta_engine/voxscripta_engine.dart';
 
+import '../model_preparation.dart';
+
 /// What the processing screen needs from the engine.
 abstract interface class ProcessingSource {
   Job start({required String projectPath, String? audioPath, JobOptions? options});
@@ -61,7 +63,9 @@ class ProcessingModel extends ChangeNotifier {
     required this.displayName,
     this.audioPath,
     this.options,
-  }) : _source = source;
+    ModelPreparation? preparation,
+  })  : _source = source,
+        _preparation = preparation;
 
   factory ProcessingModel.of(
     VoxScriptaEngine engine, {
@@ -76,9 +80,16 @@ class ProcessingModel extends ChangeNotifier {
         displayName: displayName,
         audioPath: audioPath,
         options: options,
+        preparation: ModelPreparation.forPlatform(),
       );
 
   final ProcessingSource _source;
+
+  /// Null where the model is an ordinary file and there is nothing to prepare.
+  final ModelPreparation? _preparation;
+  bool _preparing = false;
+  bool _disposed = false;
+  double? _modelFraction;
   final String projectPath;
   /// Needed only to create a project. Null resumes one that exists.
   final String? audioPath;
@@ -109,8 +120,34 @@ class ProcessingModel extends ChangeNotifier {
   /// throwing away points it was given.
   int waveformBuckets = 600;
 
-  void start() {
-    if (_job != null || _startFailure != null) return;
+  /// True while the speech model is being made ready, before the job starts.
+  bool get isPreparingModel => _preparing;
+
+  /// How much of it is ready, or null while that is not known.
+  double? get modelFraction => _modelFraction;
+
+  /// Starts the job, after the model is ready where there is something to
+  /// prepare. With nothing to prepare this runs synchronously, as it always did.
+  Future<void> start() async {
+    if (_job != null || _startFailure != null || _preparing) return;
+    if (_preparation case final preparation?) {
+      _preparing = true;
+      notifyListeners();
+      final problem = await preparation.prepare(onProgress: (fraction) {
+        if (_disposed) return;
+        _modelFraction = fraction;
+        notifyListeners();
+      });
+      _preparing = false;
+      // The screen may have gone while the model was being copied. Starting a
+      // job nobody is watching would run one that nothing would ever dispose.
+      if (_disposed) return;
+      if (problem != null) {
+        _startFailure = problem;
+        notifyListeners();
+        return;
+      }
+    }
     try {
       final job = _source.start(
         projectPath: projectPath,
@@ -156,6 +193,7 @@ class ProcessingModel extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     _job?.dispose();
     super.dispose();
   }

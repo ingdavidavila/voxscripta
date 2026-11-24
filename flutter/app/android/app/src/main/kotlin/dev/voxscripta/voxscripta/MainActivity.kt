@@ -23,9 +23,11 @@ class MainActivity : FlutterActivity() {
     /** The reply owed to a permission prompt that is on screen, if any. */
     private var pendingMicrophone: MethodChannel.Result? = null
 
+    private val models by lazy { ModelStore(applicationContext) }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        pointEngineAtModel()
+        models.begin()
         val messenger = flutterEngine.dartExecutor.binaryMessenger
 
         MethodChannel(messenger, PATHS_CHANNEL).setMethodCallHandler { call, result ->
@@ -40,6 +42,14 @@ class MainActivity : FlutterActivity() {
             }
         }
 
+        MethodChannel(messenger, MODEL_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "prepare" -> models.whenFinished { runOnUiThread { result.success(modelStatus()) } }
+                "status" -> result.success(modelStatus())
+                else -> result.notImplemented()
+            }
+        }
+
         MethodChannel(messenger, MICROPHONE_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "ensure" -> ensureMicrophone(result)
@@ -49,30 +59,16 @@ class MainActivity : FlutterActivity() {
     }
 
     /**
-     * Tells the engine where the speech model is, when there is one.
-     *
-     * The engine looks beside its executable and under a development build
-     * tree, and neither exists inside an Android app, so without help every
-     * transcription fails with "a required model asset is missing". It also
-     * honours `VOXSCRIPTA_WHISPER_MODEL`, which is the one place to say so
-     * without changing the engine; this sets it from the app's private
-     * `models` directory, preferring small over base in the engine's own order.
-     *
-     * Deliberately does nothing when no model has been put there. How a model
-     * reaches the phone (bundled with the install, or fetched once) is a
-     * distribution decision this does not make: whichever it is only has to
-     * leave a file in that directory. An absent model then fails with the
-     * engine's own message naming the path, which is the honest outcome.
+     * What the Dart side shows while the speech model is made ready: `state` is
+     * idle, copying, ready, absent or failed (see [ModelStore]); `total` is -1
+     * when the size is unknown.
      */
-    private fun pointEngineAtModel() {
-        val models = java.io.File(filesDir, "models")
-        val model = listOf("ggml-small.bin", "ggml-base.bin")
-            .map { java.io.File(models, it) }
-            .firstOrNull { it.isFile } ?: return
-        // In-process, before the engine is opened: the engine reads the
-        // environment when it resolves a model, not when the library loads.
-        android.system.Os.setenv("VOXSCRIPTA_WHISPER_MODEL", model.absolutePath, true)
-    }
+    private fun modelStatus(): Map<String, Any?> = mapOf(
+        "state" to models.state.name.lowercase(),
+        "copied" to models.copiedBytes,
+        "total" to models.totalBytes,
+        "error" to models.error,
+    )
 
     /**
      * Replies "granted", "denied" (the prompt can be shown again) or "blocked"
@@ -124,6 +120,7 @@ class MainActivity : FlutterActivity() {
         // with a plugin's channel.
         const val PATHS_CHANNEL = "dev.voxscripta.voxscripta/paths"
         const val MICROPHONE_CHANNEL = "dev.voxscripta.voxscripta/microphone"
+        const val MODEL_CHANNEL = "dev.voxscripta.voxscripta/model"
         const val MICROPHONE_REQUEST = 7001
     }
 }

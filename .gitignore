@@ -75,3 +75,7 @@ flutter/app/test/failures/
 # real-speech accuracy check. Regenerated in a second, and committing it would
 # put the same sentences in two places.
 accuracy-check/
+
+# A speech model placed in the Android assets for a local test is hundreds of
+# megabytes. The shipped one arrives as a Play asset pack, never from this tree.
+flutter/app/android/app/src/main/assets/models/

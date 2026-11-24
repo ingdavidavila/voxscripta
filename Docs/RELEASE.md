@@ -262,15 +262,34 @@ should, on the release variant only.
 - **The x86_64 engine is a debug build** (73 MB). Release engine sizes have not
   been measured, and the size of a `small` model on top of them is the
   deciding number for how it is delivered.
-- **No Whisper model ships, and delivery is undecided.** `MainActivity` points
-  the engine at `files/models/ggml-small.bin` (or `ggml-base.bin`) through the
-  engine's `VOXSCRIPTA_WHISPER_MODEL` override when the file is there, and does
-  nothing otherwise. With `ggml-small` copied in by hand, `jfk.wav` transcribed
-  to its words on the x86_64 emulator and the transcript showed after a restart.
-  Nothing puts the file there yet: Play Asset Delivery or a download is David's
-  decision, and either only has to leave a file in that folder. Small is 487 MB.
-  The override is set at start-up, so a model downloaded later is not seen until
-  the app restarts. Peak memory during that run was about 0.9 GB.
+- **The model comes from the Play Store, and the pack does not exist yet.**
+  Decided: the speech model is delivered by Google Play itself, as a Play Asset
+  Delivery **install-time** pack, so the app needs no `INTERNET` permission and
+  the "cannot reach the network" claim above stays true. An in-app download would
+  have broken it. An install-time pack needs no Google library in the app: its
+  files are read through Android's asset reader. That is why the first launch
+  copies the model once into `files/models` (`ModelStore.kt`), where the engine
+  can read it as a file: it costs about twice the model's size in storage, and it
+  is written to a `.part` file and renamed only when complete. The engine is
+  pointed at it through its `VOXSCRIPTA_WHISPER_MODEL` override. A job waits for
+  the copy and the screen says "Preparing the speech model"; a full disk is
+  reported as that rather than as a failed transcription later.
+  *Verified on the emulator, with a stand-in:* a 100 MB file of random bytes in
+  the APK's assets was copied to `files/models` at first launch; the engine
+  resolved that file (and refused it as not a model, as it should); a copy killed
+  half-way left only a `.part` file, which the next launch removed before copying
+  again. *With a real model:* copied in by hand, `ggml-small` transcribed
+  `jfk.wav` to its words and the transcript showed after a restart; peak memory
+  about 0.9 GB.
+  *Not verified, because it cannot be here:* the asset pack itself. There is no
+  pack module in the Gradle build, no Play developer account, and the emulator
+  has no room for a 487 MB install. The build must fetch the model into the
+  pack with `Tools/fetch-whisper-model.sh small`, and the first test of it is a
+  `bundletool` local install of the bundle, which has not been set up. Small is
+  487 MB; Play's limit for one install-time pack is 1 GB (from memory, to be
+  checked against current Play documentation). The progress card has
+  a widget test but was not seen on the emulator, where the stand-in copies in
+  about two seconds.
 - **Emulator stall after a job.** On the 2 GB emulator the screen sometimes
   stops updating after a job (the progress screen stays on "Starting", or a
   loading spinner never clears) until the app is restarted, after which

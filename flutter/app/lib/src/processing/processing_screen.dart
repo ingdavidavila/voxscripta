@@ -79,6 +79,10 @@ class _ProcessingScreenState extends State<ProcessingScreen> {
           if (model.startFailure case final message?)
             _Failure(title: 'This job could not start', detail: message)
           else ...[
+            if (model.isPreparingModel) ...[
+              _PreparingModel(fraction: model.modelFraction),
+              const SizedBox(height: 20),
+            ],
             _Header(progress: progress, audio: model.audio),
             const SizedBox(height: 20),
             _Waveform(model: model),
@@ -275,6 +279,43 @@ class _Phases extends StatelessWidget {
       if (processingPhases[index].$1 == state) return index;
     }
     return state == JobState.complete ? processingPhases.length : -1;
+  }
+}
+
+/// Shown while the speech model is copied out of the install on first use.
+///
+/// Says what is happening and that it is once, because a progress bar with no
+/// explanation looks like the job is slow. "No network" is stated because it is
+/// the thing a privacy-minded person would wonder about during a long wait.
+class _PreparingModel extends StatelessWidget {
+  const _PreparingModel({required this.fraction});
+
+  final double? fraction;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Preparing the speech model', style: theme.textTheme.titleSmall),
+            const SizedBox(height: 4),
+            Text(
+              'This happens once, the first time, and uses no network. '
+              'Transcription starts when it finishes.',
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 12),
+            LinearProgressIndicator(value: fraction),
+          ],
+        ),
+      ),
+    );
   }
 }
 
