@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:voxscripta_engine/voxscripta_engine.dart';
 
+import '../microphone_permission.dart';
+
 /// What the recording screen needs from the engine.
 abstract interface class RecordingSource {
   Recording start({String? destinationPath});
@@ -26,12 +28,21 @@ class EngineRecordingSource implements RecordingSource {
 /// piece of state here that is genuinely the interface's: the engine reports
 /// the level now, and how many bars of it to remember is a drawing decision.
 class RecordingModel extends ChangeNotifier {
-  RecordingModel({required RecordingSource source}) : _source = source;
+  RecordingModel({
+    required RecordingSource source,
+    MicrophonePermission? permission,
+  })  : _source = source,
+        _permission = permission;
 
-  factory RecordingModel.of(VoxScriptaEngine engine) =>
-      RecordingModel(source: EngineRecordingSource(engine));
+  factory RecordingModel.of(VoxScriptaEngine engine) => RecordingModel(
+        source: EngineRecordingSource(engine),
+        permission: MicrophonePermission.forPlatform(),
+      );
 
   final RecordingSource _source;
+
+  /// Null where the platform needs no application-level permission.
+  final MicrophonePermission? _permission;
 
   /// How many level samples the meter remembers. At the engine's 50 ms poll
   /// that is about three seconds of history.
@@ -58,9 +69,26 @@ class RecordingModel extends ChangeNotifier {
   bool get isActive => _recording != null;
   String get directory => _source.directory;
 
-  void start() {
+  Future<void> start() async {
     if (_recording != null) return;
     _startFailure = null;
+    // Permission first, and recording never begins without it. With none, the
+    // system refuses the capture while the engine reports nothing wrong, and
+    // the screen would count seconds over silence.
+    if (_permission case final permission?) {
+      final access = await permission.ensure();
+      if (access != MicrophoneAccess.granted) {
+        _startFailure = access == MicrophoneAccess.blocked
+            ? 'Microphone access is off. Vox Scripta does not have permission '
+                'to use the microphone. Turn it on in Settings, under Apps, '
+                'Vox Scripta, Permissions, then try recording again.'
+            : 'Microphone access was not granted, so nothing was recorded. '
+                'Go back and try again, and allow the microphone when asked.';
+        notifyListeners();
+        return;
+      }
+      if (_recording != null) return;
+    }
     try {
       final recording = _source.start();
       _recording = recording;

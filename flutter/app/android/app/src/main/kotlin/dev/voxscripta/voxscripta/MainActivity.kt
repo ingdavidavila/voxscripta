@@ -1,44 +1,102 @@
 package dev.voxscripta.voxscripta
 
+import android.Manifest
+import android.content.pm.PackageManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 /**
- * The one thing the Dart side cannot learn for itself: where this app may write.
+ * What the Dart side cannot learn for itself, one small channel per concern.
  *
  * Android gives an app no home directory, and the engine refuses to guess one, so
- * the app's own private directories are reported here and handed to the engine as
- * its data directory (see lib/src/app_directories.dart).
+ * the app's own private directories are reported on the paths channel and handed
+ * to the engine as its data directory (see lib/src/app_directories.dart). The
+ * microphone permission has its own channel (lib/src/microphone_permission.dart).
  *
- * Paths and nothing else, on purpose. Permissions, the document picker and the
- * foreground service belong in their own channels, so that this one stays small
- * enough to read in one sitting. No third-party plugin is involved: what this app
- * does with the network, the microphone and the user's files has to be provable
- * from our own code, and a plugin is code we would have to re-audit on every
- * version bump.
+ * Channels stay separate so each is small enough to read in one sitting. No
+ * third-party plugin is involved: what this app does with the network, the
+ * microphone and the user's files has to be provable from our own code, and a
+ * plugin is code we would have to re-audit on every version bump.
  */
 class MainActivity : FlutterActivity() {
+    /** The reply owed to a permission prompt that is on screen, if any. */
+    private var pendingMicrophone: MethodChannel.Result? = null
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        val messenger = flutterEngine.dartExecutor.binaryMessenger
 
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, PATHS_CHANNEL)
-            .setMethodCallHandler { call, result ->
-                when (call.method) {
-                    "getPaths" -> result.success(
-                        mapOf(
-                            "files" to filesDir.absolutePath,
-                            "cache" to cacheDir.absolutePath,
-                        )
+        MethodChannel(messenger, PATHS_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "getPaths" -> result.success(
+                    mapOf(
+                        "files" to filesDir.absolutePath,
+                        "cache" to cacheDir.absolutePath,
                     )
-                    else -> result.notImplemented()
-                }
+                )
+                else -> result.notImplemented()
             }
+        }
+
+        MethodChannel(messenger, MICROPHONE_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "ensure" -> ensureMicrophone(result)
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    /**
+     * Replies "granted", "denied" (the prompt can be shown again) or "blocked"
+     * (Android will no longer show it, so only Settings can change the answer).
+     */
+    private fun ensureMicrophone(result: MethodChannel.Result) {
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            result.success("granted")
+            return
+        }
+        if (pendingMicrophone != null) {
+            // One prompt at a time. A second caller would otherwise strand the
+            // first, whose screen would wait for ever.
+            result.error("busy", "the microphone prompt is already showing", null)
+            return
+        }
+        pendingMicrophone = result
+        requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), MICROPHONE_REQUEST)
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != MICROPHONE_REQUEST) return
+        val reply = pendingMicrophone ?: return
+        pendingMicrophone = null
+
+        val granted = grantResults.isNotEmpty() &&
+            grantResults[0] == PackageManager.PERMISSION_GRANTED
+        reply.success(
+            when {
+                granted -> "granted"
+                // After a refusal the system only says "do not show the
+                // rationale" once the person has chosen not to be asked again.
+                !shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO) ->
+                    "blocked"
+                else -> "denied"
+            }
+        )
     }
 
     private companion object {
-        // Matches AppDirectories.channelName on the Dart side, and the
-        // application id, so it cannot collide with a plugin's channel.
+        // Match the Dart side, and the application id, so they cannot collide
+        // with a plugin's channel.
         const val PATHS_CHANNEL = "dev.voxscripta.voxscripta/paths"
+        const val MICROPHONE_CHANNEL = "dev.voxscripta.voxscripta/microphone"
+        const val MICROPHONE_REQUEST = 7001
     }
 }

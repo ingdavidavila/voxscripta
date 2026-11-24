@@ -80,6 +80,16 @@ class _VoxScriptaAppState extends State<VoxScriptaApp> {
     }
   }
 
+  /// "Try again" must ask the host for the directories again on Android, not
+  /// reopen the engine without them.
+  void _retryOpen() {
+    if (AppDirectories.isRequired) {
+      _openWithHostDirectories();
+    } else {
+      _host.open();
+    }
+  }
+
   /// Starts watching the trial as soon as there is an engine to ask.
   void _onHostChanged() {
     final engine = _host.engine;
@@ -243,7 +253,16 @@ class _VoxScriptaAppState extends State<VoxScriptaApp> {
         ),
       );
     }
-    return _EngineUnavailable(failure: _host.failure, onRetry: _host.open);
+    // No engine and no failure means it has not been asked yet, which on Android
+    // is the moment before the host reports where the app may write. Saying the
+    // engine "could not be loaded" then would be a false alarm.
+    if (_host.failure == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    return _EngineUnavailable(
+      failure: _host.failure,
+      onRetry: _retryOpen,
+    );
   }
 
   /// Material 3, with desktop density where there is a pointer.
