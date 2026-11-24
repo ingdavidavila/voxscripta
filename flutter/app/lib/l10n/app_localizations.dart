@@ -640,6 +640,24 @@ abstract class AppLocalizations {
   /// **'Preparing the speech model'**
   String get modelPreparingTitle;
 
+  /// No description provided for @modelNoSpace.
+  ///
+  /// In en, this message translates to:
+  /// **'There is not enough free space to prepare the speech model. About {megabytes} MB is needed on this device.'**
+  String modelNoSpace(int megabytes);
+
+  /// No description provided for @modelNotInPlace.
+  ///
+  /// In en, this message translates to:
+  /// **'The speech model could not be put in place.'**
+  String get modelNotInPlace;
+
+  /// No description provided for @modelCopyFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The speech model could not be prepared: {detail}'**
+  String modelCopyFailed(String detail);
+
   /// No description provided for @modelPreparingBody.
   ///
   /// In en, this message translates to:

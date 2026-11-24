@@ -353,6 +353,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get modelPreparingTitle => 'Preparing the speech model';
 
   @override
+  String modelNoSpace(int megabytes) {
+    return 'There is not enough free space to prepare the speech model. About $megabytes MB is needed on this device.';
+  }
+
+  @override
+  String get modelNotInPlace => 'The speech model could not be put in place.';
+
+  @override
+  String modelCopyFailed(String detail) {
+    return 'The speech model could not be prepared: $detail';
+  }
+
+  @override
   String get modelPreparingBody =>
       'This happens once, the first time, and uses no network. Transcription starts when it finishes.';
 

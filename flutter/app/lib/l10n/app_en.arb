@@ -243,6 +243,23 @@
   },
   "readingAudio": "Reading audio…",
   "modelPreparingTitle": "Preparing the speech model",
+  "modelNoSpace": "There is not enough free space to prepare the speech model. About {megabytes} MB is needed on this device.",
+  "@modelNoSpace": {
+    "placeholders": {
+      "megabytes": {
+        "type": "int"
+      }
+    }
+  },
+  "modelNotInPlace": "The speech model could not be put in place.",
+  "modelCopyFailed": "The speech model could not be prepared: {detail}",
+  "@modelCopyFailed": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "modelPreparingBody": "This happens once, the first time, and uses no network. Transcription starts when it finishes.",
   "phaseAnalyze": "Analyze audio",
   "phaseSilence": "Detect silence",

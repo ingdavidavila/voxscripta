@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:voxscripta_engine/voxscripta_engine.dart';
 
 import '../l10n.dart';
+import '../model_preparation.dart';
 import 'processing_model.dart';
 import 'waveform_painter.dart';
 
@@ -77,7 +78,17 @@ class _ProcessingScreenState extends State<ProcessingScreen> {
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [
-          if (model.startFailure case final message?)
+          if (model.modelProblem case final problem?)
+            _Failure(
+                title: context.l10n.jobCouldNotStart,
+                detail: switch (problem.kind) {
+                  ModelProblemKind.noSpace =>
+                    context.l10n.modelNoSpace(problem.megabytes ?? 0),
+                  ModelProblemKind.notInPlace => context.l10n.modelNotInPlace,
+                  ModelProblemKind.copyFailed =>
+                    context.l10n.modelCopyFailed(problem.detail ?? ''),
+                })
+          else if (model.startFailure case final message?)
             _Failure(title: context.l10n.jobCouldNotStart, detail: message)
           else ...[
             if (model.isPreparingModel) ...[

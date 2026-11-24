@@ -88,6 +88,7 @@ class ProcessingModel extends ChangeNotifier {
   /// Null where the model is an ordinary file and there is nothing to prepare.
   final ModelPreparation? _preparation;
   bool _preparing = false;
+  ModelProblem? _modelProblem;
   bool _disposed = false;
   double? _modelFraction;
   final String projectPath;
@@ -120,6 +121,11 @@ class ProcessingModel extends ChangeNotifier {
   /// throwing away points it was given.
   int waveformBuckets = 600;
 
+  /// Why the speech model could not be made ready, when that stopped the job.
+  /// A reason for the screen to word, separate from [startFailure], which is the
+  /// engine's own text.
+  ModelProblem? get modelProblem => _modelProblem;
+
   /// True while the speech model is being made ready, before the job starts.
   bool get isPreparingModel => _preparing;
 
@@ -129,7 +135,9 @@ class ProcessingModel extends ChangeNotifier {
   /// Starts the job, after the model is ready where there is something to
   /// prepare. With nothing to prepare this runs synchronously, as it always did.
   Future<void> start() async {
-    if (_job != null || _startFailure != null || _preparing) return;
+    if (_job != null || _startFailure != null || _modelProblem != null || _preparing) {
+      return;
+    }
     if (_preparation case final preparation?) {
       _preparing = true;
       notifyListeners();
@@ -143,7 +151,7 @@ class ProcessingModel extends ChangeNotifier {
       // job nobody is watching would run one that nothing would ever dispose.
       if (_disposed) return;
       if (problem != null) {
-        _startFailure = problem;
+        _modelProblem = problem;
         notifyListeners();
         return;
       }

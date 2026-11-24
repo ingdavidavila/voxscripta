@@ -15,14 +15,14 @@ import 'package:voxscripta_engine/voxscripta_engine.dart';
 /// transcription minutes later, and that nothing starts for a screen that has
 /// already gone.
 class _Preparation implements ModelPreparation {
-  final Completer<String?> _done = Completer<String?>();
+  final Completer<ModelProblem?> _done = Completer<ModelProblem?>();
   void Function(double?)? _onProgress;
 
   void progress(double? fraction) => _onProgress?.call(fraction);
-  void finish([String? problem]) => _done.complete(problem);
+  void finish([ModelProblem? problem]) => _done.complete(problem);
 
   @override
-  Future<String?> prepare({void Function(double? fraction)? onProgress}) {
+  Future<ModelProblem?> prepare({void Function(double? fraction)? onProgress}) {
     _onProgress = onProgress;
     return _done.future;
   }
@@ -65,19 +65,32 @@ void main() {
       });
     }
 
-    test('a failure comes back in the host\'s words', () async {
-      answer((call) async => {'state': 'failed', 'error': 'not enough space'});
-      expect(await const ChannelModelPreparation().prepare(), 'not enough space');
+    test('a full disk comes back as a reason with the amount', () async {
+      answer((call) async =>
+          {'state': 'failed', 'error': 'no_space', 'neededMb': 540});
+      final problem = await const ChannelModelPreparation().prepare();
+      expect(problem?.kind, ModelProblemKind.noSpace);
+      expect(problem?.megabytes, 540);
     });
 
-    test('a failure with no words still says something', () async {
-      answer((call) async => {'state': 'failed'});
-      expect(await const ChannelModelPreparation().prepare(), isNotEmpty);
+    test('a model that could not be put in place is its own reason', () async {
+      answer((call) async => {'state': 'failed', 'error': 'not_in_place'});
+      expect((await const ChannelModelPreparation().prepare())?.kind,
+          ModelProblemKind.notInPlace);
+    });
+
+    test('an unknown failure still says something went wrong', () async {
+      answer((call) async => {'state': 'failed', 'detail': 'disk on fire'});
+      final problem = await const ChannelModelPreparation().prepare();
+      expect(problem?.kind, ModelProblemKind.copyFailed);
+      expect(problem?.detail, 'disk on fire');
     });
 
     test('a platform error is reported rather than thrown', () async {
       answer((call) async => throw PlatformException(code: 'boom', message: 'no'));
-      expect(await const ChannelModelPreparation().prepare(), contains('no'));
+      final problem = await const ChannelModelPreparation().prepare();
+      expect(problem?.kind, ModelProblemKind.copyFailed);
+      expect(problem?.detail, 'no');
     });
 
     test('no host at all means nothing to prepare', () async {
@@ -137,11 +150,13 @@ void main() {
       final model = build(source, preparation);
 
       final started = model.start();
-      preparation.finish('There is not enough free space.');
+      preparation.finish(
+          const ModelProblem(ModelProblemKind.noSpace, megabytes: 540));
       await started;
 
       expect(source.started, 0);
-      expect(model.startFailure, contains('free space'));
+      expect(model.modelProblem?.kind, ModelProblemKind.noSpace);
+      expect(model.startFailure, isNull);
     });
 
     test('progress reaches the model', () async {

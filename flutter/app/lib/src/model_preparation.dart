@@ -3,6 +3,23 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 
+/// Why the model could not be made ready. A reason, not a sentence, so the screen
+/// words it in the interface's language.
+enum ModelProblemKind { noSpace, notInPlace, copyFailed }
+
+class ModelProblem {
+  const ModelProblem(this.kind, {this.megabytes, this.detail});
+
+  final ModelProblemKind kind;
+
+  /// For [ModelProblemKind.noSpace]: how much free space the device would need.
+  final int? megabytes;
+
+  /// For [ModelProblemKind.copyFailed]: what the system said, which is shown as
+  /// it came and not translated.
+  final String? detail;
+}
+
 /// Getting the speech model somewhere the engine can read it, before a job.
 ///
 /// On Android the model ships with the install and is only reachable through the
@@ -23,7 +40,7 @@ abstract interface class ModelPreparation {
   /// later and less clearly, such as a full disk.
   ///
   /// [onProgress] receives the fraction copied, or null while it is not known.
-  Future<String?> prepare({void Function(double? fraction)? onProgress});
+  Future<ModelProblem?> prepare({void Function(double? fraction)? onProgress});
 
   static ModelPreparation? forPlatform() =>
       Platform.isAndroid ? const ChannelModelPreparation() : null;
@@ -38,7 +55,7 @@ class ChannelModelPreparation implements ModelPreparation {
   final Duration pollInterval;
 
   @override
-  Future<String?> prepare({void Function(double? fraction)? onProgress}) async {
+  Future<ModelProblem?> prepare({void Function(double? fraction)? onProgress}) async {
     final timer = Timer.periodic(pollInterval, (_) async {
       if (onProgress == null) return;
       try {
@@ -51,7 +68,8 @@ class ChannelModelPreparation implements ModelPreparation {
       final status = await _status('prepare');
       return _failure(status);
     } on PlatformException catch (error) {
-      return 'The speech model could not be prepared: ${error.message ?? error.code}';
+      return ModelProblem(ModelProblemKind.copyFailed,
+          detail: error.message ?? error.code);
     } on MissingPluginException {
       // No host to ask: nothing to prepare, and the engine will say what it
       // finds.
@@ -74,11 +92,16 @@ class ChannelModelPreparation implements ModelPreparation {
     return (copied / total).clamp(0.0, 1.0).toDouble();
   }
 
-  static String? _failure(Map<Object?, Object?> status) {
+  static ModelProblem? _failure(Map<Object?, Object?> status) {
     if (status['state'] != 'failed') return null;
-    final error = status['error'];
-    return error is String && error.isNotEmpty
-        ? error
-        : 'The speech model could not be prepared.';
+    final needed = status['neededMb'];
+    return switch (status['error']) {
+      'no_space' => ModelProblem(ModelProblemKind.noSpace,
+          megabytes: needed is num ? needed.round() : null),
+      'not_in_place' => const ModelProblem(ModelProblemKind.notInPlace),
+      final other => ModelProblem(ModelProblemKind.copyFailed,
+          detail: status['detail'] as String? ??
+              (other is String ? other : null)),
+    };
   }
 }

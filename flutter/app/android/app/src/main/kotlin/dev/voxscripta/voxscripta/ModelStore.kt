@@ -31,7 +31,17 @@ class ModelStore(private val context: Context) {
         private set
     @Volatile var totalBytes: Long = -1
         private set
+    /**
+     * Why it failed, as a code the interface words in its own language, never a
+     * sentence: no_space, not_in_place or copy_failed. Null unless [state] is FAILED.
+     */
     @Volatile var error: String? = null
+        private set
+    /** For no_space: how many megabytes the device would need free. */
+    @Volatile var neededMb: Long = 0
+        private set
+    /** For copy_failed: what the system said, which is not ours to translate. */
+    @Volatile var errorDetail: String? = null
         private set
 
     private val lock = Any()
@@ -87,11 +97,8 @@ class ModelStore(private val context: Context) {
             }
             if (totalBytes > 0 && directory.usableSpace < totalBytes + SPACE_MARGIN) {
                 val needMb = (totalBytes + SPACE_MARGIN) / MEGABYTE
-                finish(
-                    State.FAILED, null,
-                    "There is not enough free space to prepare the speech model. " +
-                        "About $needMb MB is needed on this device.",
-                )
+                neededMb = needMb
+                finish(State.FAILED, null, "no_space")
                 return
             }
 
@@ -111,14 +118,15 @@ class ModelStore(private val context: Context) {
             val target = File(directory, packaged)
             if (!part.renameTo(target)) {
                 part.delete()
-                finish(State.FAILED, null, "The speech model could not be put in place.")
+                finish(State.FAILED, null, "not_in_place")
                 return
             }
             finish(State.READY, target)
         } catch (e: Exception) {
             directory.listFiles { f -> f.name.endsWith(".part") }
                 ?.forEach { it.delete() }
-            finish(State.FAILED, null, "The speech model could not be prepared: ${e.message}")
+            errorDetail = e.message
+            finish(State.FAILED, null, "copy_failed")
         }
     }
 

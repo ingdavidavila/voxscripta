@@ -68,6 +68,8 @@ class MainActivity : FlutterActivity() {
         "copied" to models.copiedBytes,
         "total" to models.totalBytes,
         "error" to models.error,
+        "neededMb" to models.neededMb,
+        "detail" to models.errorDetail,
     )
 
     /**
