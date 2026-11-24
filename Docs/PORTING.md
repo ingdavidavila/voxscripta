@@ -298,8 +298,10 @@ fails with `relocation R_AARCH64_ADR_PREL_PG_HI21 cannot be used against
 symbol`. That is a property of the SDK, not of this code: the Flutter library
 has to be built on a real Linux host or in a container.
 
-So Linux now has a working command line and still has no application, and the
-two are blocked on different things.
+So Linux had a working command line and no application when this was written.
+It has since been built and run as an application on a native glibc host; see
+"The Flutter application, run on Linux" below. The musl cross-build still cannot
+produce the library, and the two routes are different configurations.
 
 One CLI subcommand is genuinely absent off Apple rather than merely unbuilt:
 `render-audio` writes the silence-removed copy through `AVFoundation`, so it
@@ -440,8 +442,44 @@ differences rather than build problems:
 debug build is a 32 MB x86-64 ELF exporting 36 `vs_` functions, needing
 `libavformat.so.61` and friends, `libc++.so.1`, `libgomp.so.1` and
 `libstdc++.so.6`. The Static Linux SDK still cannot produce it, for the reason
-above. The library has not been loaded from Flutter, and a release build has not
-been made.
+above. A release build has not been made.
+
+**The Flutter application, run on Linux (2026-11-24).** The statement that the
+library had never been loaded from Flutter stopped being true. On the same
+Ubuntu 26.04.1 / WSL2 machine, from `main` at `4528487`:
+
+- `swift build --product VoxScriptaFFI -Xlinker -lstdc++ -Xlinker -lgomp` builds
+  `libVoxScriptaFFI.so` (debug, x86-64) in about a minute once the FFmpeg and
+  engine libraries from the order above exist.
+- All 32 `voxscripta_engine` Dart tests pass against it, with
+  `VOXSCRIPTA_LIBRARY` pointing at the `.so` and `LD_LIBRARY_PATH` at the FFmpeg
+  and engine library directories.
+- `flutter build linux --debug` builds the application (Flutter 3.47.9, the same
+  version as Windows). The app tests give 123 passing and the same 13 golden
+  failures as Windows: font rasterisation differs per OS, so those images only
+  match on the machine that made them.
+- The application opens a window under WSLg, loads the engine and shows the
+  library, with its data in `~/.local/share/VoxScripta`. WSL has no GPU driver,
+  so it draws with software OpenGL; nothing here says how it looks or performs
+  on real hardware.
+- Through the engine and Dart bindings, a full job on `jfk.wav` with
+  `ggml-small` completes and then `summary`, `library` and `export` answer in
+  milliseconds, before and after the job is disposed. Recording starts, runs and
+  finishes with the file kept.
+- **The silent-input warning has been seen once.** WSLg's microphone delivered
+  exact silence, `inputIsSilent` went true at 9 seconds (the engine waits 8) and
+  stayed true, and the recording carried on and was kept. That is the engine and
+  bindings only: the on-screen card has not been seen on Linux (the click
+  automation through WSLg did not register), and neither has "unmute and it does
+  not return".
+
+Apt packages added for this, on top of the list above: `libgtk-3-dev` and
+`clang` (Flutter's Linux toolchain). Flutter itself is the official 3.47.9
+tarball unpacked in `$HOME`. Not done: the application has not been used by
+clicking through it, `zenity` and `kdialog` are not installed so "Choose a
+file" has no dialog (the typed path still works, but the button does nothing
+and should not be offered), and the speech model is found only because the
+build tree has one: a packaged build needs a model beside the executable.
 
 **Slow tests.** The DSP target takes about 190 s in the default parallel run and
 about 350 s when run one test at a time (`--no-parallel`), and the Pipeline

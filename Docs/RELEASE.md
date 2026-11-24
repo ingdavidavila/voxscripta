@@ -233,8 +233,8 @@ lists this as the first of its outstanding items.
 **Where it stands (checked 2026-11-24).** An x86_64 debug build runs on the
 emulator: it opens the engine, imports a file, runs the pipeline up to
 transcription, asks for the microphone and records. Nothing has run on a real
-phone, and transcription does not work on Android at all yet (see "Not ready"
-below).
+phone. With a model placed in the app's `files/models` folder, transcription
+works on the emulator (see "Not ready" below for how a model gets there).
 
 **Permissions.** The release manifest declares `RECORD_AUDIO` and nothing else —
 **no `INTERNET`**. Recording is the one permission the app needs, and it is
@@ -262,11 +262,21 @@ should, on the release variant only.
 - **The x86_64 engine is a debug build** (73 MB). Release engine sizes have not
   been measured, and the size of a `small` model on top of them is the
   deciding number for how it is delivered.
-- **No Whisper model, and no way to give the engine one.** The engine looks for
-  `build/models/ggml-base.bin` relative to the build tree, so every Android
-  transcription fails with "a required model asset is missing". It needs a
-  settable model location and a delivery decision (Play Asset Delivery or a
-  download). Both are open, and the second is David's.
+- **No Whisper model ships, and delivery is undecided.** `MainActivity` points
+  the engine at `files/models/ggml-small.bin` (or `ggml-base.bin`) through the
+  engine's `VOXSCRIPTA_WHISPER_MODEL` override when the file is there, and does
+  nothing otherwise. With `ggml-small` copied in by hand, `jfk.wav` transcribed
+  to its words on the x86_64 emulator and the transcript showed after a restart.
+  Nothing puts the file there yet: Play Asset Delivery or a download is David's
+  decision, and either only has to leave a file in that folder. Small is 487 MB.
+  The override is set at start-up, so a model downloaded later is not seen until
+  the app restarts. Peak memory during that run was about 0.9 GB.
+- **Emulator stall after a job.** On the 2 GB emulator the screen sometimes
+  stops updating after a job (the progress screen stays on "Starting", or a
+  loading spinner never clears) until the app is restarted, after which
+  everything is there. The same sequence on Linux is instant and the engine is
+  not blocked, so this is unexplained and not claimed fixed. A real phone is
+  needed to say whether it is the emulator.
 - **Not yet checked:** that the native libraries meet Play's 16 KB page-size
   requirement (from memory, required for new targets-Android-15 submissions;
   verify against current Play policy), and that the application id
