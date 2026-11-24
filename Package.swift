@@ -35,6 +35,14 @@ let packageRoot = URL(fileURLWithPath: #filePath).deletingLastPathComponent().pa
 //
 //     VOXSCRIPTA_IOS_SLICE=sim swift build …     or the same on xcodebuild
 //
+// Under xcodebuild the variable alone is not enough. It is read here, while
+// the manifest is evaluated, but Xcode bakes the resulting linker flags into
+// its cached build description, which an environment variable does not
+// invalidate — so a second build silently reuses the first one's slice and
+// fails with a link error that reads as though this line were being ignored.
+// Remove derived data when switching slices. `Docs/RELEASE.md` has the
+// symptom and the command.
+//
 // The device is the default, because that is what gets installed on a phone
 // and shipped. The simulator is for looking at the interface, which is the
 // only way to see an iPad layout without an iPad.

@@ -160,10 +160,22 @@ public struct RootView: View {
                       allowedContentTypes: [.folder]) { result in
             model.folderPicked(result.map { [$0] })
         }
-        .alert(Strings.somethingWrong,
+        // Two alerts in one presenter, because they share a message channel.
+        // The paywall declining work is not a fault, and announcing it as one
+        // told the buyer the app was broken at the exact moment it was asking
+        // to be paid. It also now offers the way out rather than only "OK".
+        .alert(model.errorIsPaywall ? Strings.subscriptionNeededTitle : Strings.somethingWrong,
                isPresented: .constant(model.errorMessage != nil)) {
-            Button(Strings.ok) { model.dismissError() }
-                .help(Strings.dismissHelp)
+            if model.errorIsPaywall {
+                Button(Strings.subscribe) {
+                    model.dismissError()
+                    isShowingPaywall = true
+                }
+                Button(Strings.notNow, role: .cancel) { model.dismissError() }
+            } else {
+                Button(Strings.ok) { model.dismissError() }
+                    .help(Strings.dismissHelp)
+            }
         } message: {
             Text(model.errorMessage ?? "")
         }

@@ -93,6 +93,50 @@ What already works:
   one the engine dependencies are built for; a mismatch shows up as a link
   error naming the missing architecture, not as a runtime failure.
 
+### Building for the simulator, and the trap in it
+
+```
+VOXSCRIPTA_IOS_SLICE=sim xcodebuild -project ios/VoxScripta.xcodeproj \
+    -scheme VoxScripta -configuration Debug \
+    -destination 'platform=iOS Simulator,name=iPhone 17' build
+```
+
+Without that variable the link fails with:
+
+```
+ld: building for 'iOS-simulator', but linking in object file
+    (build/ffmpeg/ios/prefix/lib/libavformat.a) built for 'iOS'
+```
+
+`build/ffmpeg/ios/` and `build/engines/ios/` hold the **device** slices;
+`ios-sim` holds the simulator's. Both are built by `Tools/build-ffmpeg.sh` and
+`Tools/build-engines.sh`, and both already exist in a working checkout.
+
+**The trap: setting the variable is not enough on its own.** It is read while
+the package manifest is evaluated, but Xcode bakes the resulting linker flags
+into its cached build description, and an environment variable does not
+invalidate that cache. So the second build quietly reuses the first build's
+slice and fails with the identical error, which reads as though the variable
+were being ignored — it is not; it was never consulted.
+
+Two things invalidate the cache: editing `Package.swift`, or removing derived
+data. The second is the reliable one:
+
+```
+rm -rf ~/Library/Developer/Xcode/DerivedData/VoxScripta-*
+```
+
+Clearing `~/Library/Caches/org.swift.swiftpm/manifests` does **not** help; the
+stale value is in the build description, not in the manifest cache. If you have
+already built for the device in the same derived data, assume the cache is
+poisoned and clear it before the first simulator build rather than after the
+first confusing failure. Switching back to the device is the same problem in
+reverse.
+
+A StoreKit configuration file is also not applied by a build run this way — see
+step 3a above. `simctl` has no equivalent of it, so a simulator run launched
+from the command line always reports no plans.
+
 What needs the paid Apple Developer Program, in order:
 
 **1. Enroll.** $99/year. Everything below is blocked until this clears, which

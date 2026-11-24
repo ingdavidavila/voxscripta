@@ -56,6 +56,16 @@ public final class AppModel {
     private(set) var isRunning = false
     private(set) var errorMessage: String?
 
+    /// True when `errorMessage` is the paywall declining work rather than
+    /// something having gone wrong.
+    ///
+    /// One alert serves both, so without this an expired trial is announced
+    /// as a fault — "Something went wrong" over a wall that is working
+    /// exactly as designed, on the one screen that asks for money. Set from
+    /// the error's own case rather than by matching its wording, which would
+    /// break in every language but one.
+    private(set) var errorIsPaywall = false
+
     /// This machine's trial and subscription.
     ///
     /// Held here so the recording path can ask before it opens the
@@ -171,6 +181,7 @@ public final class AppModel {
             importAudio(at: url)
         case .failure(let error):
             errorMessage = error.localizedDescription
+            errorIsPaywall = false
         }
     }
 
@@ -184,6 +195,7 @@ public final class AppModel {
            type.conforms(to: .movie), !CanonicalDecoder.isDemuxable(type) {
             errorMessage = VoxScriptaError.unsupportedContainer(
                 fileExtension: url.pathExtension.lowercased()).errorDescription
+            errorIsPaywall = false
             return
         }
 
@@ -307,6 +319,7 @@ public final class AppModel {
             let url = await recorder.finish()
             guard let url else {
                 errorMessage = String(localized: "That recording was too short to transcribe.")
+                errorIsPaywall = false
                 return
             }
             importAudio(at: url)
@@ -437,8 +450,20 @@ public final class AppModel {
         detail = "Stopping…"
     }
 
-    private func fail(_ error: any Error) {
+    /// Records a failure for the alert to show.
+    ///
+    /// Internal rather than private so `PaywallTests` can hand it both kinds
+    /// of error directly. The only other route to a refusal runs through the
+    /// microphone, which a unit test must not open.
+    func fail(_ error: any Error) {
         errorMessage = (error as? VoxScriptaError)?.errorDescription ?? error.localizedDescription
+        // The one path a refusal can arrive by. `notEntitled` is the wall
+        // doing its job, not a fault, and the alert says so.
+        if case .notEntitled = error as? VoxScriptaError {
+            errorIsPaywall = true
+        } else {
+            errorIsPaywall = false
+        }
         isRunning = false
         phase = .failed
     }
@@ -483,7 +508,10 @@ public final class AppModel {
         polishReport.filter { $0.disposition != .accepted }
     }
 
-    func dismissError() { errorMessage = nil }
+    func dismissError() {
+        errorMessage = nil
+        errorIsPaywall = false
+    }
 
     // ── Delete ──────────────────────────────────────────────────────────────
 
@@ -498,6 +526,7 @@ public final class AppModel {
         if isRunning, openProject?.manifest.projectID == summary.id {
             let name = summary.displayName
             errorMessage = String(localized: "“\(name)” is still being transcribed. Stop it first, then delete it.")
+            errorIsPaywall = false
             return
         }
         Task { [weak self] in
@@ -549,6 +578,7 @@ public final class AppModel {
             refreshLibrary()
         } catch {
             errorMessage = (error as? VoxScriptaError)?.errorDescription ?? error.localizedDescription
+            errorIsPaywall = false
         }
     }
 
@@ -771,6 +801,7 @@ public final class AppModel {
                              exporter.filename(base: base, variant: selectedVariant))
         } catch {
             errorMessage = (error as? VoxScriptaError)?.errorDescription ?? error.localizedDescription
+            errorIsPaywall = false
         }
     }
 
@@ -778,6 +809,7 @@ public final class AppModel {
         pendingExport = nil
         if case .failure(let error) = result {
             errorMessage = error.localizedDescription
+            errorIsPaywall = false
         }
     }
 
@@ -815,6 +847,7 @@ public final class AppModel {
         pendingFolderAction = nil
         guard case .success(let urls) = result, let directory = urls.first else {
             if case .failure(let error) = result { errorMessage = error.localizedDescription }
+            errorIsPaywall = false
             return
         }
         switch action {
@@ -845,6 +878,7 @@ public final class AppModel {
             } catch {
                 errorMessage = (error as? VoxScriptaError)?.errorDescription
                     ?? error.localizedDescription
+                errorIsPaywall = false
             }
             if scoped { directory.stopAccessingSecurityScopedResource() }
             isRendering = false
@@ -881,6 +915,7 @@ public final class AppModel {
             #endif
         } catch {
             errorMessage = (error as? VoxScriptaError)?.errorDescription ?? error.localizedDescription
+            errorIsPaywall = false
         }
     }
 

@@ -554,6 +554,13 @@ enum Strings {
     // MARK: - The paywall
 
     static var subscribe: LocalizedStringKey { "Subscribe" }
+
+    /// The alert when the engine declines work for want of a subscription.
+    ///
+    /// Deliberately not "Your trial has ended": the same refusal covers a
+    /// lapsed subscription, and a long-time subscriber whose card expired
+    /// has no trial to be told about.
+    static var subscriptionNeededTitle: LocalizedStringKey { "Subscribe to continue" }
     static var seePlans: LocalizedStringKey { "See Plans" }
     static var restorePurchase: LocalizedStringKey { "Restore" }
     static var keepGoing: LocalizedStringKey { "Keep going after your trial" }

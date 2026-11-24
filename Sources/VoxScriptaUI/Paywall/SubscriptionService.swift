@@ -86,11 +86,21 @@ public protocol SubscriptionService: Sendable {
     var privacyPolicy: URL { get }
 }
 
-/// The product identifiers this app sells.
+/// The product identifiers this app sells **through the App Store**.
 ///
-/// They have to match App Store Connect and the Play Console exactly, and
-/// they are the same two strings on both so the engine's record means the
-/// same thing wherever it was written.
+/// They have to match App Store Connect exactly, and they are Apple's alone.
+/// An earlier version of this comment claimed they were the same two strings
+/// on Play; they are not, and nothing shared should assume it. Apple sells two
+/// products in one subscription group, because a group is what makes holding
+/// one replace the other. Play has no groups: the same guarantee comes from
+/// *one* subscription product carrying two base plans, so the shapes do not
+/// correspond and the identifiers cannot either.
+///
+/// What crosses the boundary is `BillingPeriod`, not these strings. The engine
+/// records `productID` in `EntitlementRecord` but never reads it to decide
+/// anything — `period` and `expires` carry every consequence — so each store's
+/// adapter is free to name its own products, and `Docs/PARITY.md` holds on the
+/// period rather than on the identifier.
 public enum SubscriptionProducts {
     public static let monthly = "voxscripta.monthly"
     public static let yearly = "voxscripta.yearly"

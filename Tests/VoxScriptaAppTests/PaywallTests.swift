@@ -138,4 +138,50 @@ struct PaywallTests {
         #expect(cancelled.wasCancelled)
         #expect(!SubscriptionError("The payment was declined.").wasCancelled)
     }
+
+    // ── A refusal is not a fault ────────────────────────────────────────────
+
+    @Test("The wall refusing work is flagged as the paywall, not as an error")
+    func refusalIsNotAnError() {
+        // One alert serves both, and it titled every message "Something went
+        // wrong" — so a working wall announced itself as a bug, on the screen
+        // that asks to be paid. Flagged from the error's own case: matching
+        // the wording would hold in English alone.
+        let model = AppModel()
+        #expect(!model.errorIsPaywall)
+
+        let refusal = try? #require(Entitlement.refusal(for: .trialExpired))
+        model.fail(VoxScriptaError.notEntitled(reason: refusal ?? ""))
+
+        #expect(model.errorIsPaywall)
+        #expect(model.errorMessage?.contains("trial has ended") == true)
+
+        model.dismissError()
+        #expect(model.errorMessage == nil)
+        #expect(!model.errorIsPaywall)
+    }
+
+    @Test("A lapsed subscription is the same refusal, not a different one")
+    func lapsedIsAlsoThePaywall() throws {
+        // The title cannot say "Your trial has ended": a subscriber of two
+        // years whose card expired has no trial to be told about.
+        let reason = try #require(Entitlement.refusal(for: .subscriptionLapsed(since: Date())))
+        let model = AppModel()
+        model.fail(VoxScriptaError.notEntitled(reason: reason))
+        #expect(model.errorIsPaywall)
+        #expect(model.errorMessage?.contains("lapsed") == true)
+    }
+
+    @Test("An ordinary failure is not mistaken for the paywall")
+    func ordinaryFailureIsNotThePaywall() {
+        // The flag must not survive the error that set it: a disk failure
+        // after a refusal would otherwise offer a subscription as the cure.
+        let model = AppModel()
+        model.fail(VoxScriptaError.notEntitled(reason: "x"))
+        #expect(model.errorIsPaywall)
+
+        model.fail(VoxScriptaError.insufficientDiskSpace(needed: 1, available: 0))
+        #expect(model.errorMessage != nil)
+        #expect(!model.errorIsPaywall)
+    }
 }
