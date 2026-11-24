@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:voxscripta_engine/voxscripta_engine.dart';
@@ -26,16 +28,16 @@ class LibraryScreen extends StatefulWidget {
 
   /// Opens a project's transcript. Injected rather than built here so the
   /// library's tests do not need an engine to open a row.
-  final void Function(BuildContext, ProjectEntry)? openProject;
+  final FutureOr<void> Function(BuildContext, ProjectEntry)? openProject;
 
   /// Opens the settings screen. Injected for the same reason.
-  final void Function(BuildContext)? openSettings;
+  final FutureOr<void> Function(BuildContext)? openSettings;
 
   /// Starts a new recording.
-  final void Function(BuildContext)? openRecorder;
+  final FutureOr<void> Function(BuildContext)? openRecorder;
 
   /// Opens an audio file that already exists.
-  final void Function(BuildContext)? openImporter;
+  final FutureOr<void> Function(BuildContext)? openImporter;
 
   @override
   State<LibraryScreen> createState() => _LibraryScreenState();
@@ -56,6 +58,19 @@ class _LibraryScreenState extends State<LibraryScreen> {
   }
 
   void _onChanged() => setState(() {});
+
+  /// Looks at the disk again once whatever was opened has been closed.
+  ///
+  /// An import, a recording or a finished job each add or change a project
+  /// while this screen sits underneath, so without this the list stayed at
+  /// "No recordings yet" until someone pressed refresh.
+  void _returned(FutureOr<void> opened) {
+    if (opened is Future<void>) {
+      opened.whenComplete(() {
+        if (mounted) widget.model.refresh();
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -87,13 +102,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 IconButton(
                   icon: const Icon(Icons.audio_file_outlined),
                   tooltip: 'Open an audio file you already have.',
-                  onPressed: () => open(context),
+                  onPressed: () => _returned(open(context)),
                 ),
               if (widget.openRecorder case final record?)
                 IconButton(
                   icon: const Icon(Icons.mic_none),
                   tooltip: 'Record something now.',
-                  onPressed: () => record(context),
+                  onPressed: () => _returned(record(context)),
                 ),
               if (widget.openSettings case final open?)
                 IconButton(
@@ -150,7 +165,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 children: [
                   if (widget.openRecorder case final record?)
                     FilledButton.icon(
-                      onPressed: () => record(context),
+                      onPressed: () => _returned(record(context)),
                       icon: const Icon(Icons.mic),
                       label: const Text('Record'),
                     ),
@@ -158,7 +173,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     const SizedBox(width: 12),
                   if (widget.openImporter case final open?)
                     OutlinedButton.icon(
-                      onPressed: () => open(context),
+                      onPressed: () => _returned(open(context)),
                       icon: const Icon(Icons.audio_file_outlined),
                       label: const Text('Open a file'),
                     ),
@@ -180,7 +195,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
             if (open == null) {
               _noTranscriptScreen(project);
             } else {
-              open(context, project);
+              _returned(open(context, project));
             }
           },
           onReveal: () => _reveal(project),

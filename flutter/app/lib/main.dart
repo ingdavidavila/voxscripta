@@ -179,7 +179,7 @@ class _VoxScriptaAppState extends State<VoxScriptaApp> {
           if (_walled(context)) return;
           final choice = await ImportSheet.show(context);
           if (choice == null || !context.mounted) return;
-          _startJob(
+          await _startJob(
             context,
             engine,
             audioPath: choice.audioPath,
@@ -187,8 +187,8 @@ class _VoxScriptaAppState extends State<VoxScriptaApp> {
           );
         },
         openRecorder: (context) => _walled(context)
-            ? null
-            : Navigator.of(context).push(
+            ? Future<void>.value()
+            : Navigator.of(context).push<void>(
           MaterialPageRoute<void>(
             builder: (_) => RecordingScreen(
               model: RecordingModel.of(engine),
@@ -213,7 +213,7 @@ class _VoxScriptaAppState extends State<VoxScriptaApp> {
             ),
           ),
         ),
-        openProject: (context, project) => Navigator.of(context).push(
+        openProject: (context, project) => Navigator.of(context).push<void>(
           MaterialPageRoute<void>(
             builder: (_) => TranscriptScreen(
               model: TranscriptModel.of(
@@ -289,7 +289,7 @@ class _VoxScriptaAppState extends State<VoxScriptaApp> {
 /// One path for both ways audio arrives — a file the user chose and one they
 /// just recorded — which is the point: nothing downstream knows the
 /// difference, and neither does this.
-void _startJob(
+Future<void> _startJob(
   BuildContext context,
   VoxScriptaEngine engine, {
   required String audioPath,
@@ -318,11 +318,11 @@ void _startJob(
       ),
     ),
   );
-  if (replace) {
-    Navigator.of(context).pushReplacement(route);
-  } else {
-    Navigator.of(context).push(route);
-  }
+  // Returned so the library can look again when the whole sequence — the job
+  // and the transcript it turns into — has been closed.
+  return replace
+      ? Navigator.of(context).pushReplacement<void, void>(route)
+      : Navigator.of(context).push<void>(route);
 }
 
 /// Where a recording's project package goes: beside the library, named after

@@ -100,6 +100,30 @@ void main() {
     expect(find.textContaining('/Trash/Doomed'), findsOne);
   });
 
+  testWidgets('coming back from an import shows what it added', (tester) async {
+    final source = _StubSource(const []);
+    await tester.pumpWidget(MaterialApp(
+      home: LibraryScreen(
+        model: LibraryModel(source),
+        // Stands for the import, job and transcript screens: while it is open
+        // a project appears on disk, and closing it returns to the library.
+        openImporter: (context) async {
+          source.projects = [entry('Just imported')];
+        },
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('No recordings yet'), findsOne);
+
+    await tester.tap(find.text('Open a file'));
+    await tester.pumpAndSettle();
+
+    // Without a refresh on return this stayed at "No recordings yet" until
+    // someone pressed the refresh button.
+    expect(find.text('Just imported'), findsOne);
+    expect(find.text('No recordings yet'), findsNothing);
+  });
+
   group('LibraryModel', () {
     test('a selection that no longer exists is dropped on refresh', () {
       final source = _StubSource([entry('Gone')]);
