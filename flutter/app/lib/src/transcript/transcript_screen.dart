@@ -200,10 +200,16 @@ class _VariantBar extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      child: Row(
+      // A Wrap rather than a Row with a Spacer: the Spacer took half the row and
+      // squeezed the picker until "Verbatim" wrapped to "Verba / tim" at phone
+      // width. Here the counts share the line when there is room and drop to
+      // their own line when there is not.
+      child: Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        runSpacing: 8,
         children: [
-          Flexible(
-            child: SegmentedButton<TranscriptVariant>(
+          SegmentedButton<TranscriptVariant>(
               segments: [
                 for (final variant in model.availableVariants)
                   ButtonSegment(
@@ -217,9 +223,7 @@ class _VariantBar extends StatelessWidget {
               selected: {if (model.selected != null) model.selected!},
               showSelectedIcon: false,
               onSelectionChanged: (selection) => model.select(selection.first),
-            ),
           ),
-          const Spacer(),
           if (counts != null)
             Text(
               '${counts.words} words · ${counts.segments} segments',

@@ -81,6 +81,23 @@ void main() {
     expect(find.text('Polished'), findsNothing);
   });
 
+  testWidgets('the variant names stay on one line at phone width',
+      (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await show(tester,
+        summary: summaryWith(variants: const [
+          TranscriptVariant.verbatim,
+          TranscriptVariant.clean,
+        ]));
+
+    // A Spacer beside the picker took half the row, so on a phone "Verbatim"
+    // wrapped to "Verba / tim". One line is about one line of text tall.
+    final height = tester.getSize(find.text('Verbatim')).height;
+    expect(height, lessThan(24), reason: 'wrapped onto two lines');
+  });
+
   testWidgets('falls back when the preferred variant is absent', (tester) async {
     final model = await show(tester,
         summary: summaryWith(variants: const [TranscriptVariant.verbatim]),
