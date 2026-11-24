@@ -229,10 +229,52 @@ lists this as the first of its outstanding items.
 
 `Docs/PORTING.md` holds the plan of record: the Flutter interface over
 `libVoxScriptaFFI.so`, with the Swift engine built by the Swift SDK for Android.
-No Android build exists yet, and the manifest deliberately declares **no
-permissions at all** — including no `INTERNET`. That stays until billing
-requires it, because an app that cannot reach the network is a privacy claim a
-user can verify from the Play listing without trusting us.
+
+**Where it stands (checked 2026-11-24).** An x86_64 debug build runs on the
+emulator: it opens the engine, imports a file, runs the pipeline up to
+transcription, asks for the microphone and records. Nothing has run on a real
+phone, and transcription does not work on Android at all yet (see "Not ready"
+below).
+
+**Permissions.** The release manifest declares `RECORD_AUDIO` and nothing else —
+**no `INTERNET`**. Recording is the one permission the app needs, and it is
+requested at the moment someone starts recording, never at launch. The no-network
+position stays until billing requires `INTERNET`, because an app that cannot
+reach the network is a privacy claim a user can verify from the Play listing
+without trusting us. Debug builds add `INTERNET` for the Flutter tooling; release
+builds do not. This was read from the merged manifest of a real
+`flutter build appbundle --release`, and no build step asserts it yet — one
+should, on the release variant only.
+
+**Not ready to submit.** `flutter build appbundle --release` does produce an AAB
+(106 MB), but it cannot be uploaded:
+
+- **Signed with the debug key.** `build.gradle.kts` still says "Signing with the
+  debug keys for now". Play rejects that. An upload keystore and a signing
+  config are needed, and the keystore is David's to create and keep.
+- **The engine is present for x86_64 only.** The bundle's `arm64-v8a` and
+  `armeabi-v7a` folders hold Flutter's libraries but no `libVoxScriptaFFI.so`
+  and no FFmpeg libraries, so on a phone the engine would fail to load. Phones
+  are arm64; x86_64 is only the emulator. The arm64 build route is the same
+  (`Tools/stage-android.sh arm64-v8a`) but has not been run, and the engine
+  libraries are git-ignored under `jniLibs/`, so CI cannot build the app until
+  that step is part of it.
+- **The x86_64 engine is a debug build** (73 MB). Release engine sizes have not
+  been measured, and the size of a `small` model on top of them is the
+  deciding number for how it is delivered.
+- **No Whisper model, and no way to give the engine one.** The engine looks for
+  `build/models/ggml-base.bin` relative to the build tree, so every Android
+  transcription fails with "a required model asset is missing". It needs a
+  settable model location and a delivery decision (Play Asset Delivery or a
+  download). Both are open, and the second is David's.
+- **Not yet checked:** that the native libraries meet Play's 16 KB page-size
+  requirement (from memory, required for new targets-Android-15 submissions;
+  verify against current Play policy), and that the application id
+  `dev.voxscripta.voxscripta` is the one to keep, since it cannot change once
+  published.
+- **Needs David:** a Google Play developer account, the keystore above, and the
+  billing decision (one subscription with two base plans is the Play equivalent
+  of an Apple group).
 
 ## Sandboxing
 
