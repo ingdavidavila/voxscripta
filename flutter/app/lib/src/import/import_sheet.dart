@@ -73,6 +73,13 @@ class _ImportSheetState extends State<ImportSheet> {
             TextField(
               controller: _path,
               autofocus: !widget.chooser.isAvailable,
+              // A path is not prose. A phone keyboard that capitalises or
+              // "corrects" it turns jfk.wav into JFK.wav, which names a file
+              // that does not exist on a case-sensitive filesystem.
+              autocorrect: false,
+              enableSuggestions: false,
+              textCapitalization: TextCapitalization.none,
+              keyboardType: TextInputType.url,
               decoration: const InputDecoration(
                 hintText: '/path/to/interview.m4a',
                 border: OutlineInputBorder(),
