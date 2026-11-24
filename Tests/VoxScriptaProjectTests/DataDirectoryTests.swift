@@ -111,4 +111,24 @@ struct DataDirectoryTests {
         #expect(!root.path.isEmpty)
         #expect(root.path.contains("VoxScripta") || !root.path.isEmpty)
     }
+
+    @Test("Asking who configured it does not become the configuring")
+    func configuredRootDoesNotLatch() throws {
+        // `root` latches: first read fixes the answer, and a later `set` to a
+        // different path throws. ModelSearch has to ask where data lives in
+        // order to find a model there, and a capabilities probe can run
+        // before a host has configured anything — so if that question
+        // resolved the directory, the host would then be unable to set it and
+        // the app would fail at startup over a model lookup.
+        DataDirectory.resetForTesting()
+        defer { DataDirectory.resetForTesting() }
+
+        #expect(DataDirectory.configuredRoot == nil)
+        _ = DataDirectory.configuredRoot
+
+        let tmp = try TempDirectory()
+        try DataDirectory.set(tmp.url)        // throws if the read above latched
+        #expect(DataDirectory.root.standardizedFileURL == tmp.url.standardizedFileURL)
+        #expect(DataDirectory.configuredRoot?.standardizedFileURL == tmp.url.standardizedFileURL)
+    }
 }

@@ -152,4 +152,53 @@ struct TranscriptWordCountTests {
         #expect(transcript([segment("", timedWords: 4)]).wordCount == 0)
         #expect(transcript([]).wordCount == 0)
     }
+
+    // MARK: - The host's data directory
+
+    /// A stand-in for whatever a host named. Supplied rather than set, so
+    /// these tests do not fight every other test in the process over one
+    /// global directory — the first version of them did exactly that.
+    private var hostDirectory: URL {
+        URL(filePath: "/data/user/0/dev.voxscripta.voxscripta/files")
+    }
+
+    @Test("A host data directory is searched, ahead of the build tree")
+    func hostDirectorySearched() throws {
+        // Android has neither a build tree nor an executable of ours: the
+        // working directory is `/`, so the walk produces
+        // `/build/models/ggml-base.bin` — which is the path a phone actually
+        // reported when nothing would transcribe.
+        let places = ModelSearch.candidates(for: "ggml-base.bin",
+                                            hostDirectory: hostDirectory)
+        let expected = hostDirectory.appending(path: "models/ggml-base.bin")
+        let host = try #require(places.firstIndex { $0 == expected })
+        let buildTree = try #require(places.firstIndex { $0.path.contains("build/models") })
+        #expect(host < buildTree)
+    }
+
+    @Test("With no host directory, the search is exactly what it was")
+    func noHostDirectoryChangesNothing() {
+        // Desktop behaviour is not up for renegotiation here: the bundle and
+        // the build tree still answer, in the same order.
+        let before = ModelSearch.candidates(for: "polish.gguf", hostDirectory: nil)
+        #expect(!before.contains { $0.path.contains("/data/user/0") })
+        #expect(before.contains { $0.path.contains("build/models") })
+    }
+
+    @Test("With nothing found, the failure names a path the device can have")
+    func failureNamesSomethingReachable() {
+        // The old message named `/build/models/ggml-base.bin` and told the
+        // reader to run a shell script. On a phone that is two impossible
+        // instructions in one sentence.
+        let named = ModelSearch.fallbackPath(for: "ggml-base.bin",
+                                             hostDirectory: hostDirectory)
+        #expect(!named.path.hasPrefix("/build/models"))
+        #expect(named.path == "/data/user/0/dev.voxscripta.voxscripta/files/models/ggml-base.bin")
+    }
+
+    @Test("Without a host directory the failure still names the build tree")
+    func failureWithoutHostNamesDevelopmentTree() {
+        let named = ModelSearch.fallbackPath(for: "ggml-base.bin", hostDirectory: nil)
+        #expect(named.path.contains("build/models/ggml-base.bin"))
+    }
 }

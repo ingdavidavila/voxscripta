@@ -77,6 +77,27 @@ public enum DataDirectory {
         }
     }
 
+    /// Where the host has said data lives, or `nil` if nobody has said yet.
+    ///
+    /// ``root`` latches: the first read fixes the answer, and a later
+    /// ``set(_:)`` to a different directory throws. A model lookup must not be
+    /// the thing that latches it. Lookups happen during a capabilities probe,
+    /// which a host may well run before it configures anything, and that
+    /// ordering would turn a question about models into a startup failure the
+    /// host could not avoid. So this reports a decision already made and never
+    /// makes one.
+    public static var configuredRoot: URL? {
+        lock.withLock {
+            if let resolved { return resolved }
+            if let configured { return configured }
+            if let raw = ProcessInfo.processInfo.environment[environmentKey],
+               !raw.isEmpty {
+                return URL(filePath: raw).standardizedFileURL
+            }
+            return nil
+        }
+    }
+
     /// Forgets the resolution. For tests only, which need to point several
     /// temporary directories at the same process.
     public static func resetForTesting() {
