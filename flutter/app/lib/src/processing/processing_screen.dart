@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:voxscripta_engine/voxscripta_engine.dart';
 
+import '../l10n.dart';
 import 'processing_model.dart';
 import 'waveform_painter.dart';
 
@@ -68,7 +69,7 @@ class _ProcessingScreenState extends State<ProcessingScreen> {
           if (!model.isFinished && model.startFailure == null)
             TextButton(
               onPressed: model.cancel,
-              child: const Text('Stop'),
+              child: Text(context.l10n.stop),
             ),
           const SizedBox(width: 8),
         ],
@@ -77,7 +78,7 @@ class _ProcessingScreenState extends State<ProcessingScreen> {
         padding: const EdgeInsets.all(24),
         children: [
           if (model.startFailure case final message?)
-            _Failure(title: 'This job could not start', detail: message)
+            _Failure(title: context.l10n.jobCouldNotStart, detail: message)
           else ...[
             if (model.isPreparingModel) ...[
               _PreparingModel(fraction: model.modelFraction),
@@ -90,7 +91,7 @@ class _ProcessingScreenState extends State<ProcessingScreen> {
             _Phases(current: progress.state),
             if (progress.failure case final message?) ...[
               const SizedBox(height: 24),
-              _Failure(title: 'This job stopped', detail: message),
+              _Failure(title: context.l10n.jobStopped, detail: message),
             ],
           ],
         ],
@@ -117,7 +118,7 @@ class _Header extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                progress.detail.isEmpty ? 'Starting…' : progress.detail,
+                progress.detail.isEmpty ? context.l10n.jobStarting : progress.detail,
                 style: theme.textTheme.bodyMedium
                     ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
               ),
@@ -140,14 +141,13 @@ class _Header extends StatelessWidget {
         if (audio?.speechRegions case final regions?) ...[
           const SizedBox(height: 10),
           Text(
-            '$regions speech regions · '
-            '${((audio?.speechFraction ?? 0) * 100).round()}% of the recording '
-            'is speech',
+            context.l10n.speechSummary(
+                regions, ((audio?.speechFraction ?? 0) * 100).round()),
             style: theme.textTheme.bodySmall
                 ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
           ),
         ],
-        if (_polishNotice(audio) case final notice?) ...[
+        if (_polishNotice(context.l10n, audio) case final notice?) ...[
           const SizedBox(height: 10),
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Icon(Icons.schedule, size: 16, color: theme.colorScheme.onSurfaceVariant),
@@ -166,16 +166,15 @@ class _Header extends StatelessWidget {
   /// Shown as soon as the duration is known rather than when polishing starts,
   /// so a long job can be stopped before it begins instead of being mistaken
   /// for a hang an hour in. The estimate itself is the engine's.
-  static String? _polishNotice(AudioFacts? audio) {
+  static String? _polishNotice(AppLocalizations l10n, AudioFacts? audio) {
     final estimate = audio?.polishEstimate;
     if (estimate == null || estimate.inSeconds <= 300) return null;
     final minutes = (estimate.inSeconds / 60).round();
     final said = minutes < 90
-        ? '$minutes minutes'
-        : '${(minutes / 60).toStringAsFixed(1).replaceAll('.0', '')} hours';
-    return 'Polishing will take about $said — it makes one request to the '
-        'language model for every sentence. Transcription finishes long before '
-        'that, and you can read it while polishing continues.';
+        ? l10n.durationMinutes(minutes)
+        : l10n.durationHours(
+            (minutes / 60).toStringAsFixed(1).replaceAll('.0', ''));
+    return l10n.polishNotice(said);
   }
 }
 
@@ -198,7 +197,7 @@ class _Waveform extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: pairs == null
           ? Center(
-              child: Text('Reading audio…',
+              child: Text(context.l10n.readingAudio,
                   style: theme.textTheme.bodySmall
                       ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
             )
@@ -215,6 +214,19 @@ class _Waveform extends StatelessWidget {
     );
   }
 }
+
+/// The words for a phase. The pipeline's order and states are the model's; what
+/// each is called is the interface's, so it is looked up here.
+String _phaseLabel(AppLocalizations l10n, JobState state) => switch (state) {
+      JobState.analyzing => l10n.phaseAnalyze,
+      JobState.silenceProcessing => l10n.phaseSilence,
+      JobState.chunking => l10n.phasePlan,
+      JobState.transcribing => l10n.phaseTranscribe,
+      JobState.merging => l10n.phaseAssemble,
+      JobState.cleaning => l10n.phaseClean,
+      JobState.polishing => l10n.phasePolish,
+      _ => '',
+    };
 
 /// The pipeline's phases, with the current one marked.
 class _Phases extends StatelessWidget {
@@ -238,7 +250,7 @@ class _Phases extends StatelessWidget {
                 SizedBox(width: 20, child: _mark(context, index, reached)),
                 const SizedBox(width: 10),
                 Text(
-                  processingPhases[index].$2,
+                  _phaseLabel(context.l10n, processingPhases[index].$1),
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: index == reached
                         ? theme.colorScheme.onSurface
@@ -302,11 +314,10 @@ class _PreparingModel extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Preparing the speech model', style: theme.textTheme.titleSmall),
+            Text(context.l10n.modelPreparingTitle, style: theme.textTheme.titleSmall),
             const SizedBox(height: 4),
             Text(
-              'This happens once, the first time, and uses no network. '
-              'Transcription starts when it finishes.',
+              context.l10n.modelPreparingBody,
               style: theme.textTheme.bodySmall
                   ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
             ),

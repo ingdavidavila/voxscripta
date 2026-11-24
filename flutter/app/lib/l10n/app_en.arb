@@ -1,13 +1,17 @@
 {
   "@@locale": "en",
-
   "tryAgain": "Try again",
   "record": "Record",
   "openFile": "Open a file",
+  "open": "Open",
   "cancel": "Cancel",
   "delete": "Delete",
   "deleteEllipsis": "Delete…",
-
+  "discard": "Discard",
+  "finish": "Finish",
+  "stop": "Stop",
+  "restore": "Restore",
+  "or": "or",
   "libraryTitle": "Recordings",
   "libraryRefreshTooltip": "Look again for recordings on disk.",
   "libraryOpenTooltip": "Open an audio file you already have.",
@@ -16,38 +20,415 @@
   "libraryUnreadableTitle": "The library could not be read",
   "libraryEmptyTitle": "No recordings yet",
   "libraryEmptyDetail": "Record something, or open a file.\n\n{directory}",
-  "@libraryEmptyDetail": { "placeholders": { "directory": { "type": "String" } } },
+  "@libraryEmptyDetail": {
+    "placeholders": {
+      "directory": {
+        "type": "String"
+      }
+    }
+  },
   "projectCannotOpen": "{name} cannot be opened here.",
-  "@projectCannotOpen": { "placeholders": { "name": { "type": "String" } } },
+  "@projectCannotOpen": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "couldNotOpenFileManager": "Could not open {manager}.",
-  "@couldNotOpenFileManager": { "placeholders": { "manager": { "type": "String" } } },
+  "@couldNotOpenFileManager": {
+    "placeholders": {
+      "manager": {
+        "type": "String"
+      }
+    }
+  },
   "deleteProjectTitle": "Delete {name}?",
-  "@deleteProjectTitle": { "placeholders": { "name": { "type": "String" } } },
+  "@deleteProjectTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "deleteExplainTrash": "The project moves to the Trash. Your original audio file is not touched.",
   "deleteExplainFolder": "The project moves to a Deleted folder beside the library. Your original audio file is not touched.",
   "deletedProject": "Deleted {name}.",
-  "@deletedProject": { "placeholders": { "name": { "type": "String" } } },
+  "@deletedProject": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "movedProjectTo": "Moved {name} to {path}",
-  "@movedProjectTo": { "placeholders": { "name": { "type": "String" }, "path": { "type": "String" } } },
+  "@movedProjectTo": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "path": {
+        "type": "String"
+      }
+    }
+  },
   "projectTileTooltip": "{name} · {duration}. Click to open its transcript.",
-  "@projectTileTooltip": { "placeholders": { "name": { "type": "String" }, "duration": { "type": "String" } } },
+  "@projectTileTooltip": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
   "showInFileManager": "Show in {manager}",
-  "@showInFileManager": { "placeholders": { "manager": { "type": "String" } } },
-
+  "@showInFileManager": {
+    "placeholders": {
+      "manager": {
+        "type": "String"
+      }
+    }
+  },
   "justNow": "just now",
   "minutesAgo": "{minutes} min ago",
-  "@minutesAgo": { "placeholders": { "minutes": { "type": "int" } } },
+  "@minutesAgo": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
   "hoursAgo": "{hours, plural, =1{1 hour ago} other{{hours} hours ago}}",
-  "@hoursAgo": { "placeholders": { "hours": { "type": "int" } } },
+  "@hoursAgo": {
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      }
+    }
+  },
   "daysAgo": "{days, plural, =1{1 day ago} other{{days} days ago}}",
-  "@daysAgo": { "placeholders": { "days": { "type": "int" } } },
-
+  "@daysAgo": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
   "subscribe": "Subscribe",
   "seePlans": "See plans",
   "trialLastDay": "Last day of your free trial.",
   "trialDaysLeft": "{days} days left in your free trial.",
-  "@trialDaysLeft": { "placeholders": { "days": { "type": "int" } } },
+  "@trialDaysLeft": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
   "trialEnded": "Your {days}-day trial has ended. Everything already transcribed stays yours.",
-  "@trialEnded": { "placeholders": { "days": { "type": "int" } } },
-  "subscriptionLapsed": "Your subscription has lapsed. Everything already transcribed stays yours."
+  "@trialEnded": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "subscriptionLapsed": "Your subscription has lapsed. Everything already transcribed stays yours.",
+  "paywallPrivacyPromise": "Vox Scripta transcribes on this machine. Nothing is uploaded, nothing is sent to a service, and none of that changes with a subscription — what it pays for is the work of making it.",
+  "noPlans": "No plans came back from the store.",
+  "paywallHeadlineTrialing": "Keep going after your trial",
+  "paywallHeadlineExpired": "Your {days}-day trial has ended",
+  "@paywallHeadlineExpired": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "paywallHeadlineLapsed": "Your subscription has lapsed",
+  "paywallHeadlineSubscribed": "You are subscribed",
+  "staysYoursTitle": "What stays yours either way",
+  "staysYoursRecordings": "Every recording you imported — untouched, where you put it.",
+  "staysYoursTranscripts": "Every transcript already made — readable, copyable, exportable.",
+  "staysYoursExports": "Every export format: txt, md, docx, srt, vtt.",
+  "staysYoursFolder": "Your projects folder, on your own disk.",
+  "subscriptionUnlocks": "A subscription unlocks new transcriptions and recording.",
+  "subscriptionDisclosure": "Subscriptions renew automatically at the price shown until cancelled. Cancel any time; the subscription runs to the end of the period already paid for.",
+  "termsOfUse": "Terms of Use",
+  "privacyPolicy": "Privacy Policy",
+  "manageSubscription": "Manage subscription",
+  "noStoreTitle": "No store is connected in this build",
+  "noStoreBody": "Subscriptions are sold through the App Store on Apple devices and Google Play on Android, and neither is wired up yet, so there is nothing to buy here. This build cannot start new transcriptions once the trial ends.",
+  "importTitle": "Open audio",
+  "importChooseFile": "Choose a file…",
+  "importOrTypePath": "or type a path",
+  "importStaysPut": "The file stays where it is. Vox Scripta reads it and never modifies it.",
+  "importChooseOrType": "Choose a file, or type its path.",
+  "importNoFile": "There is no file at that path.",
+  "importUnsupported": "Vox Scripta cannot read .{extension} files. It reads {formats} and more.",
+  "@importUnsupported": {
+    "placeholders": {
+      "extension": {
+        "type": "String"
+      },
+      "formats": {
+        "type": "String"
+      }
+    }
+  },
+  "recordingTitle": "Recording",
+  "recordingOpeningMic": "Opening the microphone…",
+  "recordingRecording": "Recording…",
+  "recordingPaused": "Paused",
+  "audioNeverLeavesDevice": "Your audio never leaves this device",
+  "discardRecordingTitle": "Discard this recording?",
+  "discardRecordingBody": "The audio recorded so far will be deleted. This cannot be undone.",
+  "keepRecording": "Keep recording",
+  "discardRecordingTooltip": "Delete this recording without keeping it.",
+  "resumeRecordingTooltip": "Carry on recording into the same file.",
+  "pauseRecordingTooltip": "Stop capturing without ending the recording.",
+  "micCouldNotOpen": "The microphone could not be opened",
+  "writingStopped": "Writing stopped",
+  "writingStoppedDetail": "{message}\n\nWhat was recorded before this is still on disk.",
+  "@writingStoppedDetail": {
+    "placeholders": {
+      "message": {
+        "type": "String"
+      }
+    }
+  },
+  "silentInputTitle": "No sound is reaching the microphone",
+  "silentInputBody": "Recording is still running and will be kept. Check that the right input is selected and that it is not muted.",
+  "micAccessBlocked": "Microphone access is off. Vox Scripta does not have permission to use the microphone. Turn it on in Settings, under Apps, Vox Scripta, Permissions, then try recording again.",
+  "micAccessDenied": "Microphone access was not granted, so nothing was recorded. Go back and try again, and allow the microphone when asked.",
+  "jobCouldNotStart": "This job could not start",
+  "jobStopped": "This job stopped",
+  "jobStarting": "Starting…",
+  "speechSummary": "{regions} speech regions · {percent}% of the recording is speech",
+  "@speechSummary": {
+    "placeholders": {
+      "regions": {
+        "type": "int"
+      },
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "durationMinutes": "{minutes} minutes",
+  "@durationMinutes": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "durationHours": "{hours} hours",
+  "@durationHours": {
+    "placeholders": {
+      "hours": {
+        "type": "String"
+      }
+    }
+  },
+  "polishNotice": "Polishing will take about {duration} — it makes one request to the language model for every sentence. Transcription finishes long before that, and you can read it while polishing continues.",
+  "@polishNotice": {
+    "placeholders": {
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
+  "readingAudio": "Reading audio…",
+  "modelPreparingTitle": "Preparing the speech model",
+  "modelPreparingBody": "This happens once, the first time, and uses no network. Transcription starts when it finishes.",
+  "phaseAnalyze": "Analyze audio",
+  "phaseSilence": "Detect silence",
+  "phasePlan": "Plan segments",
+  "phaseTranscribe": "Transcribe",
+  "phaseAssemble": "Assemble transcript",
+  "phaseClean": "Clean",
+  "phasePolish": "Polish",
+  "variantVerbatim": "Verbatim",
+  "variantClean": "Clean",
+  "variantPolished": "Polished",
+  "variantVerbatimExplained": "Exactly what was said, including hesitations.",
+  "variantCleanExplained": "Tidied by fixed rules. No language model was involved.",
+  "variantPolishedExplained": "Rewritten for readability, checked against the original.",
+  "formatPlainText": "Plain Text (.txt)",
+  "formatMarkdown": "Markdown (.md)",
+  "formatWord": "Word (.docx)",
+  "formatSubRip": "Subtitles (.srt)",
+  "formatWebVTT": "Web Captions (.vtt)",
+  "formatPlainTextExplained": "Just the words, in a file any editor can open.",
+  "formatMarkdownExplained": "Words with light formatting, for notes and documentation.",
+  "formatWordExplained": "A Word document, for sharing and further editing.",
+  "formatSubRipExplained": "Timed subtitles, the format most video editors expect.",
+  "formatWebVTTExplained": "Timed captions for the web.",
+  "dispositionAccepted": "Accepted",
+  "dispositionAcceptedAfterRetry": "Accepted after a retry",
+  "dispositionFellBackToClean": "Kept the clean text",
+  "dispositionModelFailed": "Model failed — kept the clean text",
+  "dispositionUnknown": "Unknown",
+  "reviewToggleTooltip": "Show what polish changed, and what it refused.",
+  "nothingToCopy": "Nothing to copy yet.",
+  "copyTranscriptTooltip": "Copy the whole {variant} transcript to the clipboard.",
+  "@copyTranscriptTooltip": {
+    "placeholders": {
+      "variant": {
+        "type": "String"
+      }
+    }
+  },
+  "projectUnreadableTitle": "This project could not be read",
+  "noTranscriptTitle": "Nothing transcribed yet",
+  "noTranscriptDetail": "This project has no finished transcript.",
+  "transcribeIt": "Transcribe it",
+  "copiedTranscript": "Copied the {variant} transcript.",
+  "@copiedTranscript": {
+    "placeholders": {
+      "variant": {
+        "type": "String"
+      }
+    }
+  },
+  "renderedNotSaved": "{format} rendered — {bytes} bytes. Choosing where to save it needs the file dialog, which is not wired up yet.",
+  "@renderedNotSaved": {
+    "placeholders": {
+      "format": {
+        "type": "String"
+      },
+      "bytes": {
+        "type": "int"
+      }
+    }
+  },
+  "transcriptUnreadableTitle": "That transcript could not be read",
+  "includeTimestamps": "Include timestamps",
+  "saveTranscriptTooltip": "Save this transcript. Formats and timestamps are in the menu.",
+  "nothingToSave": "Nothing to save yet.",
+  "wordsAndSegments": "{words} words · {segments} segments",
+  "@wordsAndSegments": {
+    "placeholders": {
+      "words": {
+        "type": "int"
+      },
+      "segments": {
+        "type": "int"
+      }
+    }
+  },
+  "polishDidNotRun": "Polish did not run",
+  "noReasonRecorded": "No reason was recorded.",
+  "polishReview": "Polish review",
+  "everySentencePassed": "Every sentence passed.",
+  "reviewModelLabel": "Model",
+  "engineUnavailableTitle": "The engine could not be loaded",
+  "noReasonReported": "No reason was reported.",
+  "settingsTitle": "Settings",
+  "resetToDefaults": "Reset to defaults",
+  "sectionSilence": "Silence detection",
+  "silenceThreshold": "Threshold above noise",
+  "silenceThresholdHelp": "How far above the measured background noise a sound must be to count as speech. Raise it for a noisy recording.",
+  "shortestPause": "Shortest pause",
+  "shortestPauseHelp": "A quiet stretch shorter than this is treated as part of the speech, not as a pause.",
+  "paddingAfterSpeech": "Padding after speech",
+  "paddingAfterSpeechHelp": "Silence kept after each phrase, so word endings are not clipped when silence is removed.",
+  "sectionSegmentation": "Segmentation",
+  "segmentationFooter": "Segments are internal. They set how often work is saved, not how the transcript reads.",
+  "maxSegmentLength": "Maximum segment length",
+  "maxSegmentLengthHelp": "The longest stretch of audio transcribed as one unit. Shorter segments save progress more often.",
+  "sectionTranscription": "Transcription",
+  "transcriptionFooter": "More at once is faster up to a point, and costs memory. Four is measured rather than guessed.",
+  "detectLanguage": "Detect language",
+  "detectLanguageHelp": "Tries the languages this machine can transcribe on a short sample and uses whichever the engine recognises confidently. The setting below is the fallback. Nothing is downloaded.",
+  "verbatimOnlyNotice": "Verbatim only in this language. Clean and Polished need lexicons Vox Scripta does not have yet.",
+  "polishedUnavailableNotice": "Polished is unavailable in this language. The checks that catch a reversed meaning have not been proven here, so the pass is withheld rather than run unguarded.",
+  "segmentsAtOnce": "Segments at once",
+  "segmentsAtOnceHelp": "How many segments are transcribed concurrently.",
+  "cleanFooter": "Clean uses fixed rules only. No language model is involved, and every edit is recorded.",
+  "removeFillers": "Remove fillers",
+  "removeFillersHelp": "Drops “um”, “uh” and the like.",
+  "collapseStutters": "Collapse stutters",
+  "collapseStuttersHelp": "Turns “the the the” into “the”.",
+  "dropLowConfidence": "Drop low-confidence words",
+  "dropLowConfidenceHelp": "Removes words the recogniser was unsure of.",
+  "sectionStorage": "Storage and privacy",
+  "privacyFooter": "Transcription runs entirely on this machine. No recording and no transcript is ever uploaded, and there is no telemetry.",
+  "privacyFooterWithAccount": "Transcription runs entirely on this machine. No recording and no transcript is ever uploaded, and there is no telemetry. An account is optional and carries only your email address, for signing in.",
+  "keepWorkingFiles": "Keep working files",
+  "keepWorkingFilesHelp": "Keeps the scratch audio after a job finishes. It is about 1.4 GB for a six-hour recording, and the transcripts do not need it.",
+  "projectsFolder": "Projects folder",
+  "polishFooter": "Polish rewrites sentence by sentence and checks each rewrite against the original. A rewrite that fails is discarded and the clean sentence stands.",
+  "createPolished": "Create a polished transcript",
+  "polishRunsAfterClean": "Runs the model pass after Clean.",
+  "polishUnavailableInLanguage": "Unavailable in the selected language.",
+  "languageModel": "Language model",
+  "languageModelHelp": "Which model to prefer. A named model that is unavailable is refused rather than quietly swapped for another.",
+  "backendAutomatic": "Best available",
+  "backendSystem": "Apple Intelligence",
+  "backendBundled": "Bundled model",
+  "willUse": "Will use",
+  "polishWillBeSkipped": "unavailable — polish will be skipped",
+  "available": "Available",
+  "unavailable": "Unavailable",
+  "notIncluded": "Not included",
+  "settingsLanguage": "Language",
+  "settingsLanguageHelp": "The language spoken in the recording. Getting this wrong costs accuracy more than any other setting.",
+  "noLanguagesReported": "No transcription languages were reported.",
+  "account": "Account",
+  "signedInAs": "Signed in as",
+  "signedInWith": "Signed in with",
+  "signOut": "Sign out",
+  "signOutNote": "Your recordings and transcripts stay on this machine.",
+  "deleteAccount": "Delete account",
+  "deleteAccountNote": "Removes the account and everything the account service holds for it. Your local projects are not touched.",
+  "providerPassword": "An email address and password",
+  "deleteAccountTitle": "Delete this account?",
+  "deleteAccountBody": "The account and everything the account service holds for it are removed. This cannot be undone.\n\nRecordings, projects and transcripts on this machine are not deleted — they were never on the account.",
+  "keepIt": "Keep it",
+  "signIn": "Sign in",
+  "notNow": "Not now",
+  "welcomeBack": "Welcome back",
+  "accountIsOptionalNote": "Your recordings stay on this device either way. An account is only for settings that follow you.",
+  "emailField": "Email",
+  "passwordField": "Password",
+  "forgotPassword": "Forgot password?",
+  "noAccountYet": "No account yet?",
+  "createOne": "Create one",
+  "enterYourEmail": "Enter your email.",
+  "enterYourPassword": "Enter your password.",
+  "createAnAccount": "Create an account",
+  "orSignUpWithEmail": "or sign up with email",
+  "emailHelper": "Used to sign in and to reset your password.",
+  "confirmPasswordField": "Password again",
+  "createAccount": "Create account",
+  "deleteAnytimeNote": "You can delete your account, and everything stored with it, from Settings at any time.",
+  "enterAnEmailAddress": "Enter an email address.",
+  "notAnEmailAddress": "That does not look like an email address.",
+  "typePasswordAgain": "Type your password again.",
+  "passwordsDoNotMatch": "The two passwords do not match.",
+  "passwordRequirementsUnmet": "Your password does not meet all the requirements yet.",
+  "resetYourPassword": "Reset your password",
+  "resetPasswordIntro": "Enter the email you signed up with and we will send you a link to choose a new password.",
+  "sendResetLink": "Send reset link",
+  "checkYourEmail": "Check your email",
+  "resetLinkSent": "If {email} has an account, a reset link is on its way. It expires after a short while, so use it soon.",
+  "@resetLinkSent": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "backToSignIn": "Back to sign in",
+  "useDifferentEmail": "Use a different email",
+  "enterYourEmailAddress": "Enter your email address.",
+  "hidePassword": "Hide password",
+  "showPassword": "Show password",
+  "continueWithApple": "Continue with Apple",
+  "continueWithGoogle": "Continue with Google",
+  "signInOptionalNote": "Optional. Transcription works without one."
 }

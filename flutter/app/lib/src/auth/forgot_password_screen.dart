@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../l10n.dart';
+
 import 'auth_service.dart';
 import 'auth_widgets.dart';
 
@@ -38,7 +40,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Reset your password')),
+      appBar: AppBar(title: Text(context.l10n.resetYourPassword)),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -57,8 +59,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Enter the email you signed up with and we will send you a link to '
-            'choose a new password.',
+            context.l10n.resetPasswordIntro,
             style: theme.textTheme.bodyMedium,
           ),
           const SizedBox(height: 20),
@@ -76,7 +77,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             onChanged: (_) => setState(() => _emailError = null),
             onSubmitted: (_) => _send(),
             decoration: InputDecoration(
-              labelText: 'Email',
+              labelText: context.l10n.emailField,
               errorText: _emailError,
               border: const OutlineInputBorder(),
             ),
@@ -91,7 +92,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 ? const SizedBox(
                     width: 18, height: 18,
                     child: CircularProgressIndicator(strokeWidth: 2))
-                : const Text('Send reset link'),
+                : Text(context.l10n.sendResetLink),
           ),
         ],
       );
@@ -102,15 +103,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           Icon(Icons.mark_email_read_outlined,
               size: 44, color: theme.colorScheme.primary),
           const SizedBox(height: 16),
-          Text('Check your email', style: theme.textTheme.titleMedium,
+          Text(context.l10n.checkYourEmail, style: theme.textTheme.titleMedium,
               textAlign: TextAlign.center),
           const SizedBox(height: 8),
           Text(
             // Deliberately does not say whether that address has an account.
             // Confirming it would turn this form into a way for anyone to
             // discover who has signed up.
-            'If ${_email.text.trim()} has an account, a reset link is on its '
-            'way. It expires after a short while, so use it soon.',
+            context.l10n.resetLinkSent(_email.text.trim()),
             textAlign: TextAlign.center,
             style: theme.textTheme.bodySmall
                 ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
@@ -118,11 +118,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           const SizedBox(height: 22),
           OutlinedButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Back to sign in'),
+            child: Text(context.l10n.backToSignIn),
           ),
           TextButton(
             onPressed: _busy ? null : () => setState(() => _sent = false),
-            child: const Text('Use a different email'),
+            child: Text(context.l10n.useDifferentEmail),
           ),
         ],
       );
@@ -132,9 +132,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     final check = widget.emailCheck;
     setState(() {
       _emailError = email.isEmpty
-          ? 'Enter your email address.'
+          ? context.l10n.enterYourEmailAddress
           : (check != null && !check(email))
-              ? 'That does not look like an email address.'
+              ? context.l10n.notAnEmailAddress
               : null;
     });
     if (_emailError != null) return;

@@ -82,7 +82,8 @@ void main() {
 
       expect(source.started, 0);
       expect(model.isActive, isFalse);
-      expect(model.startFailure, contains('not granted'));
+      expect(model.accessProblem, MicrophoneAccess.denied);
+      expect(model.startFailure, isNull);
     });
 
     test('points to Settings when blocked', () async {
@@ -93,7 +94,7 @@ void main() {
       await model.start();
 
       expect(source.started, 0);
-      expect(model.startFailure, contains('Settings'));
+      expect(model.accessProblem, MicrophoneAccess.blocked);
     });
 
     test('goes on to the engine once granted', () async {

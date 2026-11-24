@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:voxscripta_engine/voxscripta_engine.dart';
 
+import '../l10n.dart';
 import '../platform_traits.dart';
 import 'review_panel.dart';
 import 'transcript_model.dart';
@@ -66,15 +67,16 @@ class _TranscriptScreenState extends State<TranscriptScreen> {
                   isSelected: model.showsReview,
                   icon: const Icon(Icons.verified_user_outlined),
                   selectedIcon: const Icon(Icons.verified_user),
-                  tooltip: 'Show what polish changed, and what it refused.',
+                  tooltip: context.l10n.reviewToggleTooltip,
                   onPressed: model.toggleReview,
                 ),
               IconButton(
                 icon: const Icon(Icons.copy_all_outlined),
                 tooltip: model.selected == null
-                    ? 'Nothing to copy yet.'
-                    : 'Copy the whole ${Wording.variantName(model.selected!).toLowerCase()} '
-                        'transcript to the clipboard.',
+                    ? context.l10n.nothingToCopy
+                    : context.l10n.copyTranscriptTooltip(
+                        Wording.variantName(context.l10n, model.selected!)
+                            .toLowerCase()),
                 onPressed: model.selected == null ? null : _copy,
               ),
               _SaveButton(model: model, onSaved: _save),
@@ -94,15 +96,15 @@ class _TranscriptScreenState extends State<TranscriptScreen> {
     if (model.error case final message? when model.summary == null) {
       return _Centred(
         icon: Icons.error_outline,
-        title: 'This project could not be read',
+        title: context.l10n.projectUnreadableTitle,
         detail: message,
       );
     }
     if (model.availableVariants.isEmpty) {
       return _Centred(
         icon: Icons.hourglass_empty,
-        title: 'Nothing transcribed yet',
-        detail: 'This project has no finished transcript.',
+        title: context.l10n.noTranscriptTitle,
+        detail: context.l10n.noTranscriptDetail,
         // An offer rather than an instruction: the audio is right there and
         // the engine can resume from wherever a previous run stopped.
         action: widget.onRun == null
@@ -110,7 +112,7 @@ class _TranscriptScreenState extends State<TranscriptScreen> {
             : FilledButton.icon(
                 onPressed: () => widget.onRun!(context),
                 icon: const Icon(Icons.play_arrow),
-                label: const Text('Transcribe it'),
+                label: Text(context.l10n.transcribeIt),
               ),
       );
     }
@@ -155,8 +157,8 @@ class _TranscriptScreenState extends State<TranscriptScreen> {
     await Clipboard.setData(ClipboardData(text: model.text));
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('Copied the ${Wording.variantName(model.selected!).toLowerCase()} '
-          'transcript.'),
+      content: Text(context.l10n.copiedTranscript(
+          Wording.variantName(context.l10n, model.selected!).toLowerCase())),
       duration: const Duration(seconds: 2),
     ));
   }
@@ -174,9 +176,8 @@ class _TranscriptScreenState extends State<TranscriptScreen> {
       final bytes = await model.render(format);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('${Wording.formatName(format)} rendered — '
-            '${bytes.length} bytes. Choosing where to save it needs the file '
-            'dialog, which is not wired up yet.'),
+        content: Text(context.l10n.renderedNotSaved(
+            Wording.formatName(context.l10n, format), bytes.length)),
         duration: const Duration(seconds: 4),
       ));
     } on VoxScriptaException catch (failure) {
@@ -214,9 +215,9 @@ class _VariantBar extends StatelessWidget {
                 for (final variant in model.availableVariants)
                   ButtonSegment(
                     value: variant,
-                    label: Text(Wording.variantName(variant)),
+                    label: Text(Wording.variantName(context.l10n, variant)),
                     tooltip: PlatformTraits.hasPointer
-                        ? Wording.variantExplanation(variant)
+                        ? Wording.variantExplanation(context.l10n, variant)
                         : null,
                   ),
               ],
@@ -226,7 +227,7 @@ class _VariantBar extends StatelessWidget {
           ),
           if (counts != null)
             Text(
-              '${counts.words} words · ${counts.segments} segments',
+              context.l10n.wordsAndSegments(counts.words, counts.segments),
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
                 fontFeatures: const [FontFeature.tabularFigures()],
@@ -249,7 +250,7 @@ class _TranscriptText extends StatelessWidget {
     if (model.error case final message?) {
       return _Centred(
         icon: Icons.error_outline,
-        title: 'That transcript could not be read',
+        title: context.l10n.transcriptUnreadableTitle,
         detail: message,
       );
     }
@@ -293,8 +294,8 @@ class _SaveButton extends StatelessWidget {
           MenuItemButton(
             onPressed: () => onSaved(format),
             child: Tooltip(
-              message: Wording.formatExplanation(format),
-              child: Text(Wording.formatName(format)),
+              message: Wording.formatExplanation(context.l10n, format),
+              child: Text(Wording.formatName(context.l10n, format)),
             ),
           ),
         const Divider(height: 1),
@@ -303,14 +304,14 @@ class _SaveButton extends StatelessWidget {
         CheckboxMenuButton(
           value: model.includeTimestamps,
           onChanged: (value) => model.setIncludeTimestamps(value ?? false),
-          child: const Text('Include timestamps'),
+          child: Text(context.l10n.includeTimestamps),
         ),
       ],
       builder: (context, controller, child) => IconButton(
         icon: const Icon(Icons.download_outlined),
         tooltip: enabled
-            ? 'Save this transcript. Formats and timestamps are in the menu.'
-            : 'Nothing to save yet.',
+            ? context.l10n.saveTranscriptTooltip
+            : context.l10n.nothingToSave,
         onPressed: !enabled
             ? null
             : () => controller.isOpen ? controller.close() : controller.open(),

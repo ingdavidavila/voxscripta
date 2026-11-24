@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../l10n.dart';
+
 import 'auth_service.dart';
 import 'auth_widgets.dart';
 import 'forgot_password_screen.dart';
@@ -49,12 +51,12 @@ class _SignInScreenState extends State<SignInScreen> {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Sign in'),
+        title: Text(context.l10n.signIn),
         actions: [
           if (widget.onSkip case final skip?)
             TextButton(
               onPressed: _busy ? null : () => skip(context),
-              child: const Text('Not now'),
+              child: Text(context.l10n.notNow),
             ),
           const SizedBox(width: 8),
         ],
@@ -69,11 +71,10 @@ class _SignInScreenState extends State<SignInScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text('Welcome back', style: theme.textTheme.headlineSmall),
+                    Text(context.l10n.welcomeBack, style: theme.textTheme.headlineSmall),
                     const SizedBox(height: 4),
                     Text(
-                      'Your recordings stay on this device either way. '
-                      'An account is only for settings that follow you.',
+                      context.l10n.accountIsOptionalNote,
                       style: theme.textTheme.bodySmall
                           ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                     ),
@@ -90,7 +91,7 @@ class _SignInScreenState extends State<SignInScreen> {
                       onGoogle: () => _run(widget.auth.signInWithGoogle),
                     ),
                     const SizedBox(height: 20),
-                    const OrDivider(),
+                    OrDivider(label: context.l10n.or),
                     const SizedBox(height: 20),
                     TextField(
                       controller: _email,
@@ -100,7 +101,7 @@ class _SignInScreenState extends State<SignInScreen> {
                       textInputAction: TextInputAction.next,
                       onChanged: (_) => setState(() => _emailError = null),
                       decoration: InputDecoration(
-                        labelText: 'Email',
+                        labelText: context.l10n.emailField,
                         errorText: _emailError,
                         border: const OutlineInputBorder(),
                       ),
@@ -108,7 +109,7 @@ class _SignInScreenState extends State<SignInScreen> {
                     const SizedBox(height: 14),
                     PasswordField(
                       controller: _password,
-                      label: 'Password',
+                      label: context.l10n.passwordField,
                       error: _passwordError,
                       autofillHints: const [AutofillHints.password],
                       textInputAction: TextInputAction.done,
@@ -119,7 +120,7 @@ class _SignInScreenState extends State<SignInScreen> {
                       alignment: Alignment.centerRight,
                       child: TextButton(
                         onPressed: _busy ? null : _forgot,
-                        child: const Text('Forgot password?'),
+                        child: Text(context.l10n.forgotPassword),
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -132,18 +133,18 @@ class _SignInScreenState extends State<SignInScreen> {
                           ? const SizedBox(
                               width: 18, height: 18,
                               child: CircularProgressIndicator(strokeWidth: 2))
-                          : const Text('Sign in'),
+                          : Text(context.l10n.signIn),
                     ),
                     const SizedBox(height: 14),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text('No account yet?',
+                        Text(context.l10n.noAccountYet,
                             style: theme.textTheme.bodySmall?.copyWith(
                                 color: theme.colorScheme.onSurfaceVariant)),
                         TextButton(
                           onPressed: _busy ? null : _signUp,
-                          child: const Text('Create one'),
+                          child: Text(context.l10n.createOne),
                         ),
                       ],
                     ),
@@ -163,8 +164,9 @@ class _SignInScreenState extends State<SignInScreen> {
     // sign-in, and reporting it as one teaches people their password is wrong
     // when it is not.
     setState(() {
-      _emailError = email.isEmpty ? 'Enter your email.' : null;
-      _passwordError = _password.text.isEmpty ? 'Enter your password.' : null;
+      _emailError = email.isEmpty ? context.l10n.enterYourEmail : null;
+      _passwordError =
+          _password.text.isEmpty ? context.l10n.enterYourPassword : null;
     });
     if (_emailError != null || _passwordError != null) return;
     _run(() => widget.auth.signInWithPassword(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:voxscripta_engine/voxscripta_engine.dart';
 
+import '../l10n.dart';
 import 'subscription_service.dart';
 
 /// Where the subscription is sold.
@@ -82,12 +83,12 @@ class _PaywallScreenState extends State<PaywallScreen> {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Subscribe'),
+        title: Text(context.l10n.subscribe),
         actions: [
           if (widget.service case final service?)
             TextButton(
               onPressed: _busy ? null : () => _restore(service),
-              child: const Text('Restore'),
+              child: Text(context.l10n.restore),
             ),
           const SizedBox(width: 8),
         ],
@@ -95,12 +96,11 @@ class _PaywallScreenState extends State<PaywallScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
         children: [
-          Text(_headline(widget.entitlement), style: theme.textTheme.headlineSmall),
+          Text(_headline(context.l10n, widget.entitlement),
+              style: theme.textTheme.headlineSmall),
           const SizedBox(height: 12),
           Text(
-            'Vox Scripta transcribes on this machine. Nothing is uploaded, '
-            'nothing is sent to a service, and none of that changes with a '
-            'subscription — what it pays for is the work of making it.',
+            context.l10n.paywallPrivacyPromise,
             style: theme.textTheme.bodyMedium
                 ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
           ),
@@ -132,7 +132,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
     final products = _products ?? const [];
     if (products.isEmpty) {
       return [
-        Text('No plans came back from the store.',
+        Text(context.l10n.noPlans,
             style: Theme.of(context).textTheme.bodyMedium),
       ];
     }
@@ -148,13 +148,13 @@ class _PaywallScreenState extends State<PaywallScreen> {
     ];
   }
 
-  static String _headline(Entitlement entitlement) => switch (entitlement.state) {
-        EntitlementState.trialing =>
-          'Keep going after your trial',
+  static String _headline(AppLocalizations l10n, Entitlement entitlement) =>
+      switch (entitlement.state) {
+        EntitlementState.trialing => l10n.paywallHeadlineTrialing,
         EntitlementState.trialExpired =>
-          'Your ${entitlement.trialDays}-day trial has ended',
-        EntitlementState.subscriptionLapsed => 'Your subscription has lapsed',
-        EntitlementState.subscribed => 'You are subscribed',
+          l10n.paywallHeadlineExpired(entitlement.trialDays),
+        EntitlementState.subscriptionLapsed => l10n.paywallHeadlineLapsed,
+        EntitlementState.subscribed => l10n.paywallHeadlineSubscribed,
       };
 
   Future<void> _purchase(SubscriptionProduct product) async {
@@ -227,14 +227,14 @@ class _WhatYouKeep extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('What stays yours either way',
+          Text(context.l10n.staysYoursTitle,
               style: theme.textTheme.titleSmall),
           const SizedBox(height: 10),
-          for (final line in const [
-            'Every recording you imported — untouched, where you put it.',
-            'Every transcript already made — readable, copyable, exportable.',
-            'Every export format: txt, md, docx, srt, vtt.',
-            'Your projects folder, on your own disk.',
+          for (final line in [
+            context.l10n.staysYoursRecordings,
+            context.l10n.staysYoursTranscripts,
+            context.l10n.staysYoursExports,
+            context.l10n.staysYoursFolder,
           ])
             Padding(
               padding: const EdgeInsets.only(bottom: 6),
@@ -249,7 +249,7 @@ class _WhatYouKeep extends StatelessWidget {
               ),
             ),
           const SizedBox(height: 4),
-          Text('A subscription unlocks new transcriptions and recording.',
+          Text(context.l10n.subscriptionUnlocks,
               style: theme.textTheme.bodySmall
                   ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
         ],
@@ -340,9 +340,7 @@ class _Disclosure extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Subscriptions renew automatically at the price shown until '
-          'cancelled. Cancel any time; the subscription runs to the end of '
-          'the period already paid for.',
+          context.l10n.subscriptionDisclosure,
           style: style,
         ),
         const SizedBox(height: 10),
@@ -350,18 +348,18 @@ class _Disclosure extends StatelessWidget {
           spacing: 16,
           children: [
             _Link(
-              label: 'Terms of Use',
+              label: context.l10n.termsOfUse,
               uri: service.termsOfUse,
               onOpenLink: onOpenLink,
             ),
             _Link(
-              label: 'Privacy Policy',
+              label: context.l10n.privacyPolicy,
               uri: service.privacyPolicy,
               onOpenLink: onOpenLink,
             ),
             if (service.managementPage case final page?)
               _Link(
-                label: 'Manage subscription',
+                label: context.l10n.manageSubscription,
                 uri: page,
                 onOpenLink: onOpenLink,
               ),
@@ -418,16 +416,13 @@ class _NoStoreWired extends StatelessWidget {
               Icon(Icons.storefront_outlined,
                   size: 20, color: theme.colorScheme.onSurfaceVariant),
               const SizedBox(width: 10),
-              Text('No store is connected in this build',
+              Text(context.l10n.noStoreTitle,
                   style: theme.textTheme.titleSmall),
             ],
           ),
           const SizedBox(height: 10),
           Text(
-            'Subscriptions are sold through the App Store on Apple devices '
-            'and Google Play on Android, and neither is wired up yet, so '
-            'there is nothing to buy here. This build cannot start new '
-            'transcriptions once the trial ends.',
+            context.l10n.noStoreBody,
             style: theme.textTheme.bodySmall,
           ),
         ],

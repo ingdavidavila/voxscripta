@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:voxscripta_engine/voxscripta_engine.dart';
 
+import '../l10n.dart';
+import '../microphone_permission.dart';
 import 'recording_model.dart';
 
 /// Capturing the microphone.
@@ -64,7 +66,15 @@ class _RecordingScreenState extends State<RecordingScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (model.startFailure case final message?)
+                  if (model.accessProblem case final problem?)
+                    // The system, not the engine, refused: worded here so it is
+                    // in the interface's language.
+                    _Failure(
+                        message: problem == MicrophoneAccess.blocked
+                            ? context.l10n.micAccessBlocked
+                            : context.l10n.micAccessDenied,
+                        directory: model.directory)
+                  else if (model.startFailure case final message?)
                     _Failure(message: message, directory: model.directory)
                   else ...[
                     Text(
@@ -95,7 +105,7 @@ class _RecordingScreenState extends State<RecordingScreen> {
                           size: 14,
                           color: Theme.of(context).colorScheme.onSurfaceVariant),
                       const SizedBox(width: 6),
-                      Text('Your audio never leaves this device',
+                      Text(context.l10n.audioNeverLeavesDevice,
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               color: Theme.of(context).colorScheme.onSurfaceVariant)),
                     ]),
@@ -110,10 +120,10 @@ class _RecordingScreenState extends State<RecordingScreen> {
   }
 
   String _title(RecordingProgress progress) => switch (progress.state) {
-        RecordingState.idle => 'Opening the microphone…',
-        RecordingState.recording => 'Recording…',
-        RecordingState.paused => 'Paused',
-        RecordingState.unknownHandle => 'Recording',
+        RecordingState.idle => context.l10n.recordingOpeningMic,
+        RecordingState.recording => context.l10n.recordingRecording,
+        RecordingState.paused => context.l10n.recordingPaused,
+        RecordingState.unknownHandle => context.l10n.recordingTitle,
       };
 
   void _finish() {
@@ -126,17 +136,16 @@ class _RecordingScreenState extends State<RecordingScreen> {
     final discard = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Discard this recording?'),
-        content: const Text(
-            'The audio recorded so far will be deleted. This cannot be undone.'),
+        title: Text(context.l10n.discardRecordingTitle),
+        content: Text(context.l10n.discardRecordingBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Keep recording'),
+            child: Text(context.l10n.keepRecording),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Discard'),
+            child: Text(context.l10n.discard),
           ),
         ],
       ),
@@ -233,7 +242,7 @@ class _Transport extends StatelessWidget {
         IconButton.outlined(
           onPressed: live ? onDiscard : null,
           icon: const Icon(Icons.delete_outline),
-          tooltip: 'Delete this recording without keeping it.',
+          tooltip: context.l10n.discardRecordingTooltip,
         ),
         const SizedBox(width: 20),
         IconButton.filled(
@@ -245,14 +254,14 @@ class _Transport extends StatelessWidget {
                   : model.pause,
           icon: Icon(paused ? Icons.play_arrow : Icons.pause),
           tooltip: paused
-              ? 'Carry on recording into the same file.'
-              : 'Stop capturing without ending the recording.',
+              ? context.l10n.resumeRecordingTooltip
+              : context.l10n.pauseRecordingTooltip,
         ),
         const SizedBox(width: 20),
         FilledButton.icon(
           onPressed: live ? onFinish : null,
           icon: const Icon(Icons.check),
-          label: const Text('Finish'),
+          label: Text(context.l10n.finish),
         ),
       ],
     );
@@ -273,7 +282,7 @@ class _Failure extends StatelessWidget {
       children: [
         Icon(Icons.mic_off_outlined, size: 48, color: theme.colorScheme.error),
         const SizedBox(height: 16),
-        Text('The microphone could not be opened',
+        Text(context.l10n.micCouldNotOpen,
             style: theme.textTheme.titleMedium, textAlign: TextAlign.center),
         const SizedBox(height: 8),
         // The engine's own words. "No microphone is available" and "the
@@ -304,12 +313,12 @@ class _WriteFailure extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Writing stopped',
+            Text(context.l10n.writingStopped,
                 style: theme.textTheme.labelLarge
                     ?.copyWith(color: theme.colorScheme.onErrorContainer)),
             const SizedBox(height: 4),
             SelectableText(
-              '$message\n\nWhat was recorded before this is still on disk.',
+              context.l10n.writingStoppedDetail(message),
               style: theme.textTheme.bodySmall
                   ?.copyWith(color: theme.colorScheme.onErrorContainer),
             ),
@@ -342,13 +351,12 @@ class _SilentInput extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('No sound is reaching the microphone',
+            Text(context.l10n.silentInputTitle,
                 style: theme.textTheme.labelLarge
                     ?.copyWith(color: theme.colorScheme.onTertiaryContainer)),
             const SizedBox(height: 4),
             Text(
-              'Recording is still running and will be kept. Check that the '
-              'right input is selected and that it is not muted.',
+              context.l10n.silentInputBody,
               style: theme.textTheme.bodySmall
                   ?.copyWith(color: theme.colorScheme.onTertiaryContainer),
             ),

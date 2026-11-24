@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import '../l10n.dart';
 import 'file_chooser.dart';
 
 /// What the user has chosen to import.
@@ -51,7 +52,7 @@ class _ImportSheetState extends State<ImportSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return AlertDialog(
-      title: const Text('Open audio'),
+      title: Text(context.l10n.importTitle),
       content: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 440),
         child: Column(
@@ -62,10 +63,10 @@ class _ImportSheetState extends State<ImportSheet> {
               OutlinedButton.icon(
                 onPressed: _choosing ? null : _browse,
                 icon: const Icon(Icons.folder_open),
-                label: const Text('Choose a file…'),
+                label: Text(context.l10n.importChooseFile),
               ),
               const SizedBox(height: 16),
-              Text('or type a path',
+              Text(context.l10n.importOrTypePath,
                   style: theme.textTheme.bodySmall
                       ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
               const SizedBox(height: 8),
@@ -100,8 +101,7 @@ class _ImportSheetState extends State<ImportSheet> {
             Text(
               // §5, stated where the decision is made. The project references
               // the file; it does not move or change it.
-              'The file stays where it is. Vox Scripta reads it and never '
-              'modifies it.',
+              context.l10n.importStaysPut,
               style: theme.textTheme.bodySmall
                   ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
             ),
@@ -111,9 +111,9 @@ class _ImportSheetState extends State<ImportSheet> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(context.l10n.cancel),
         ),
-        FilledButton(onPressed: _accept, child: const Text('Open')),
+        FilledButton(onPressed: _accept, child: Text(context.l10n.open)),
       ],
     );
   }
@@ -132,14 +132,14 @@ class _ImportSheetState extends State<ImportSheet> {
   void _accept() {
     final path = _path.text.trim();
     if (path.isEmpty) {
-      setState(() => _error = 'Choose a file, or type its path.');
+      setState(() => _error = context.l10n.importChooseOrType);
       return;
     }
     // Checked here rather than left to the engine, because the engine's
     // refusal arrives asynchronously on a job that has already been created —
     // and a project for a file that is not there is litter.
     if (!File(path).existsSync()) {
-      setState(() => _error = 'There is no file at that path.');
+      setState(() => _error = context.l10n.importNoFile);
       return;
     }
     final extension = path.contains('.')
@@ -148,9 +148,8 @@ class _ImportSheetState extends State<ImportSheet> {
     if (!FileChooser.audioExtensions.contains(extension)) {
       // A warning rather than a refusal would be worse: the decoder would
       // fail a minute into a job instead of now.
-      setState(() => _error =
-          'Vox Scripta cannot read .$extension files. '
-          'It reads ${FileChooser.audioExtensions.take(6).join(', ')} and more.');
+      setState(() => _error = context.l10n.importUnsupported(
+          extension, FileChooser.audioExtensions.take(6).join(', ')));
       return;
     }
     Navigator.of(context).pop(ImportChoice(audioPath: path));

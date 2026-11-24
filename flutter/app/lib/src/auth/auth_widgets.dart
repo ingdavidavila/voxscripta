@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../l10n.dart';
 import 'package:voxscripta_engine/voxscripta_engine.dart';
 
 /// A password field with a show/hide control.
@@ -51,7 +53,7 @@ class _PasswordFieldState extends State<PasswordField> {
           // Named for what it will do, not for what is showing, and announced
           // to a screen reader — the icon alone tells a sighted user and
           // nobody else.
-          tooltip: _shown ? 'Hide password' : 'Show password',
+          tooltip: _shown ? context.l10n.hidePassword : context.l10n.showPassword,
           onPressed: () => setState(() => _shown = !_shown),
         ),
       ),
@@ -142,14 +144,14 @@ class ProviderButtons extends StatelessWidget {
         if (showApple)
           _Provider(
             icon: Icons.apple,
-            label: 'Continue with Apple',
+            label: context.l10n.continueWithApple,
             onPressed: busy ? null : onApple,
           ),
         if (showApple && showGoogle) const SizedBox(height: 10),
         if (showGoogle)
           _Provider(
             icon: Icons.g_mobiledata,
-            label: 'Continue with Google',
+            label: context.l10n.continueWithGoogle,
             onPressed: busy ? null : onGoogle,
           ),
       ],
@@ -180,7 +182,7 @@ class _Provider extends StatelessWidget {
 
 /// A horizontal rule with a word in it.
 class OrDivider extends StatelessWidget {
-  const OrDivider({super.key, this.label = 'or'});
+  const OrDivider({super.key, required this.label});
 
   final String label;
 

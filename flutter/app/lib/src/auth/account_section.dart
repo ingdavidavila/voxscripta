@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../l10n.dart';
+
 import 'account_screen.dart';
 import 'auth_service.dart';
 import 'sign_in_screen.dart';
@@ -49,7 +51,7 @@ class _AccountSectionState extends State<AccountSection> {
         children: [
           Padding(
             padding: const EdgeInsets.only(left: 4, bottom: 8),
-            child: Text('ACCOUNT',
+            child: Text(context.l10n.account.toUpperCase(),
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: theme.colorScheme.primary,
                   letterSpacing: 0.8,
@@ -64,7 +66,7 @@ class _AccountSectionState extends State<AccountSection> {
   Widget _tile() {
     if (_user case final user?) {
       return ListTile(
-        title: const Text('Account'),
+        title: Text(context.l10n.account),
         subtitle: Text(user.email),
         trailing: const Icon(Icons.chevron_right),
         onTap: () => Navigator.of(context).push(
@@ -75,8 +77,8 @@ class _AccountSectionState extends State<AccountSection> {
       );
     }
     return ListTile(
-      title: const Text('Sign in'),
-      subtitle: const Text('Optional. Transcription works without one.'),
+      title: Text(context.l10n.signIn),
+      subtitle: Text(context.l10n.signInOptionalNote),
       trailing: const Icon(Icons.chevron_right),
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute<void>(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:voxscripta_engine/voxscripta_engine.dart';
 
+import '../l10n.dart';
 import 'wording.dart';
 
 /// What POLISH did, and what it refused.
@@ -23,14 +24,14 @@ class ReviewPanel extends StatelessWidget {
           Row(children: [
             Icon(Icons.warning_amber_outlined, color: theme.colorScheme.tertiary),
             const SizedBox(width: 8),
-            Text('Polish did not run', style: theme.textTheme.titleSmall),
+            Text(context.l10n.polishDidNotRun, style: theme.textTheme.titleSmall),
           ]),
           const SizedBox(height: 8),
           // Verbatim. §26 asks that a missing polished transcript never be
           // unexplained, and paraphrasing the engine would lose the detail
           // that makes it actionable.
           SelectableText(
-            review.skipReason ?? 'No reason was recorded.',
+            review.skipReason ?? context.l10n.noReasonRecorded,
             style: theme.textTheme.bodySmall
                 ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
           ),
@@ -40,18 +41,22 @@ class ReviewPanel extends StatelessWidget {
 
     return _Padded(
       children: [
-        Text('Polish review', style: theme.textTheme.titleSmall),
+        Text(context.l10n.polishReview, style: theme.textTheme.titleSmall),
         const SizedBox(height: 10),
-        _Count(label: 'Accepted', value: review.accepted),
-        _Count(label: 'Accepted after a retry', value: review.acceptedAfterRetry),
-        _Count(label: 'Kept the clean text', value: review.keptClean),
+        _Count(label: context.l10n.dispositionAccepted, value: review.accepted),
+        _Count(
+            label: context.l10n.dispositionAcceptedAfterRetry,
+            value: review.acceptedAfterRetry),
+        _Count(
+            label: context.l10n.dispositionFellBackToClean,
+            value: review.keptClean),
         const Divider(height: 24),
         if (review.flagged.isEmpty)
           Row(children: [
             Icon(Icons.verified_outlined, size: 18, color: theme.colorScheme.primary),
             const SizedBox(width: 8),
             Expanded(
-              child: Text('Every sentence passed.',
+              child: Text(context.l10n.everySentencePassed,
                   style: theme.textTheme.bodySmall
                       ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
             ),
@@ -137,13 +142,13 @@ class _FlaggedRow extends StatelessWidget {
                 color: theme.colorScheme.onSurfaceVariant,
               ),
               const SizedBox(width: 6),
-              Text(Wording.dispositionName(sentence.disposition),
+              Text(Wording.dispositionName(context.l10n, sentence.disposition),
                   style: theme.textTheme.labelMedium),
             ]),
             const SizedBox(height: 8),
-            _Line(label: 'Clean', text: sentence.original),
+            _Line(label: context.l10n.variantClean, text: sentence.original),
             const SizedBox(height: 4),
-            _Line(label: 'Model', text: sentence.revised),
+            _Line(label: context.l10n.reviewModelLabel, text: sentence.revised),
             if (sentence.reasons.isNotEmpty) ...[
               const SizedBox(height: 8),
               for (final reason in sentence.reasons)

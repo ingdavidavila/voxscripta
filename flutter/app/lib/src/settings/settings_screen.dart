@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../l10n.dart';
 import '../platform_traits.dart';
 import 'settings_model.dart';
 
@@ -47,11 +48,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final model = widget.model;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Settings'),
+        title: Text(context.l10n.settingsTitle),
         actions: [
           TextButton(
             onPressed: model.hasOverrides ? model.reset : null,
-            child: const Text('Reset to defaults'),
+            child: Text(context.l10n.resetToDefaults),
           ),
           const SizedBox(width: 8),
         ],
@@ -77,11 +78,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       padding: const EdgeInsets.symmetric(vertical: 8),
       children: [
         ? widget.accountSection,
-        _Section(title: 'Silence detection', children: [
+        _Section(title: context.l10n.sectionSilence, children: [
           _Slider(
-            label: 'Threshold above noise',
-            help: 'How far above the measured background noise a sound must be '
-                'to count as speech. Raise it for a noisy recording.',
+            label: context.l10n.silenceThreshold,
+            help: context.l10n.silenceThresholdHelp,
             value: model.silenceMarginDB,
             min: 3,
             max: 20,
@@ -90,9 +90,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onChanged: (v) => model.setNested('silence', 'marginDB', v.roundToDouble()),
           ),
           _Slider(
-            label: 'Shortest pause',
-            help: 'A quiet stretch shorter than this is treated as part of the '
-                'speech, not as a pause.',
+            label: context.l10n.shortestPause,
+            help: context.l10n.shortestPauseHelp,
             value: model.minimumSilenceSeconds,
             min: 0.2,
             max: 2,
@@ -101,9 +100,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onChanged: (v) => model.setNested('silence', 'minSilenceDuration', v),
           ),
           _Slider(
-            label: 'Padding after speech',
-            help: 'Silence kept after each phrase, so word endings are not '
-                'clipped when silence is removed.',
+            label: context.l10n.paddingAfterSpeech,
+            help: context.l10n.paddingAfterSpeechHelp,
             value: model.padTrailSeconds,
             min: 0,
             max: 1,
@@ -113,14 +111,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ]),
         _Section(
-          title: 'Segmentation',
-          footer: 'Segments are internal. They set how often work is saved, '
-              'not how the transcript reads.',
+          title: context.l10n.sectionSegmentation,
+          footer: context.l10n.segmentationFooter,
           children: [
             _Slider(
-              label: 'Maximum segment length',
-              help: 'The longest stretch of audio transcribed as one unit. '
-                  'Shorter segments save progress more often.',
+              label: context.l10n.maxSegmentLength,
+              help: context.l10n.maxSegmentLengthHelp,
               value: model.maximumChunkSeconds,
               min: 60,
               max: 600,
@@ -132,35 +128,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
         ),
         _Section(
-          title: 'Transcription',
-          footer: 'More at once is faster up to a point, and costs memory. '
-              'Four is measured rather than guessed.',
+          title: context.l10n.sectionTranscription,
+          footer: context.l10n.transcriptionFooter,
           children: [
             _Switch(
-              label: 'Detect language',
-              help: 'Tries the languages this machine can transcribe on a short '
-                  'sample and uses whichever the engine recognises confidently. '
-                  'The setting below is the fallback. Nothing is downloaded.',
+              label: context.l10n.detectLanguage,
+              help: context.l10n.detectLanguageHelp,
               value: model.detectLanguage,
               onChanged: (v) => model.set('detectLanguage', v),
             ),
             _LocalePicker(model: model),
             if (!model.textStagesSupportedHere)
-              const _Notice(
+              _Notice(
                 icon: Icons.warning_amber_outlined,
-                text: 'Verbatim only in this language. Clean and Polished need '
-                    'lexicons Vox Scripta does not have yet.',
+                text: context.l10n.verbatimOnlyNotice,
               )
             else if (!model.polishSupportedHere)
-              const _Notice(
+              _Notice(
                 icon: Icons.shield_outlined,
-                text: 'Polished is unavailable in this language. The checks '
-                    'that catch a reversed meaning have not been proven here, '
-                    'so the pass is withheld rather than run unguarded.',
+                text: context.l10n.polishedUnavailableNotice,
               ),
             _Stepper(
-              label: 'Segments at once',
-              help: 'How many segments are transcribed concurrently.',
+              label: context.l10n.segmentsAtOnce,
+              help: context.l10n.segmentsAtOnceHelp,
               value: model.concurrency,
               min: 1,
               max: 8,
@@ -169,25 +159,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
         ),
         _Section(
-          title: 'Clean',
-          footer: 'Clean uses fixed rules only. No language model is involved, '
-              'and every edit is recorded.',
+          title: context.l10n.variantClean,
+          footer: context.l10n.cleanFooter,
           children: [
             _Switch(
-              label: 'Remove fillers',
-              help: 'Drops “um”, “uh” and the like.',
+              label: context.l10n.removeFillers,
+              help: context.l10n.removeFillersHelp,
               value: model.removeFillers,
               onChanged: (v) => model.setNested('clean', 'removeFillers', v),
             ),
             _Switch(
-              label: 'Collapse stutters',
-              help: 'Turns “the the the” into “the”.',
+              label: context.l10n.collapseStutters,
+              help: context.l10n.collapseStuttersHelp,
               value: model.collapseRepetitions,
               onChanged: (v) => model.setNested('clean', 'collapseRepetitions', v),
             ),
             _Switch(
-              label: 'Drop low-confidence words',
-              help: 'Removes words the recogniser was unsure of.',
+              label: context.l10n.dropLowConfidence,
+              help: context.l10n.dropLowConfidenceHelp,
               value: model.dropLowConfidence,
               onChanged: (v) => model.setNested('clean', 'dropLowConfidence', v),
             ),
@@ -195,30 +184,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         _PolishSection(model: model),
         _Section(
-          title: 'Storage and privacy',
+          title: context.l10n.sectionStorage,
           // The claim is about audio and transcripts, not about the
           // network, because a build that sells a subscription has to reach
           // a store. A promise that holds for one flavour and not another is
           // worse than a narrower one that holds for both.
           footer: widget.accountSection == null
-              ? 'Transcription runs entirely on this machine. No recording '
-                  'and no transcript is ever uploaded, and there is no '
-                  'telemetry.'
-              : 'Transcription runs entirely on this machine. No recording '
-                  'and no transcript is ever uploaded, and there is no '
-                  'telemetry. An account is optional and carries only your '
-                  'email address, for signing in.',
+              ? context.l10n.privacyFooter
+              : context.l10n.privacyFooterWithAccount,
           children: [
             _Switch(
-              label: 'Keep working files',
-              help: 'Keeps the scratch audio after a job finishes. It is about '
-                  '1.4 GB for a six-hour recording, and the transcripts do not '
-                  'need it.',
+              label: context.l10n.keepWorkingFiles,
+              help: context.l10n.keepWorkingFilesHelp,
               value: model.keepIntermediates,
               onChanged: (v) => model.set('keepIntermediates', v),
             ),
             _Readout(
-              label: 'Projects folder',
+              label: context.l10n.projectsFolder,
               value: model.libraryDirectory,
               selectable: true,
             ),
@@ -239,46 +221,45 @@ class _PolishSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final polish = model.capabilities?.polish;
     return _Section(
-      title: 'Polished',
-      footer: 'Polish rewrites sentence by sentence and checks each rewrite '
-          'against the original. A rewrite that fails is discarded and the '
-          'clean sentence stands.',
+      title: context.l10n.variantPolished,
+      footer: context.l10n.polishFooter,
       children: [
         _Switch(
-          label: 'Create a polished transcript',
+          label: context.l10n.createPolished,
           help: model.polishSupportedHere
-              ? 'Runs the model pass after Clean.'
-              : 'Unavailable in the selected language.',
+              ? context.l10n.polishRunsAfterClean
+              : context.l10n.polishUnavailableInLanguage,
           value: model.polishEnabled && model.polishSupportedHere,
           onChanged:
               model.polishSupportedHere ? (v) => model.set('polishEnabled', v) : null,
         ),
         _Dropdown(
-          label: 'Language model',
-          help: 'Which model to prefer. A named model that is unavailable is '
-              'refused rather than quietly swapped for another.',
+          label: context.l10n.languageModel,
+          help: context.l10n.languageModelHelp,
           value: model.polishBackend,
-          items: const {
-            'automatic': 'Best available',
-            'system': 'Apple Intelligence',
-            'bundled': 'Bundled model',
+          items: {
+            'automatic': context.l10n.backendAutomatic,
+            'system': context.l10n.backendSystem,
+            'bundled': context.l10n.backendBundled,
           },
           onChanged: model.polishEnabled ? (v) => model.set('polishBackend', v) : null,
         ),
         _Readout(
-          label: 'Will use',
+          label: context.l10n.willUse,
           // The engine's own answer, in the same words the provenance records.
           value: polish?.effective ??
               polish?.unavailableReason ??
-              'unavailable — polish will be skipped',
+              context.l10n.polishWillBeSkipped,
         ),
         _Readout(
-          label: 'Apple Intelligence',
-          value: (polish?.systemModelAvailable ?? false) ? 'Available' : 'Unavailable',
+          label: context.l10n.backendSystem,
+          value: (polish?.systemModelAvailable ?? false)
+              ? context.l10n.available
+              : context.l10n.unavailable,
         ),
         _Readout(
-          label: 'Bundled model',
-          value: polish?.bundledModel ?? 'Not included',
+          label: context.l10n.backendBundled,
+          value: polish?.bundledModel ?? context.l10n.notIncluded,
         ),
       ],
     );
@@ -518,16 +499,15 @@ class _LocalePicker extends StatelessWidget {
   Widget build(BuildContext context) {
     final locales = model.capabilities?.locales ?? const [];
     if (locales.isEmpty) {
-      return const _Row(
-        label: 'Language',
-        help: 'No transcription languages were reported.',
-        control: SizedBox.shrink(),
+      return _Row(
+        label: context.l10n.settingsLanguage,
+        help: context.l10n.noLanguagesReported,
+        control: const SizedBox.shrink(),
       );
     }
     return _Row(
-      label: 'Language',
-      help: 'The language spoken in the recording. Getting this wrong costs '
-          'accuracy more than any other setting.',
+      label: context.l10n.settingsLanguage,
+      help: context.l10n.settingsLanguageHelp,
       control: DropdownButton<String>(
         value: model.capabilities?.forIdentifier(model.locale) == null
             ? locales.first.identifier

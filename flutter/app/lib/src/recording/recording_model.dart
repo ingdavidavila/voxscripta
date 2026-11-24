@@ -56,11 +56,19 @@ class RecordingModel extends ChangeNotifier {
   );
   final List<double> _levels = [];
   String? _startFailure;
+  MicrophoneAccess? _accessProblem;
   RecordingResult? _result;
 
   RecordingProgress get progress => _progress;
   List<double> get levels => List.unmodifiable(_levels);
   String? get startFailure => _startFailure;
+
+  /// Why the system would not let recording begin, when that is the reason.
+  ///
+  /// A value rather than a sentence, so the screen words it in the interface's
+  /// language; [startFailure] stays the engine's own words, which are not ours
+  /// to translate.
+  MicrophoneAccess? get accessProblem => _accessProblem;
 
   /// Set once the recording has been finished, so the shell can hand the file
   /// on to the import path.
@@ -72,18 +80,14 @@ class RecordingModel extends ChangeNotifier {
   Future<void> start() async {
     if (_recording != null) return;
     _startFailure = null;
+    _accessProblem = null;
     // Permission first, and recording never begins without it. With none, the
     // system refuses the capture while the engine reports nothing wrong, and
     // the screen would count seconds over silence.
     if (_permission case final permission?) {
       final access = await permission.ensure();
       if (access != MicrophoneAccess.granted) {
-        _startFailure = access == MicrophoneAccess.blocked
-            ? 'Microphone access is off. Vox Scripta does not have permission '
-                'to use the microphone. Turn it on in Settings, under Apps, '
-                'Vox Scripta, Permissions, then try recording again.'
-            : 'Microphone access was not granted, so nothing was recorded. '
-                'Go back and try again, and allow the microphone when asked.';
+        _accessProblem = access;
         notifyListeners();
         return;
       }

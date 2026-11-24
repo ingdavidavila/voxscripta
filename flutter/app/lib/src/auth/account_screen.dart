@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../l10n.dart';
+
 import 'auth_service.dart';
 import 'auth_widgets.dart';
 
@@ -34,7 +36,7 @@ class _AccountScreenState extends State<AccountScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Account')),
+      appBar: AppBar(title: Text(context.l10n.account)),
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: [
@@ -44,28 +46,25 @@ class _AccountScreenState extends State<AccountScreen> {
               child: AuthBanner(message: message),
             ),
           ListTile(
-            title: const Text('Signed in as'),
+            title: Text(context.l10n.signedInAs),
             subtitle: SelectableText(widget.user.email),
           ),
           ListTile(
-            title: const Text('Signed in with'),
-            subtitle: Text(_providerName(widget.user.provider)),
+            title: Text(context.l10n.signedInWith),
+            subtitle: Text(_providerName(context.l10n, widget.user.provider)),
           ),
           const Divider(height: 32),
           ListTile(
-            title: const Text('Sign out'),
-            subtitle: const Text(
-                'Your recordings and transcripts stay on this machine.'),
+            title: Text(context.l10n.signOut),
+            subtitle: Text(context.l10n.signOutNote),
             trailing: const Icon(Icons.logout),
             enabled: !_busy,
             onTap: _busy ? null : _signOut,
           ),
           ListTile(
-            title: Text('Delete account',
+            title: Text(context.l10n.deleteAccount,
                 style: TextStyle(color: theme.colorScheme.error)),
-            subtitle: const Text(
-                'Removes the account and everything the account service holds '
-                'for it. Your local projects are not touched.'),
+            subtitle: Text(context.l10n.deleteAccountNote),
             trailing: Icon(Icons.delete_forever_outlined,
                 color: theme.colorScheme.error),
             enabled: !_busy,
@@ -76,10 +75,11 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
-  static String _providerName(String provider) => switch (provider) {
+  static String _providerName(AppLocalizations l10n, String provider) =>
+      switch (provider) {
         'apple' => 'Apple',
         'google' => 'Google',
-        'password' => 'An email address and password',
+        'password' => l10n.providerPassword,
         final other => other,
       };
 
@@ -108,21 +108,16 @@ class _AccountScreenState extends State<AccountScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete this account?'),
-        content: const Text(
-          'The account and everything the account service holds for it are '
-          'removed. This cannot be undone.\n\n'
-          'Recordings, projects and transcripts on this machine are not '
-          'deleted — they were never on the account.',
-        ),
+        title: Text(context.l10n.deleteAccountTitle),
+        content: Text(context.l10n.deleteAccountBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Keep it'),
+            child: Text(context.l10n.keepIt),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete'),
+            child: Text(context.l10n.delete),
           ),
         ],
       ),
