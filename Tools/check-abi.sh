@@ -32,6 +32,8 @@ cat > "$WORK/abi.c" <<'C'
 int main(void) {
     void *used[] = {
         (void *)vs_abi_version,  (void *)vs_last_error_copy,
+        (void *)vs_last_error_json_copy,
+        (void *)vs_job_error_json_copy,
         (void *)vs_job_start,    (void *)vs_job_state,
         (void *)vs_job_fraction, (void *)vs_job_detail_copy,
         (void *)vs_job_error_copy, (void *)vs_job_cancel,
@@ -58,7 +60,7 @@ int main(void) {
     };
     (void)used;
     /* One real call, so the library is actually loaded and initialized. */
-    return vs_abi_version() == 10 ? 0 : 1;
+    return vs_abi_version() == 11 ? 0 : 1;
 }
 C
 
@@ -66,4 +68,4 @@ cc -I "$ROOT/ffi" -o "$WORK/abi" "$WORK/abi.c" \
    -L "$BIN" -lVoxScriptaFFI -Wl,-rpath,"$BIN"
 
 "$WORK/abi"
-echo "ABI ok — all 38 symbols resolve and vs_abi_version() is 10"
+echo "ABI ok — all 40 symbols resolve and vs_abi_version() is 11"

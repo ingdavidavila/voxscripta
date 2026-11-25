@@ -33,7 +33,7 @@ func entitlementRefuses(_ action: GatedAction, in store: EntitlementStore) -> Bo
         try store.require(action)
         return false
     } catch {
-        setLastError(describe(error))
+        setLastError(error)
         return true
     }
 }
@@ -59,7 +59,7 @@ public func vs_entitlement_state() -> UnsafeMutablePointer<CChar>? {
     do {
         return copyOut(try Wire.encode(EntitlementWire(entitlements.state())))
     } catch {
-        setLastError(describe(error))
+        setLastError(error)
         return nil
     }
 }
@@ -100,7 +100,7 @@ public func vs_entitlement_record_subscription(
             graceUntil: wire.graceUntil.map(Date.init(timeIntervalSince1970:))))
         return 0
     } catch {
-        setLastError(describe(error))
+        setLastError(error)
         return -1
     }
 }

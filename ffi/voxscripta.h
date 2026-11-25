@@ -76,6 +76,19 @@ int32_t vs_abi_version(void);
  * Caller releases with vs_string_free. */
 char *vs_last_error_copy(void);
 
+/* The same failure as JSON an interface can translate:
+ *   {"code": "sourceChanged", "details": {"path": "/a.wav"}, "message": "..."}
+ *
+ * NULL when the last call succeeded. Caller releases with vs_string_free.
+ *
+ * "message" is English off Apple and cannot be otherwise: String(localized:)
+ * is absent from swift-corelibs-foundation, and the shim this project
+ * supplies is reached only after interpolation, when the lookup key is gone.
+ * Translate from "code"; fall back to "message" for a code you do not know.
+ * Numbers in "details" are plain digits, to be formatted by whoever knows the
+ * reader's locale. */
+char *vs_last_error_json_copy(void);
+
 /* ─── Jobs ─────────────────────────────────────────────────────────────── */
 
 /* Creates or opens the project at project_path for the audio at audio_path,
@@ -113,6 +126,10 @@ char *vs_job_error_copy(int64_t handle);
 /* Asks a job to stop at the next stage boundary, leaving the project
  * resumable. This is not a rollback. 0 if delivered, -1 for an unknown
  * handle. */
+/* Why a job failed, in the shape vs_last_error_json_copy returns. NULL for a
+ * job that has not failed, or an unknown handle. Release with vs_string_free. */
+char *vs_job_error_json_copy(int64_t handle);
+
 int32_t vs_job_cancel(int64_t handle);
 
 /* Forgets a handle, cancelling the job first if it is still running. */

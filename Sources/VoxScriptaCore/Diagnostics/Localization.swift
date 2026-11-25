@@ -15,9 +15,18 @@ extension String {
     ///
     /// So the engine speaks English on Linux, Windows and Android, and that
     /// is a real limitation rather than a tidy equivalence. The fix is not to
-    /// reimplement string tables here: the Flutter interface should translate
-    /// from the `VoxScriptaError` case, which carries the facts, rather than
-    /// from a sentence the engine already rendered.
+    /// reimplement string tables here: the interface translates from the
+    /// `VoxScriptaError` case, which carries the facts, rather than from a
+    /// sentence the engine already rendered.
+    ///
+    /// That is now built, rather than only recommended. ``VoxScriptaError``
+    /// has `code` and `details`, and the FFI exposes them through
+    /// `vs_last_error_json_copy` and `vs_job_error_json_copy` — see
+    /// `Diagnostics/ErrorCode.swift`. Note why translating here could not
+    /// have worked: by the time this shim is reached the interpolations have
+    /// already been substituted, so "the file at /a.wav changed" can no
+    /// longer be looked up in a table keyed on "the file at %@ changed".
+    /// The key is gone before this function sees the string.
     public init(localized value: String) {
         self = value
     }

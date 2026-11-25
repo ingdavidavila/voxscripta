@@ -39,7 +39,51 @@ struct FFISurfaceTests {
 
     @Test("The ABI announces a version")
     func version() {
-        #expect(vs_abi_version() == 10)
+        // Bumped to 11 for vs_last_error_json_copy and vs_job_error_json_copy.
+        // The Dart side compares this for equality and refuses to load on a
+        // mismatch, so changing it is a coordinated change, not a detail.
+        #expect(vs_abi_version() == 11)
+    }
+
+    // MARK: - Errors an interface can translate
+
+    @Test("A refused call reports a code and its values, not only a sentence")
+    func errorPayloadCarriesTheCase() throws {
+        // The sentence is English off Apple and cannot be otherwise, so an
+        // interface that must speak Spanish needs the case and the values.
+        _ = vs_set_data_directory(nil)
+        let json = try #require(vs_last_error_json_copy())
+        defer { vs_string_free(json) }
+
+        let text = String(cString: json)
+        let decoded = try #require(
+            try JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any])
+        #expect(decoded["code"] as? String == "invalidArgument")
+        #expect((decoded["message"] as? String)?.isEmpty == false)
+        #expect(decoded["details"] as? [String: String] == [:])
+    }
+
+    @Test("Success clears the structured failure as well as the sentence")
+    func errorPayloadClearsWithTheMessage() throws {
+        // Two accessors reading one failure must never disagree about whether
+        // there is one: an interface that checked the JSON would otherwise
+        // keep reporting a failure the sentence had already forgotten.
+        _ = vs_set_data_directory(nil)
+        #expect(vs_last_error_json_copy() != nil)
+
+        // Deliberately not a second vs_set_data_directory: that one refuses a
+        // different path once the directory has been resolved, so it fails
+        // too and proves nothing. Listing an empty directory always succeeds.
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "vs-abi-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let listed = directory.path.withCString { vs_library_list($0) }
+        #expect(listed != nil)
+        if let listed { vs_string_free(listed) }
+
+        #expect(vs_last_error_copy() == nil)
+        #expect(vs_last_error_json_copy() == nil)
     }
 
     @Test("An unknown handle is reported, not crashed on")

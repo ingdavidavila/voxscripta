@@ -115,7 +115,7 @@ func recordingStart(
         return RecordingRegistry.shared.insert(
             RecordingBox(recorder: recorder, url: url))
     } catch {
-        setLastError(describe(error))
+        setLastError(error)
         return -1
     }
 }
@@ -220,7 +220,7 @@ public func vs_recording_finish(
             RecordingResultWire(path: box.url.path, seconds: seconds)))
         return 0
     } catch {
-        setLastError(describe(error))
+        setLastError(error)
         return -4
     }
 }

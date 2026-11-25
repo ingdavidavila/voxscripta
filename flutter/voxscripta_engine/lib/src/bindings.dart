@@ -1,7 +1,11 @@
+import 'dart:convert';
 import 'dart:ffi';
 import 'package:ffi/ffi.dart';
 
-/// The thirty-three symbols of `ffi/voxscripta.h`, and nothing else.
+/// The symbols of `ffi/voxscripta.h`, and nothing else.
+///
+/// The count used to be written here and was wrong twice; Tools/check-abi.sh
+/// holds it, where it is checked rather than remembered.
 ///
 /// Hand-written rather than generated. ffigen would need libclang and a config
 /// file to produce a dozen declarations that change about once a year, and the
@@ -18,6 +22,8 @@ final class VoxScriptaBindings {
             library.lookupFunction<Int32 Function(), int Function()>('vs_abi_version'),
         lastErrorCopy = library.lookupFunction<Pointer<Utf8> Function(),
             Pointer<Utf8> Function()>('vs_last_error_copy'),
+        lastErrorJsonCopy = library.lookupFunction<Pointer<Utf8> Function(),
+            Pointer<Utf8> Function()>('vs_last_error_json_copy'),
         jobStart = library.lookupFunction<
             Int64 Function(Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>),
             int Function(Pointer<Utf8>, Pointer<Utf8>,
@@ -30,6 +36,8 @@ final class VoxScriptaBindings {
             Pointer<Utf8> Function(int)>('vs_job_detail_copy'),
         jobErrorCopy = library.lookupFunction<Pointer<Utf8> Function(Int64),
             Pointer<Utf8> Function(int)>('vs_job_error_copy'),
+        jobErrorJsonCopy = library.lookupFunction<Pointer<Utf8> Function(Int64),
+            Pointer<Utf8> Function(int)>('vs_job_error_json_copy'),
         jobCancel =
             library.lookupFunction<Int32 Function(Int64), int Function(int)>('vs_job_cancel'),
         jobRelease =
@@ -109,11 +117,13 @@ final class VoxScriptaBindings {
 
   final int Function() abiVersion;
   final Pointer<Utf8> Function() lastErrorCopy;
+  final Pointer<Utf8> Function() lastErrorJsonCopy;
   final int Function(Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>) jobStart;
   final int Function(int) jobState;
   final double Function(int) jobFraction;
   final Pointer<Utf8> Function(int) jobDetailCopy;
   final Pointer<Utf8> Function(int) jobErrorCopy;
+  final Pointer<Utf8> Function(int) jobErrorJsonCopy;
   final int Function(int) jobCancel;
   final void Function(int) jobRelease;
   final int Function(Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>,
@@ -170,4 +180,62 @@ final class VoxScriptaBindings {
 
   /// The last failure on this thread, or null.
   String? lastError() => takeString(lastErrorCopy());
+
+  /// The same failure as a [EngineFailure], or null.
+  ///
+  /// Prefer this over [lastError] anywhere the text reaches a person: the
+  /// engine's sentence is English off Apple and always will be, so a
+  /// localized interface has to build its own from [EngineFailure.code].
+  EngineFailure? lastFailure() => EngineFailure.parse(takeString(lastErrorJsonCopy()));
+
+  /// Why a job failed, structured, or null if it has not.
+  EngineFailure? jobFailure(int handle) =>
+      EngineFailure.parse(takeString(jobErrorJsonCopy(handle)));
+}
+
+/// A failure the engine reports, in a form an interface can translate.
+///
+/// The engine cannot localize its own messages away from Apple's platforms:
+/// `String(localized:)` is absent from swift-corelibs-foundation, and the
+/// shim behind it is reached only after interpolation, when the lookup key no
+/// longer exists. So the engine reports what happened and the values
+/// involved, and whoever knows the reader's language writes the sentence.
+class EngineFailure {
+  const EngineFailure({
+    required this.code,
+    required this.message,
+    required this.details,
+  });
+
+  /// A stable identifier for the error case, such as `sourceChanged`. Map
+  /// this to your own wording.
+  final String code;
+
+  /// The engine's own sentence. English off Apple. Show it only when [code]
+  /// is one you have no wording for — English beats a blank dialog.
+  final String message;
+
+  /// The values the sentence would have interpolated, unformatted. Numbers
+  /// are plain digits, so apply the reader's locale yourself.
+  final Map<String, String> details;
+
+  static EngineFailure? parse(String? json) {
+    if (json == null) return null;
+    try {
+      final decoded = jsonDecode(json);
+      if (decoded is! Map) return null;
+      final rawDetails = decoded['details'];
+      return EngineFailure(
+        code: decoded['code'] as String? ?? 'invalidArgument',
+        message: decoded['message'] as String? ?? '',
+        details: rawDetails is Map
+            ? rawDetails.map((k, v) => MapEntry('$k', '$v'))
+            : const <String, String>{},
+      );
+    } on FormatException {
+      // A failure that cannot be parsed must not become a second, different
+      // failure: the caller is already handling one.
+      return null;
+    }
+  }
 }

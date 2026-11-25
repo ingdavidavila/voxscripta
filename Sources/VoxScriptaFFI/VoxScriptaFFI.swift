@@ -61,7 +61,7 @@ import VoxScriptaExport
 /// growing a second entry point beside them, because nothing has shipped
 /// against version 1 and a legacy variant kept forever costs more than a
 /// break that nobody can observe.
-private let abiVersion: Int32 = 10
+private let abiVersion: Int32 = 11
 
 // MARK: - Job states
 
@@ -102,6 +102,7 @@ private final class JobBox {
     var fraction: Double = 0
     var detail: String = ""
     var failure: String?
+    var failurePayload: String?
     var task: Task<Void, Never>?
 }
 
@@ -164,13 +165,28 @@ func copyOut(_ data: Data) -> UnsafeMutablePointer<UInt8>? {
 // MARK: - Errors
 
 let lastErrorKey = "com.voxscripta.ffi.lastError"
+let lastErrorPayloadKey = "com.voxscripta.ffi.lastErrorPayload"
 
 func setLastError(_ message: String?) {
     if let message {
         Thread.current.threadDictionary[lastErrorKey] = message
+        // A refused argument is still a failure a caller may read
+        // structurally, so it gets a payload too rather than leaving the two
+        // accessors disagreeing about whether anything went wrong.
+        Thread.current.threadDictionary[lastErrorPayloadKey] =
+            ErrorPayload(argumentMessage: message).json
     } else {
         Thread.current.threadDictionary.removeObject(forKey: lastErrorKey)
+        Thread.current.threadDictionary.removeObject(forKey: lastErrorPayloadKey)
     }
+}
+
+/// Records a failure with its case and values intact, for an interface that
+/// has to say it in a language this library does not speak.
+func setLastError(_ error: any Error) {
+    let payload = ErrorPayload(error)
+    Thread.current.threadDictionary[lastErrorKey] = payload.message
+    Thread.current.threadDictionary[lastErrorPayloadKey] = payload.json
 }
 
 func describe(_ error: any Error) -> String {
@@ -189,6 +205,23 @@ public func vs_last_error_copy() -> UnsafeMutablePointer<CChar>? {
     guard let message = Thread.current.threadDictionary[lastErrorKey] as? String
     else { return nil }
     return copyOut(message)
+}
+
+/// The last failure on this thread as JSON an interface can translate:
+/// `{"code": "...", "details": {...}, "message": "..."}`.
+///
+/// NULL when the last call succeeded, exactly like `vs_last_error_copy`.
+/// Caller releases it with `vs_string_free`.
+///
+/// `message` is English off Apple and cannot be otherwise — see
+/// `ErrorPayload`. Translate from `code`, fall back to `message` when a code
+/// is unrecognised, and format the numbers in `details` yourself: they are
+/// plain digits, because the thousands separator belongs to the reader.
+@_cdecl("vs_last_error_json_copy")
+public func vs_last_error_json_copy() -> UnsafeMutablePointer<CChar>? {
+    guard let json = Thread.current.threadDictionary[lastErrorPayloadKey] as? String
+    else { return nil }
+    return copyOut(json)
 }
 
 /// Creates or opens the project at `project_path` for the audio at
@@ -276,7 +309,7 @@ func jobStart(
             ?? JobOptionsWire()
         options = try wire.resolved()
     } catch {
-        setLastError(describe(error))
+        setLastError(error)
         return -3
     }
 
@@ -314,10 +347,11 @@ func jobStart(
         } catch is CancellationError {
             JobRegistry.shared.update(handle) { $0.stateCode = code(for: .cancelled) }
         } catch {
-            let reason = describe(error)
+            let payload = ErrorPayload(error)
             JobRegistry.shared.update(handle) {
                 $0.stateCode = code(for: .failed)
-                $0.failure = reason
+                $0.failure = payload.message
+                $0.failurePayload = payload.json
             }
         }
     }
@@ -355,6 +389,17 @@ public func vs_job_error_copy(_ handle: Int64) -> UnsafeMutablePointer<CChar>? {
     guard let failure = JobRegistry.shared.read(handle, { $0.failure }, default: nil)
     else { return nil }
     return copyOut(failure)
+}
+
+/// Why a job failed, as JSON in the same shape as `vs_last_error_json_copy`.
+///
+/// NULL for a job that has not failed, or an unknown handle. Caller releases
+/// it with `vs_string_free`.
+@_cdecl("vs_job_error_json_copy")
+public func vs_job_error_json_copy(_ handle: Int64) -> UnsafeMutablePointer<CChar>? {
+    guard let json = JobRegistry.shared.read(handle, { $0.failurePayload }, default: nil)
+    else { return nil }
+    return copyOut(json)
 }
 
 /// Asks a job to stop. It stops at the next stage boundary, leaving the project
@@ -433,7 +478,7 @@ public func vs_export(
         out_length.pointee = Int64(data.count)
         return 0
     } catch {
-        setLastError(describe(error))
+        setLastError(error)
         return -4
     }
 }
@@ -487,7 +532,7 @@ public func vs_set_data_directory(_ path: UnsafePointer<CChar>?) -> Int32 {
         try DataDirectory.set(URL(filePath: text))
         return 0
     } catch {
-        setLastError(describe(error))
+        setLastError(error)
         return -1
     }
 }
@@ -514,7 +559,7 @@ public func vs_library_list(
     do {
         return copyOut(try Wire.encode(Wire.library(at: url)))
     } catch {
-        setLastError(describe(error))
+        setLastError(error)
         return nil
     }
 }
@@ -556,7 +601,7 @@ public func vs_project_delete(
         out_json.pointee = copyOut(try Wire.encode(["movedTo": moved?.path]))
         return 0
     } catch {
-        setLastError(describe(error))
+        setLastError(error)
         return -4
     }
 }
@@ -575,7 +620,7 @@ public func vs_job_options_defaults() -> UnsafeMutablePointer<CChar>? {
     do {
         return copyOut(try Wire.encode(JobOptionsWire.defaults))
     } catch {
-        setLastError(describe(error))
+        setLastError(error)
         return nil
     }
 }
@@ -587,7 +632,7 @@ public func vs_export_options_defaults() -> UnsafeMutablePointer<CChar>? {
     do {
         return copyOut(try Wire.encode(ExportOptionsWire.defaults))
     } catch {
-        setLastError(describe(error))
+        setLastError(error)
         return nil
     }
 }
@@ -644,7 +689,7 @@ public func vs_project_summary(
         let package = ProjectPackage(root: URL(filePath: path))
         return copyOut(try Wire.encode(Wire.summary(of: package)))
     } catch {
-        setLastError(describe(error))
+        setLastError(error)
         return nil
     }
 }
@@ -667,7 +712,7 @@ public func vs_capabilities() -> UnsafeMutablePointer<CChar>? {
     do {
         return copyOut(try Wire.encode(capabilities))
     } catch {
-        setLastError(describe(error))
+        setLastError(error)
         return nil
     }
 }
@@ -737,7 +782,7 @@ public func vs_password_rules(
     do {
         return copyOut(try Wire.encode(PasswordPolicy.evaluate(text)))
     } catch {
-        setLastError(describe(error))
+        setLastError(error)
         return nil
     }
 }
