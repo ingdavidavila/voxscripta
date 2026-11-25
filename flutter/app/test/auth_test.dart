@@ -48,6 +48,12 @@ void main() {
 
   Future<void> showSignUp(WidgetTester tester, _Stub auth,
       {void Function(BuildContext, AuthUser)? onSignedIn}) async {
+    // Tall enough for the whole form: the test font is wide, the email hint
+    // wraps, and a button pushed below the default 600px surface cannot be tapped.
+    tester.view
+      ..physicalSize = const Size(800, 1400)
+      ..devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
     await tester.pumpWidget(MaterialApp(
       home: SignUpScreen(
           auth: auth, onSignedIn: onSignedIn, rules: rules,
