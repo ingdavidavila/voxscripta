@@ -712,7 +712,7 @@
 /* localized:1 */
 "per year" = "al año";
 /* localized:2 */
-"Save %@%" = "Ahorra %@%";
+"Save %@%%" = "Ahorra %@%%";
 /* localized:3 */
 "Cancelled." = "Cancelada.";
 
@@ -739,3 +739,8 @@
 "%@" = "%@";
 /* localized:0 */
 "…" = "…";
+
+/* Trial countdown. Plural only: at one day the interface uses
+ * lastDayOfTrial instead, so this never has to read "1 días". */
+/* trialDaysLeft */
+"%lld days left in your free trial." = "Quedan %lld días de tu prueba gratuita.";

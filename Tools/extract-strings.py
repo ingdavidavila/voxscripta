@@ -10,15 +10,57 @@ import sys
 from pathlib import Path
 
 
+def escape_percent(text: str) -> str:
+    """A literal % is %% in the key, which is what the lookup compares."""
+    return text.replace("%", "%%")
+
+
+def specifier_for(params: str) -> str:
+    """Which format specifier an interpolated argument produces.
+
+    SwiftUI writes %lld for an Int and %@ for a String; getting this wrong
+    means the translation is present, looks right in the file, and is never
+    found at runtime.
+    """
+    return "%lld" if re.search(r":\s*Int\b", params) else "%@"
+
+
+def interpolate(literal: str, params: str) -> str:
+    """Turn a Swift literal into the key, escaping % and substituting \\(…)."""
+    spec = specifier_for(params)
+    out, i = "", 0
+    while i < len(literal):
+        if literal.startswith("\\(", i):
+            depth, j = 0, i + 1
+            while j < len(literal):
+                if literal[j] == "(":
+                    depth += 1
+                elif literal[j] == ")":
+                    depth -= 1
+                    if depth == 0:
+                        break
+                j += 1
+            out += spec
+            i = j + 1
+        else:
+            out += escape_percent(literal[i])
+            i += 1
+    return out
+
+
 def extract(source: str) -> list[tuple[str, str]]:
     keys: list[tuple[str, str]] = []
     # Each declaration, up to the next one or the end.
     for match in re.finditer(
-        r"static (?:var|let) (\w+): LocalizedStringKey\b(.*?)(?=\n    (?:static|// MARK|\})|\Z)",
+        r"static (?:var|let) (\w+): LocalizedStringKey\b(.*?)(?=\n    (?:static|// MARK|\})|\Z)"
+        r"|static func (\w+)\((.*?)\) -> LocalizedStringKey\b(.*?)(?=\n    (?:static|// MARK|\})|\Z)",
         source,
         re.S,
     ):
-        name, body = match.group(1), match.group(2)
+        if match.group(1) is not None:
+            name, body, params = match.group(1), match.group(2), ""
+        else:
+            name, params, body = match.group(3), match.group(4), match.group(5)
         triple = re.search(r'"""\n(.*?)\n\s*"""', body, re.S)
         if triple:
             joined = ""
@@ -28,7 +70,13 @@ def extract(source: str) -> list[tuple[str, str]]:
             continue
         simple = re.search(r'"((?:[^"\\]|\\.)*)"', body)
         if simple:
-            keys.append((name, simple.group(1)))
+            keys.append((name, interpolate(simple.group(1), params)))
+        elif '"' not in body:
+            # A body with no string literal at all cannot introduce a key: it
+            # dispatches to other keys, each checked on its own. Silent on
+            # purpose — warning here trains the reader to ignore the warning
+            # that matters.
+            continue
         else:
             print(f"warning: {name} has no literal this parser recognises", file=sys.stderr)
     return keys
@@ -61,7 +109,7 @@ def extract_localized_calls(source: str) -> list[tuple[str, str]]:
                 out += "%@"
                 i = j + 1
             else:
-                out += literal[i]
+                out += escape_percent(literal[i])
                 i += 1
         keys.append((f"localized:{len(keys)}", out))
     return keys
