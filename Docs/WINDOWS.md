@@ -12,7 +12,7 @@ and Save dialogs (PowerShell dialogs, never driven in a real desktop session),
 signing and an installer.
 
 Known gap: `ProjectStore.isAbsolutePath` does not accept UNC paths
-(`\server\shareudio.m4a`), so a project whose source sits on a network share
+(`\\server\share\audio.m4a`), so a project whose source sits on a network share
 reports its audio as unavailable. Follow-up.
 
 ## Prerequisites
