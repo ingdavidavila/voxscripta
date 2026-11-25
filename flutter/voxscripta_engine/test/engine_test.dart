@@ -218,7 +218,10 @@ void main() {
       // being able to tell it: on Android the default is a read-only path
       // that does not exist, so an engine that ignored this would write
       // nowhere and report failures about unrelated things.
-      expect(engine.defaultLibraryDirectory, startsWith(dataDirectory.path));
+      // Foundation on Windows reports forward slashes; the same place either way.
+      String slashes(String path) => path.replaceAll(r'\', '/');
+      expect(slashes(engine.defaultLibraryDirectory),
+          startsWith(slashes(dataDirectory.path)));
     });
 
     test('an empty directory is an empty library, not a failure', () {

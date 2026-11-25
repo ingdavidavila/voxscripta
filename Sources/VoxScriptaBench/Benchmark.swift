@@ -89,7 +89,7 @@ public enum MemoryFootprint {
         //   than something that has been seen to work.
         var counters = PROCESS_MEMORY_COUNTERS()
         let size = DWORD(MemoryLayout<PROCESS_MEMORY_COUNTERS>.size)
-        guard GetProcessMemoryInfo(GetCurrentProcess(), &counters, size) else {
+        guard K32GetProcessMemoryInfo(GetCurrentProcess(), &counters, size) else {
             throw VoxScriptaError.analysisFailed(
                 stage: "memory measurement",
                 reason: "GetProcessMemoryInfo failed")

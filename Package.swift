@@ -86,7 +86,13 @@ let engineLinkerSettings: [LinkerSetting] = [
     .linkedLibrary("ggml"),
     .linkedLibrary("ggml-base"),
     .linkedLibrary("ggml-cpu"),
-    .linkedLibrary("c++"),
+    // The C++ runtime is named explicitly on the Unix-like platforms; on Windows
+    // the MSVC runtime comes in with the compiler and there is no "c++" library.
+    .linkedLibrary("c++", .when(platforms: [.macOS, .iOS, .linux, .android])),
+    // Tools/build-engines.sh host, built with clang-cl so the static libraries
+    // use the same MSVC runtime the Swift side links against.
+    .unsafeFlags(["-L" + packageRoot + "/build/engines/host/prefix/lib"],
+                 .when(platforms: [.windows])),
     .linkedLibrary("ggml-metal", .when(platforms: [.macOS, .iOS])),
     .linkedLibrary("ggml-blas", .when(platforms: [.macOS, .iOS])),
     .linkedFramework("Accelerate", .when(platforms: [.macOS, .iOS])),
@@ -223,6 +229,9 @@ var targets: [Target] = [
             // Staged per ABI, for the reason given on the engine settings.
             .unsafeFlags(["-Lbuild/ffmpeg/android/prefix/lib"],
                          .when(platforms: [.android])),
+            // The import libraries of the shared build sit beside the DLLs.
+            .unsafeFlags(["-L" + packageRoot + "/build/ffmpeg/host/prefix/bin"],
+                         .when(platforms: [.windows])),
             // FFmpeg's own dependencies, which a shared build resolves for
             // itself and a static one hands to whoever links it. Both are
             // in the Static Linux SDK's sysroot; zlib is what the mov
