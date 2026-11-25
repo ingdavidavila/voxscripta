@@ -29,6 +29,16 @@ android {
         versionName = flutter.versionName
     }
 
+    // The engine is built for arm64-v8a and x86_64 only. Flutter would also ship
+    // its 32-bit ARM libraries, and a bundle carrying those installs on an old phone
+    // and then cannot find the engine, so that ABI is left out and the Play Store
+    // does not offer the app to such devices.
+    packaging {
+        jniLibs {
+            excludes += "**/armeabi-v7a/**"
+        }
+    }
+
     assetPacks += listOf(":speech_model")
 
     buildTypes {

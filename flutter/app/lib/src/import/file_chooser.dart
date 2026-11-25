@@ -29,8 +29,30 @@ class FileChooser {
   ];
 
   /// Whether a native dialog can be shown here.
+  ///
+  /// On Linux that depends on `zenity` or `kdialog` being installed, which a
+  /// minimal system does not guarantee: without either, offering a button that
+  /// silently does nothing would be worse than offering only the typed path.
   bool get isAvailable =>
-      Platform.isMacOS || Platform.isWindows || Platform.isLinux;
+      Platform.isMacOS ||
+      Platform.isWindows ||
+      (Platform.isLinux && linuxDialogInstalled());
+
+  /// Whether `zenity` or `kdialog` is on the search path.
+  static bool linuxDialogInstalled({
+    String? path,
+    bool Function(String file)? exists,
+  }) {
+    final search = path ?? Platform.environment['PATH'] ?? '';
+    final present = exists ?? (String f) => File(f).existsSync();
+    for (final dir in search.split(':')) {
+      if (dir.isEmpty) continue;
+      for (final tool in const ['zenity', 'kdialog']) {
+        if (present('$dir/$tool')) return true;
+      }
+    }
+    return false;
+  }
 
   /// Shows the platform's own open panel and returns the chosen path.
   ///
