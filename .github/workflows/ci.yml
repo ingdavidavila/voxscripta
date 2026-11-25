@@ -15,16 +15,31 @@ jobs:
     # VoxScripta targets macOS 26 and depends on SpeechAnalyzer and the Foundation
     # Models framework, so the runner image has to be macOS 26 or newer.
     runs-on: macos-26
+    # The macOS arm64 queue is capacity-constrained and a job that is never
+    # acquired sits for fifteen minutes before failing. Fail in five instead:
+    # the run is red either way, and ten minutes of nothing teaches nobody.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
           lfs: true
 
+      # Chosen rather than hardcoded. This step used to name
+      # /Applications/Xcode_26.app, which the image does not have, so every
+      # run failed here in twelve seconds — on every commit, for weeks,
+      # while people pushed past the red.
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_26.app
+        run: |
+          set -euo pipefail
+          newest="$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)"
+          [ -n "$newest" ] || { echo "::error::No Xcode on this image"; exit 1; }
+          echo "Selecting $newest"
+          sudo xcode-select -s "$newest"
 
       - name: Show toolchain
-        run: swift --version
+        run: |
+          swift --version
+          xcodebuild -version
 
       # Warnings are errors in CI, which is what makes the Swift 6 strict
       # concurrency guarantee mean something. A data race that the compiler can
@@ -34,6 +49,17 @@ jobs:
 
       - name: Test
         run: swift test
+
+      # Both of these are scripts the repository already has, and neither was
+      # ever run on a push. The localization gate had been failing locally for
+      # three weeks while CI reported nothing, because CI never asked it.
+      - name: Translations complete
+        run: Tools/check-localization.sh
+
+      # The header is hand-written, so nothing stops it drifting from the
+      # symbols the library exports. Dart reads the header.
+      - name: Header matches the library
+        run: Tools/check-abi.sh
 
       # The privacy claim in §26 is structural, so it gets checked mechanically
       # rather than trusted. No source file may import a networking API.
@@ -48,3 +74,27 @@ jobs:
             exit 1
           fi
           echo "No networking APIs referenced."
+
+  # Deliberately not macOS: these need no Apple toolchain, and the macOS queue
+  # is the scarce resource. Only the engine package for now — flutter/app's
+  # preview tests load fonts from /System/Library/Fonts and cannot pass off a
+  # Mac. The Windows session is making those skip when the fonts are absent;
+  # add flutter/app here once that lands.
+  dart:
+    name: Dart engine package
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Analyze
+        working-directory: flutter/voxscripta_engine
+        run: dart analyze
+
+      - name: Test
+        working-directory: flutter/voxscripta_engine
+        run: flutter test
