@@ -20,9 +20,15 @@ jobs:
     # the run is red either way, and ten minutes of nothing teaches nobody.
     timeout-minutes: 45
     steps:
+      # submodules matters as much as lfs: Sources/CGGML/include/ggml.h
+      # includes straight into vendor/llama.cpp, so without them the build
+      # fails at the first header with "file not found". CI never checked
+      # them out, which is one reason this job could not have passed even
+      # once it got past the Xcode step.
       - uses: actions/checkout@v4
         with:
           lfs: true
+          submodules: recursive
 
       # Chosen rather than hardcoded. This step used to name
       # /Applications/Xcode_26.app, which the image does not have, so every
@@ -40,6 +46,26 @@ jobs:
         run: |
           swift --version
           xcodebuild -version
+
+      # whisper.cpp, llama.cpp and FFmpeg are built from source and linked in,
+      # so the products cannot link without them. Building them on every run
+      # would dominate the job, and they only change when a submodule moves —
+      # so the key is the submodule state itself.
+      - name: Cache the native engines
+        id: engines
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/engines
+            build/ffmpeg
+          key: engines-${{ runner.os }}-${{ hashFiles('.gitmodules') }}-${{ hashFiles('.git/modules/**/HEAD') }}
+
+      - name: Build the native engines
+        if: steps.engines.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          Tools/build-engines.sh
+          Tools/build-ffmpeg.sh
 
       # Warnings are errors in CI, which is what makes the Swift 6 strict
       # concurrency guarantee mean something. A data race that the compiler can
@@ -89,6 +115,18 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+
+      # Without this the analyzer cannot see any package and reports 507
+      # undefined names. flutter-action installs the SDK; it does not resolve
+      # a project's dependencies, and `flutter test` does its own pub get
+      # while `dart analyze` does not — so the first run failed here and
+      # passed locally, where .dart_tool already existed.
+      - name: Resolve dependencies
+        run: |
+          set -euo pipefail
+          for dir in flutter/voxscripta_engine flutter/app; do
+            (cd "$dir" && flutter pub get)
+          done
 
       - name: Analyze
         working-directory: flutter/voxscripta_engine
