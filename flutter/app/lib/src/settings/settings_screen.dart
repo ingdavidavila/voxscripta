@@ -220,6 +220,14 @@ class _PolishSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final polish = model.capabilities?.polish;
+    // Apple Intelligence exists only on Apple's platforms. Offering it elsewhere
+    // is a claim the platform cannot keep, so the choice and its readout are not
+    // shown there, and a stored 'system' choice reads as automatic.
+    final platform = Theme.of(context).platform;
+    final apple =
+        platform == TargetPlatform.macOS || platform == TargetPlatform.iOS;
+    final backend =
+        !apple && model.polishBackend == 'system' ? 'automatic' : model.polishBackend;
     return _Section(
       title: context.l10n.variantPolished,
       footer: context.l10n.polishFooter,
@@ -236,10 +244,10 @@ class _PolishSection extends StatelessWidget {
         _Dropdown(
           label: context.l10n.languageModel,
           help: context.l10n.languageModelHelp,
-          value: model.polishBackend,
+          value: backend,
           items: {
             'automatic': context.l10n.backendAutomatic,
-            'system': context.l10n.backendSystem,
+            if (apple) 'system': context.l10n.backendSystem,
             'bundled': context.l10n.backendBundled,
           },
           onChanged: model.polishEnabled ? (v) => model.set('polishBackend', v) : null,
@@ -251,12 +259,13 @@ class _PolishSection extends StatelessWidget {
               polish?.unavailableReason ??
               context.l10n.polishWillBeSkipped,
         ),
-        _Readout(
-          label: context.l10n.backendSystem,
-          value: (polish?.systemModelAvailable ?? false)
-              ? context.l10n.available
-              : context.l10n.unavailable,
-        ),
+        if (apple)
+          _Readout(
+            label: context.l10n.backendSystem,
+            value: (polish?.systemModelAvailable ?? false)
+                ? context.l10n.available
+                : context.l10n.unavailable,
+          ),
         _Readout(
           label: context.l10n.backendBundled,
           value: polish?.bundledModel ?? context.l10n.notIncluded,

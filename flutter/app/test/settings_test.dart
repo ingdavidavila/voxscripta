@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:voxscripta/src/settings/settings_model.dart';
@@ -179,6 +180,28 @@ void main() {
       // The engine's own words, which are also what the provenance records.
       expect(find.text('Apple on-device model'), findsOne);
     });
+
+    for (final (platform, offered) in [
+      (TargetPlatform.android, false),
+      (TargetPlatform.linux, false),
+      (TargetPlatform.windows, false),
+      (TargetPlatform.macOS, true),
+      (TargetPlatform.iOS, true),
+    ]) {
+      testWidgets(
+          'Apple Intelligence is ${offered ? '' : 'not '}offered on $platform',
+          (tester) async {
+        debugDefaultTargetPlatformOverride = platform;
+        try {
+          await show(tester,
+              SettingsModel(source: _Stub(capabilities: capabilities())));
+          expect(find.text('Apple Intelligence'),
+              offered ? findsWidgets : findsNothing);
+        } finally {
+          debugDefaultTargetPlatformOverride = null;
+        }
+      });
+    }
 
     testWidgets('says why nothing will run, when nothing will', (tester) async {
       await show(
