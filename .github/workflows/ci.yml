@@ -136,12 +136,10 @@ jobs:
         working-directory: flutter/voxscripta_engine
         run: flutter test
 
-      # No `flutter analyze` for the app yet: it reports three unused imports
-      # in test/spanish_test.dart, which belongs to the session working in
-      # flutter/ right now. Adding the step before they are removed would
-      # make this job red on its first run, and a gate that is red on
-      # arrival is a gate people learn to ignore — which is how the last one
-      # stayed broken for weeks.
+      - name: Analyze the app
+        working-directory: flutter/app
+        run: flutter analyze
+
       - name: Test the app
         working-directory: flutter/app
         run: flutter test
