@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:voxscripta/l10n/app_localizations.dart';
 import 'package:voxscripta/src/import/file_chooser.dart';
 import 'package:voxscripta/src/import/import_sheet.dart';
 
@@ -110,6 +111,35 @@ void main() {
     expect(find.byType(TextField), findsOne);
   });
 
+  testWidgets('the import sheet reads Spanish and fits a phone', (tester) async {
+    tester.view
+      ..physicalSize = const Size(360, 800)
+      ..devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(MaterialApp(
+      locale: const Locale('es'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: Builder(
+        builder: (context) => ElevatedButton(
+          onPressed: () => ImportSheet.show(context,
+              chooser: const _HasDialog()),
+          child: const Text('open'),
+        ),
+      ),
+    ));
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    // An empty path and an unreadable format are the two longest messages.
+    await tester.tap(find.byType(FilledButton).last);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    await tester.enterText(find.byType(TextField), '${directory.path}/a.pdf');
+    await tester.tap(find.byType(FilledButton).last);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
   group('FileChooser', () {
     test('offers the formats the pipeline can actually decode', () {
       // The same list the SwiftUI open panel offers, so neither interface
@@ -124,8 +154,12 @@ void main() {
     test('a dialog is expected on every desktop this app targets', () {
       // Android is deliberately not covered — there is no shell dialog there,
       // and that is where a plugin has to arrive.
-      expect(const FileChooser().isAvailable,
-          Platform.isMacOS || Platform.isLinux || Platform.isWindows);
+      // On Linux that also needs zenity or kdialog installed.
+      expect(
+          const FileChooser().isAvailable,
+          Platform.isMacOS ||
+              Platform.isWindows ||
+              (Platform.isLinux && FileChooser.linuxDialogInstalled()));
     });
   });
 }

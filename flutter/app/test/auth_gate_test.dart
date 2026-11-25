@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:voxscripta/l10n/app_localizations.dart';
 import 'package:voxscripta/src/auth/account_screen.dart';
 import 'package:voxscripta/src/auth/auth_backend.dart';
 import 'package:voxscripta/src/auth/auth_gate.dart';
@@ -117,6 +118,28 @@ void main() {
     testWidgets('deletion is offered from inside the app', (tester) async {
       await show(tester);
       expect(find.text('Delete account'), findsOne);
+    });
+
+    testWidgets('the account screen and its deletion dialog fit a phone in Spanish',
+        (tester) async {
+      tester.view
+        ..physicalSize = const Size(360, 640)
+        ..devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      final auth = _Stub(user: user);
+      await tester.pumpWidget(MaterialApp(
+        locale: const Locale('es'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: AccountScreen(auth: auth, user: user, onSignedOut: (_) {}),
+      ));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.text('Delete account'), findsNothing);
+      await tester.tap(find.byType(ListTile).last);
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsOne);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('deletion asks first, and declining deletes nothing',
