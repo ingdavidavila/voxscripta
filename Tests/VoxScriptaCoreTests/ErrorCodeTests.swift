@@ -91,3 +91,38 @@ struct ErrorCodeTests {
         }
     }
 }
+
+/// The password checklist, as something an interface can translate.
+///
+/// Same problem as the error taxonomy: the engine renders English off Apple
+/// and cannot do otherwise, so a localized interface has to rebuild the
+/// sentence from the parts.
+@Suite("Password rule details")
+struct PasswordRuleDetailTests {
+
+    @Test("The length rule carries its number, so nobody has to hardcode it")
+    func lengthCarriesItsMinimum() throws {
+        // An interface keying off the id could otherwise only say
+        // "Al menos 8 caracteres" by writing 8 into Dart, where it would
+        // disagree with minimumLength the first time it moved — silently,
+        // because nothing compares the two.
+        let rules = PasswordPolicy.evaluate("short")
+        let length = try #require(rules.first { $0.id == "length" })
+        #expect(length.details["minimum"] == String(PasswordPolicy.minimumLength))
+    }
+
+    @Test("Rules without values say so rather than inventing one")
+    func valuelessRulesAreEmpty() {
+        let rules = PasswordPolicy.evaluate("short")
+        for id in ["uppercase", "number", "special"] {
+            #expect(rules.first { $0.id == id }?.details.isEmpty == true)
+        }
+    }
+
+    @Test("Every rule has an id an interface can key off")
+    func everyRuleIsIdentified() {
+        let rules = PasswordPolicy.evaluate("x")
+        #expect(Set(rules.map(\.id)) == ["length", "uppercase", "number", "special"])
+        #expect(rules.allSatisfy { !$0.demand.isEmpty })
+    }
+}

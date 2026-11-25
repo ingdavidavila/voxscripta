@@ -25,12 +25,27 @@ public enum PasswordPolicy {
         /// the wording.
         public let id: String
         /// What the person needs to do, phrased as the requirement.
+        ///
+        /// English off Apple, and unavoidably so — see
+        /// `Diagnostics/Localization.swift`. An interface that knows the
+        /// reader's language should build its own wording from ``id`` and
+        /// ``details`` and use this only as a fallback.
         public let demand: String
         public let satisfied: Bool
+        /// The values ``demand`` interpolates, so an interface can write the
+        /// sentence itself.
+        ///
+        /// Without this, a Spanish interface keying off ``id`` could say
+        /// "Al menos N caracteres" only by hardcoding N, which would then
+        /// disagree with ``minimumLength`` the first time it changed and
+        /// nothing would catch it.
+        public let details: [String: String]
 
-        public init(id: String, demand: String, satisfied: Bool) {
+        public init(id: String, demand: String, satisfied: Bool,
+                    details: [String: String] = [:]) {
             self.id = id
             self.demand = demand
+            self.details = details
             self.satisfied = satisfied
         }
     }
@@ -47,7 +62,8 @@ public enum PasswordPolicy {
         [
             Rule(id: "length",
                  demand: String(localized: "At least \(minimumLength) characters"),
-                 satisfied: password.count >= minimumLength),
+                 satisfied: password.count >= minimumLength,
+                 details: ["minimum": String(minimumLength)]),
             Rule(id: "uppercase",
                  demand: String(localized: "One capital letter"),
                  satisfied: password.contains { $0.isUppercase }),
