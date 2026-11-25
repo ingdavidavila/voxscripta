@@ -341,7 +341,10 @@ String _projectPathFor(VoxScriptaEngine engine, String audioPath) {
 }
 
 String _fileName(String path) =>
-    path.contains('/') ? path.substring(path.lastIndexOf('/') + 1) : path;
+    // Either separator: a path typed or chosen on Windows uses backslashes, and
+    // splitting on / alone made the whole path the "file name", which then
+    // became the project's name and put a drive letter inside its own path.
+    path.substring(path.lastIndexOf(RegExp(r'[\\/]')) + 1);
 
 /// Shown when the engine will not load.
 ///
