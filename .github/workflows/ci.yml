@@ -76,12 +76,11 @@ jobs:
           echo "No networking APIs referenced."
 
   # Deliberately not macOS: these need no Apple toolchain, and the macOS queue
-  # is the scarce resource. Only the engine package for now — flutter/app's
-  # preview tests load fonts from /System/Library/Fonts and cannot pass off a
-  # Mac. The Windows session is making those skip when the fonts are absent;
-  # add flutter/app here once that lands.
+  # is the scarce resource. flutter/app's preview comparison loads fonts from
+  # /System/Library/Fonts and skips itself when they are absent, which is what
+  # lets it run here at all.
   dart:
-    name: Dart engine package
+    name: Dart tests
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -97,4 +96,14 @@ jobs:
 
       - name: Test
         working-directory: flutter/voxscripta_engine
+        run: flutter test
+
+      # No `flutter analyze` for the app yet: it reports three unused imports
+      # in test/spanish_test.dart, which belongs to the session working in
+      # flutter/ right now. Adding the step before they are removed would
+      # make this job red on its first run, and a gate that is red on
+      # arrival is a gate people learn to ignore — which is how the last one
+      # stayed broken for weeks.
+      - name: Test the app
+        working-directory: flutter/app
         run: flutter test

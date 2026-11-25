@@ -38,6 +38,10 @@ final class VoxScriptaBindings {
             Pointer<Utf8> Function(int)>('vs_job_error_copy'),
         jobErrorJsonCopy = library.lookupFunction<Pointer<Utf8> Function(Int64),
             Pointer<Utf8> Function(int)>('vs_job_error_json_copy'),
+        exportFilename = library.lookupFunction<
+            Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>),
+            Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>,
+                Pointer<Utf8>)>('vs_export_filename'),
         jobCancel =
             library.lookupFunction<Int32 Function(Int64), int Function(int)>('vs_job_cancel'),
         jobRelease =
@@ -124,6 +128,8 @@ final class VoxScriptaBindings {
   final Pointer<Utf8> Function(int) jobDetailCopy;
   final Pointer<Utf8> Function(int) jobErrorCopy;
   final Pointer<Utf8> Function(int) jobErrorJsonCopy;
+  final Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>)
+      exportFilename;
   final int Function(int) jobCancel;
   final void Function(int) jobRelease;
   final int Function(Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>,
@@ -191,6 +197,30 @@ final class VoxScriptaBindings {
   /// Why a job failed, structured, or null if it has not.
   EngineFailure? jobFailure(int handle) =>
       EngineFailure.parse(takeString(jobErrorJsonCopy(handle)));
+
+  /// What a rendered export should be called.
+  ///
+  /// Ask rather than build the name here. The convention lives in the engine
+  /// — the separator is an em dash with spaces — and a second copy of it
+  /// drifts the first time it changes, with nothing comparing the two.
+  ///
+  /// Null for an unknown variant or format; [lastError] says which.
+  String? exportFilenameFor({
+    required String base,
+    required String variant,
+    required String format,
+  }) {
+    final basePtr = base.toNativeUtf8();
+    final variantPtr = variant.toNativeUtf8();
+    final formatPtr = format.toNativeUtf8();
+    try {
+      return takeString(exportFilename(basePtr, variantPtr, formatPtr));
+    } finally {
+      calloc.free(basePtr);
+      calloc.free(variantPtr);
+      calloc.free(formatPtr);
+    }
+  }
 }
 
 /// A failure the engine reports, in a form an interface can translate.
