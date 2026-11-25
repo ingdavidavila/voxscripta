@@ -152,6 +152,17 @@ void vs_job_release(int64_t handle);
  *   -4  the transcript could not be read or rendered
  *
  * Bytes rather than a string because docx is a ZIP. */
+/* What a rendered export should be called: "<base> — <variant>.<ext>".
+ *
+ * vs_export returns bytes and says nothing about the file, so an interface
+ * that writes one has to name it. Ask here rather than rebuilding the
+ * convention: the separator is an em dash with spaces, which nobody guesses,
+ * and a second copy of the rule drifts the first time it changes.
+ *
+ * NULL for a null argument or an unknown variant or format, with the reason
+ * in vs_last_error_copy. Release with vs_string_free. */
+char *vs_export_filename(const char *base, const char *variant, const char *format);
+
 int32_t vs_export(const char *project_path,
                   const char *variant,
                   const char *format,

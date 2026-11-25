@@ -434,6 +434,47 @@ public func vs_job_release(_ handle: Int64) {
 /// Bytes rather than a string because `docx` is a ZIP. One entry point for all
 /// five formats means the interface never learns how any of them is built —
 /// which is the guard that keeps the two interfaces from drifting apart.
+/// What a rendered export should be called.
+///
+/// `vs_export` hands back bytes and says nothing about the file, so an
+/// interface that writes one has to name it. Apple's does so through
+/// `Exporting.filename(base:variant:)`; without this, every other interface
+/// would reimplement that convention — the separator is an em dash with
+/// spaces around it, which nobody guesses — and the two would drift the first
+/// time it changed, silently, because nothing compares them.
+///
+/// That is the same guard the comment on `vs_export` describes: one entry
+/// point, so the interface never learns how the thing is built.
+///
+/// `base` is the name to build on, usually the audio file's without its
+/// extension. Returns NULL for a null argument or an unknown variant or
+/// format, with the reason in `vs_last_error_copy`. Caller releases the
+/// string with `vs_string_free`.
+@_cdecl("vs_export_filename")
+public func vs_export_filename(
+    _ base: UnsafePointer<CChar>?,
+    _ variant: UnsafePointer<CChar>?,
+    _ format: UnsafePointer<CChar>?
+) -> UnsafeMutablePointer<CChar>? {
+    setLastError(nil)
+    guard let base, let variant, let format else {
+        setLastError("vs_export_filename requires a base, a variant and a format")
+        return nil
+    }
+    let variantName = String(cString: variant)
+    let formatName = String(cString: format)
+    guard let kind = TranscriptVariant(rawValue: variantName) else {
+        setLastError("no such transcript variant: \(variantName)")
+        return nil
+    }
+    guard let chosen = ExportFormat(extension: formatName) else {
+        setLastError("no such export format: \(formatName)")
+        return nil
+    }
+    return copyOut(Exporters.make(chosen).filename(base: String(cString: base),
+                                                   variant: kind))
+}
+
 @_cdecl("vs_export")
 public func vs_export(
     _ project_path: UnsafePointer<CChar>?,

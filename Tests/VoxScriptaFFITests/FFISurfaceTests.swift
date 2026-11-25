@@ -2,6 +2,7 @@ import Testing
 import Foundation
 import VoxScriptaCore
 import VoxScriptaProject
+import VoxScriptaExport
 @testable import VoxScriptaFFI
 
 /// The C ABI, exercised the way Dart will exercise it.
@@ -43,6 +44,49 @@ struct FFISurfaceTests {
         // The Dart side compares this for equality and refuses to load on a
         // mismatch, so changing it is a coordinated change, not a detail.
         #expect(vs_abi_version() == 11)
+    }
+
+    // MARK: - Export naming
+
+    @Test("The filename the ABI gives is the one the exporter would use")
+    func exportFilenameMatchesTheExporter() throws {
+        // The whole point of the symbol is that there is one convention. A
+        // test that hardcoded the expected string would pass while the two
+        // drifted; this compares the ABI against the thing it speaks for.
+        let name = try #require("Board meeting".withCString { base in
+            "clean".withCString { variant in
+                "md".withCString { format in
+                    vs_export_filename(base, variant, format)
+                }
+            }
+        })
+        defer { vs_string_free(name) }
+
+        let expected = Exporters.make(.markdown)
+            .filename(base: "Board meeting", variant: .clean)
+        #expect(String(cString: name) == expected)
+    }
+
+    @Test("An unknown variant or format is refused, not guessed at")
+    func exportFilenameRefusesNonsense() {
+        let bad = "Board meeting".withCString { base in
+            "sideways".withCString { variant in
+                "md".withCString { format in
+                    vs_export_filename(base, variant, format)
+                }
+            }
+        }
+        #expect(bad == nil)
+        #expect(vs_last_error_copy() != nil)
+
+        let badFormat = "Board meeting".withCString { base in
+            "clean".withCString { variant in
+                "pdf".withCString { format in
+                    vs_export_filename(base, variant, format)
+                }
+            }
+        }
+        #expect(badFormat == nil)
     }
 
     // MARK: - Errors an interface can translate
