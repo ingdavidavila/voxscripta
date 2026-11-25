@@ -9,7 +9,11 @@ the manual procedure, written so it can be repeated rather than remembered.
 
 Recording with a real microphone (only silent input has been tried), the Open
 and Save dialogs (PowerShell dialogs, never driven in a real desktop session),
-the `small` model, signing and an installer.
+signing and an installer.
+
+Known gap: `ProjectStore.isAbsolutePath` does not accept UNC paths
+(`\server\shareudio.m4a`), so a project whose source sits on a network share
+reports its audio as unavailable. Follow-up.
 
 ## Prerequisites
 
