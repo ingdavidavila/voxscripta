@@ -88,6 +88,9 @@ let engineLinkerSettings: [LinkerSetting] = [
     .linkedLibrary("ggml-cpu"),
     // The C++ runtime is named explicitly on the Unix-like platforms; on Windows
     // the MSVC runtime comes in with the compiler and there is no "c++" library.
+    // This was unconditional before. An explicit list means a platform added
+    // later does not get "c++" and fails at link time with no hint why, so add
+    // it here when that happens.
     .linkedLibrary("c++", .when(platforms: [.macOS, .iOS, .linux, .android])),
     // Tools/build-engines.sh host, built with clang-cl so the static libraries
     // use the same MSVC runtime the Swift side links against.
