@@ -2,13 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:voxscripta/l10n/app_localizations.dart';
 import 'package:voxscripta/src/paywall/paywall_screen.dart';
 import 'package:voxscripta/src/paywall/trial_banner.dart';
-import 'package:voxscripta/src/settings/settings_model.dart';
-import 'package:voxscripta/src/settings/settings_screen.dart';
 import 'package:voxscripta_engine/voxscripta_engine.dart';
 
 /// The Spanish interface.

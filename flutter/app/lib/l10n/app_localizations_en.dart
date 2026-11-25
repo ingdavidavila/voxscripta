@@ -490,11 +490,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String renderedNotSaved(String format, int bytes) {
-    return '$format rendered — $bytes bytes. Choosing where to save it needs the file dialog, which is not wired up yet.';
-  }
-
-  @override
   String get transcriptUnreadableTitle => 'That transcript could not be read';
 
   @override
@@ -503,6 +498,19 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get saveTranscriptTooltip =>
       'Save this transcript. Formats and timestamps are in the menu.';
+
+  @override
+  String get saveDialogTitle => 'Save transcript';
+
+  @override
+  String savedTo(String where) {
+    return 'Saved to $where';
+  }
+
+  @override
+  String saveFailed(String reason) {
+    return 'Could not save the file: $reason';
+  }
 
   @override
   String get nothingToSave => 'Nothing to save yet.';

@@ -1,7 +1,10 @@
 package dev.voxscripta.voxscripta
 
 import android.Manifest
+import android.app.Activity
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.provider.OpenableColumns
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -22,6 +25,10 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     /** The reply owed to a permission prompt that is on screen, if any. */
     private var pendingMicrophone: MethodChannel.Result? = null
+
+    /** The save that is waiting on the system's document picker, if any. */
+    private var pendingSave: MethodChannel.Result? = null
+    private var pendingSaveBytes: ByteArray? = null
 
     private val models by lazy { ModelStore(applicationContext) }
 
@@ -50,6 +57,18 @@ class MainActivity : FlutterActivity() {
             }
         }
 
+        MethodChannel(messenger, SAVE_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "save" -> saveDocument(
+                    call.argument<String>("name") ?: "transcript.txt",
+                    call.argument<String>("mime") ?: "application/octet-stream",
+                    call.argument<ByteArray>("bytes"),
+                    result,
+                )
+                else -> result.notImplemented()
+            }
+        }
+
         MethodChannel(messenger, MICROPHONE_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "ensure" -> ensureMicrophone(result)
@@ -71,6 +90,71 @@ class MainActivity : FlutterActivity() {
         "neededMb" to models.neededMb,
         "detail" to models.errorDetail,
     )
+
+    /**
+     * Asks the system's own "save as" picker where the file should go, then
+     * writes the bytes there. The app needs no storage permission for this: the
+     * person's choice of location is the grant. Replies with the document's
+     * name, or null when the picker was closed.
+     */
+    private fun saveDocument(
+        name: String,
+        mime: String,
+        bytes: ByteArray?,
+        result: MethodChannel.Result,
+    ) {
+        if (bytes == null) {
+            result.error("no_data", "there was nothing to save", null)
+            return
+        }
+        if (pendingSave != null) {
+            result.error("busy", "a save is already waiting for a location", null)
+            return
+        }
+        pendingSave = result
+        pendingSaveBytes = bytes
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = mime
+            putExtra(Intent.EXTRA_TITLE, name)
+        }
+        try {
+            startActivityForResult(intent, SAVE_REQUEST)
+        } catch (failure: Exception) {
+            pendingSave = null
+            pendingSaveBytes = null
+            result.error("no_picker", failure.message ?: "no app can choose a location", null)
+        }
+    }
+
+    @Deprecated("Flutter's activity still delivers results here")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != SAVE_REQUEST) return
+        val reply = pendingSave ?: return
+        val bytes = pendingSaveBytes
+        pendingSave = null
+        pendingSaveBytes = null
+
+        val uri = data?.data
+        if (resultCode != Activity.RESULT_OK || uri == null || bytes == null) {
+            reply.success(null)
+            return
+        }
+        try {
+            // "wt" truncates: choosing an existing file replaces its contents
+            // rather than leaving the tail of a longer old file behind.
+            contentResolver.openOutputStream(uri, "wt")?.use { it.write(bytes) }
+                ?: throw java.io.IOException("the location could not be opened")
+            reply.success(documentName(uri) ?: uri.lastPathSegment ?: uri.toString())
+        } catch (failure: Exception) {
+            reply.error("write_failed", failure.message ?: "the file could not be written", null)
+        }
+    }
+
+    private fun documentName(uri: android.net.Uri): String? =
+        contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+            ?.use { if (it.moveToFirst()) it.getString(0) else null }
 
     /**
      * Replies "granted", "denied" (the prompt can be shown again) or "blocked"
@@ -123,6 +207,8 @@ class MainActivity : FlutterActivity() {
         const val PATHS_CHANNEL = "dev.voxscripta.voxscripta/paths"
         const val MICROPHONE_CHANNEL = "dev.voxscripta.voxscripta/microphone"
         const val MODEL_CHANNEL = "dev.voxscripta.voxscripta/model"
+        const val SAVE_CHANNEL = "dev.voxscripta.voxscripta/save"
         const val MICROPHONE_REQUEST = 7001
+        const val SAVE_REQUEST = 7002
     }
 }

@@ -6,15 +6,20 @@ import 'package:voxscripta_engine/voxscripta_engine.dart';
 
 import '../l10n.dart';
 import '../platform_traits.dart';
+import 'file_saver.dart';
 import 'review_panel.dart';
 import 'transcript_model.dart';
 import 'wording.dart';
 
 /// The three outputs, and the evidence behind them.
 class TranscriptScreen extends StatefulWidget {
-  const TranscriptScreen({super.key, required this.model, this.onRun});
+  const TranscriptScreen(
+      {super.key, required this.model, this.onRun, this.saver});
 
   final TranscriptModel model;
+
+  /// Where a rendered transcript is written. Defaults to this platform's own.
+  final FileSaver? saver;
 
   /// Starts the pipeline for a project that has no transcript yet. Null leaves
   /// the empty state as a statement rather than an offer.
@@ -163,27 +168,36 @@ class _TranscriptScreenState extends State<TranscriptScreen> {
     ));
   }
 
-  /// Renders a format and reports it.
+  /// Renders a format through the engine and writes it where the person says.
   ///
-  /// Writing the bytes to a file the user chooses needs a save dialog, which
-  /// needs a plugin this app does not have yet. Rather than a button that
-  /// looks like it saves and does not, this renders through the engine and
-  /// says how large the result is — which proves the export path end to end
-  /// and is honest about the part that is missing.
+  /// A cancelled dialog is an answer and says nothing. A failure says why.
   Future<void> _save(ExportFormat format) async {
     final model = widget.model;
+    final l10n = context.l10n;
+    final messenger = ScaffoldMessenger.of(context);
+    final saver = widget.saver ?? FileSaver.forPlatform();
     try {
       final bytes = await model.render(format);
+      final name = safeFileName(model.displayName, format.wireName);
+      final outcome = await saver.save(
+        suggestedName: name,
+        mimeType: mimeTypeFor(format.wireName),
+        bytes: bytes,
+        dialogTitle: l10n.saveDialogTitle,
+      );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(context.l10n.renderedNotSaved(
-            Wording.formatName(context.l10n, format), bytes.length)),
-        duration: const Duration(seconds: 4),
-      ));
+      switch (outcome) {
+        case Saved(:final where):
+          messenger.showSnackBar(SnackBar(content: Text(l10n.savedTo(where))));
+        case SaveCancelled():
+          break;
+        case SaveFailed(:final reason):
+          messenger
+              .showSnackBar(SnackBar(content: Text(l10n.saveFailed(reason))));
+      }
     } on VoxScriptaException catch (failure) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(failure.message)));
+      messenger.showSnackBar(SnackBar(content: Text(failure.message)));
     }
   }
 }

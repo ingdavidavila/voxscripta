@@ -494,11 +494,6 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
-  String renderedNotSaved(String format, int bytes) {
-    return '$format generado: $bytes bytes. Para elegir dónde guardarlo hace falta el diálogo de archivos, que todavía no está conectado.';
-  }
-
-  @override
   String get transcriptUnreadableTitle => 'No se pudo leer esa transcripción';
 
   @override
@@ -507,6 +502,19 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get saveTranscriptTooltip =>
       'Guarda esta transcripción. Los formatos y las marcas de tiempo están en el menú.';
+
+  @override
+  String get saveDialogTitle => 'Guardar transcripción';
+
+  @override
+  String savedTo(String where) {
+    return 'Guardado en $where';
+  }
+
+  @override
+  String saveFailed(String reason) {
+    return 'No se pudo guardar el archivo: $reason';
+  }
 
   @override
   String get nothingToSave => 'Todavía no hay nada que guardar.';

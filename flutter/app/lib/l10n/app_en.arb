@@ -311,20 +311,26 @@
       }
     }
   },
-  "renderedNotSaved": "{format} rendered — {bytes} bytes. Choosing where to save it needs the file dialog, which is not wired up yet.",
-  "@renderedNotSaved": {
-    "placeholders": {
-      "format": {
-        "type": "String"
-      },
-      "bytes": {
-        "type": "int"
-      }
-    }
-  },
   "transcriptUnreadableTitle": "That transcript could not be read",
   "includeTimestamps": "Include timestamps",
   "saveTranscriptTooltip": "Save this transcript. Formats and timestamps are in the menu.",
+  "saveDialogTitle": "Save transcript",
+  "savedTo": "Saved to {where}",
+  "@savedTo": {
+    "placeholders": {
+      "where": {
+        "type": "String"
+      }
+    }
+  },
+  "saveFailed": "Could not save the file: {reason}",
+  "@saveFailed": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
   "nothingToSave": "Nothing to save yet.",
   "wordsAndSegments": "{words} words · {segments} segments",
   "@wordsAndSegments": {

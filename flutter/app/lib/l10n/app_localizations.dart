@@ -884,12 +884,6 @@ abstract class AppLocalizations {
   /// **'Copied the {variant} transcript.'**
   String copiedTranscript(String variant);
 
-  /// No description provided for @renderedNotSaved.
-  ///
-  /// In en, this message translates to:
-  /// **'{format} rendered — {bytes} bytes. Choosing where to save it needs the file dialog, which is not wired up yet.'**
-  String renderedNotSaved(String format, int bytes);
-
   /// No description provided for @transcriptUnreadableTitle.
   ///
   /// In en, this message translates to:
@@ -907,6 +901,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Save this transcript. Formats and timestamps are in the menu.'**
   String get saveTranscriptTooltip;
+
+  /// No description provided for @saveDialogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Save transcript'**
+  String get saveDialogTitle;
+
+  /// No description provided for @savedTo.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved to {where}'**
+  String savedTo(String where);
+
+  /// No description provided for @saveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save the file: {reason}'**
+  String saveFailed(String reason);
 
   /// No description provided for @nothingToSave.
   ///
