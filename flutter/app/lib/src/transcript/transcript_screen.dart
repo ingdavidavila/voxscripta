@@ -208,6 +208,7 @@ class _VariantBar extends StatelessWidget {
       child: Wrap(
         alignment: WrapAlignment.spaceBetween,
         crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 12,
         runSpacing: 8,
         children: [
           SegmentedButton<TranscriptVariant>(

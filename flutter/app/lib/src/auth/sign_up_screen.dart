@@ -105,6 +105,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       decoration: InputDecoration(
                         labelText: context.l10n.emailField,
                         helperText: context.l10n.emailHelper,
+                        helperMaxLines: 3,
                         errorText: _emailError,
                         border: const OutlineInputBorder(),
                       ),
