@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(WinSDK)
+import WinSDK
+#endif
 #if canImport(Android)
 // For `kill`, `getpid`, `SIGKILL` and `pause` in the crash simulator below,
 // which are C library symbols rather than Foundation ones. Same reason as
@@ -792,11 +795,18 @@ public struct JobRunner: Sendable {
     /// exactly what a real power loss does not give you.
     private static func die(_ context: String) -> Never {
         FileHandle.standardError.write(Data("voxscripta: simulated crash \(context)\n".utf8))
+        #if os(Windows)
+        // TerminateProcess is the closest thing Windows has to SIGKILL: it ends
+        // the process without running handlers, flushes or `defer` blocks.
+        TerminateProcess(GetCurrentProcess(), 1)
+        while true { Sleep(INFINITE) }
+        #else
         kill(getpid(), SIGKILL)
         // The kernel terminates the process asynchronously, so execution can
         // continue for a few instructions. Park here rather than falling through
         // to anything that might flush or clean up.
         while true { pause() }
+        #endif
     }
 }
 

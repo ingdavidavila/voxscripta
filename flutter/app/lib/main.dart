@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import 'package:voxscripta_engine/voxscripta_engine.dart';
@@ -340,8 +342,21 @@ String _projectPathFor(VoxScriptaEngine engine, String audioPath) {
   return '${engine.defaultLibraryDirectory}/$stem.voxscripta';
 }
 
-String _fileName(String path) =>
-    path.contains('/') ? path.substring(path.lastIndexOf('/') + 1) : path;
+String _fileName(String path) => fileNameOf(path, windows: Platform.isWindows);
+
+/// The last component of [path].
+///
+/// Windows paths use backslashes, and splitting on / alone made the whole path
+/// the "file name", which then became the project's name and put a drive letter
+/// inside its own path. Elsewhere a backslash is an ordinary character in a
+/// file name, so only / separates there.
+@visibleForTesting
+String fileNameOf(String path, {required bool windows}) {
+  final cut = windows
+      ? path.lastIndexOf(RegExp(r'[\\/]'))
+      : path.lastIndexOf('/');
+  return path.substring(cut + 1);
+}
 
 /// Shown when the engine will not load.
 ///

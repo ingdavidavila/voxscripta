@@ -102,6 +102,33 @@ install(CODE "
 install(DIRECTORY "${PROJECT_BUILD_DIR}/${FLUTTER_ASSET_DIR_NAME}"
   DESTINATION "${INSTALL_BUNDLE_DATA_DIR}" COMPONENT Runtime)
 
+# The engine and what it loads. Tools/stage-windows.sh gathers these into
+# build/windows-engine/ (VoxScriptaFFI.dll, FFmpeg, the Swift runtime), and
+# without them the app starts and says the engine cannot be loaded. They are
+# copied beside the executable after every build so a debug run finds them,
+# and installed with it for a bundle.
+set(VOXSCRIPTA_ENGINE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../build/windows-engine")
+set(VOXSCRIPTA_MODEL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../build/models")
+if(EXISTS "${VOXSCRIPTA_ENGINE_DIR}/VoxScriptaFFI.dll")
+  file(GLOB VOXSCRIPTA_ENGINE_DLLS "${VOXSCRIPTA_ENGINE_DIR}/*.dll")
+  add_custom_target(voxscripta_engine_dlls ALL
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      ${VOXSCRIPTA_ENGINE_DLLS} "$<TARGET_FILE_DIR:${BINARY_NAME}>"
+    VERBATIM)
+  add_dependencies(voxscripta_engine_dlls ${BINARY_NAME})
+  install(FILES ${VOXSCRIPTA_ENGINE_DLLS} DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+    COMPONENT Runtime)
+else()
+  message(WARNING "No engine DLLs in ${VOXSCRIPTA_ENGINE_DIR}; run Tools/stage-windows.sh. The app will build but cannot open its engine.")
+endif()
+# The speech model, where ModelSearch looks beside the executable. Optional:
+# a bundle without one fails a job with the engine's own "no model" message.
+file(GLOB VOXSCRIPTA_MODELS "${VOXSCRIPTA_MODEL_DIR}/ggml-*.bin")
+if(VOXSCRIPTA_MODELS)
+  install(FILES ${VOXSCRIPTA_MODELS} DESTINATION "${INSTALL_BUNDLE_LIB_DIR}/models"
+    COMPONENT Runtime)
+endif()
+
 # Install the AOT library on non-Debug builds only.
 install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   CONFIGURATIONS Profile;Release
