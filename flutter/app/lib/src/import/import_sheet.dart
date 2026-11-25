@@ -81,8 +81,11 @@ class _ImportSheetState extends State<ImportSheet> {
               enableSuggestions: false,
               textCapitalization: TextCapitalization.none,
               keyboardType: TextInputType.url,
-              decoration: const InputDecoration(
-                hintText: '/path/to/interview.m4a',
+              decoration: InputDecoration(
+                // An example in the shape of this machine's own paths.
+                hintText: Platform.isWindows
+                    ? r'C:\Users\you\interview.m4a'
+                    : '/path/to/interview.m4a',
                 border: OutlineInputBorder(),
                 isDense: true,
               ),

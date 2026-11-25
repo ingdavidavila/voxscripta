@@ -92,6 +92,16 @@ void main() {
     expect(find.text('Choose a file, or type its path.'), findsOne);
   });
 
+  testWidgets('the example path is written the way this machine writes paths',
+      (tester) async {
+    await open(tester);
+    expect(
+        find.text(Platform.isWindows
+            ? r'C:\Users\you\interview.m4a'
+            : '/path/to/interview.m4a'),
+        findsOne);
+  });
+
   testWidgets('the file is promised to stay where it is', (tester) async {
     await open(tester);
     // §5, where the decision is being made.
