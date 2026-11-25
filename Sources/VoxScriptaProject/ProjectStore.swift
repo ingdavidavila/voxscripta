@@ -349,13 +349,27 @@ public struct Project: Sendable {
             // this cannot decode, so it is reported as unavailable rather
             // than misread as a path.
             guard let path = String(data: data, encoding: .utf8),
-                  path.hasPrefix("/"),
+                  Self.isAbsolutePath(path),
                   FileManager.default.fileExists(atPath: path) else {
                 throw VoxScriptaError.sourceUnavailable(path: manifest.source.displayName)
             }
             return (URL(filePath: path), {})
             #endif
         }
+    }
+
+    /// Whether a stored path is an absolute one. A Windows path starts with a
+    /// drive letter, not a slash, so "starts with /" alone would call every
+    /// file on Windows unavailable.
+    private static func isAbsolutePath(_ path: String) -> Bool {
+        if path.hasPrefix("/") { return true }
+        #if os(Windows)
+        let characters = Array(path)
+        return characters.count >= 3 && characters[0].isLetter && characters[1] == ":"
+            && (characters[2] == "\\" || characters[2] == "/")
+        #else
+        return false
+        #endif
     }
 
     /// Removes derived data once a job is complete.
