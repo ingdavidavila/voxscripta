@@ -551,3 +551,191 @@
 /* RecordingSession, system-initiated interruption */
 "the system paused the microphone" = "el sistema pausó el micrófono";
 
+/* ---------------------------------------------------------------
+ * Accounts, the paywall, and the privacy wording that goes with
+ * them. Added together because they arrived together and shipped
+ * English-only: check-localization.sh had been failing on all of
+ * them, which is what stopped the release bundle from building.
+ * --------------------------------------------------------------- */
+
+/* Recording */
+/* recordingSilentInput */
+"No sound is reaching the microphone" = "No llega sonido al micrófono";
+/* recordingSilentInputHelp */
+"Recording is still running and will be kept. Check that the right input is selected and that it is not muted." = "La grabación sigue en marcha y se conservará. Comprueba que esté seleccionada la entrada correcta y que no esté silenciada.";
+
+/* Privacy */
+/* privacyBadgeHelpMac */
+"Vox Scripta processes audio entirely on this Mac. No recording and no transcript is ever uploaded." = "Vox Scripta procesa el audio por completo en este Mac. Ninguna grabación ni transcripción se sube nunca.";
+/* privacyBadgeHelpDevice */
+"Vox Scripta processes audio entirely on this device. No recording and no transcript is ever uploaded." = "Vox Scripta procesa el audio por completo en este dispositivo. Ninguna grabación ni transcripción se sube nunca.";
+/* privacyFooter */
+"This build ships without network access. It has no telemetry and no accounts, and cannot upload anything." = "Esta versión se distribuye sin acceso a la red. No tiene telemetría ni cuentas, y no puede subir nada.";
+/* privacyFooterStore */
+"Transcription runs entirely on this machine. No recording and no transcript is ever uploaded, and there is no telemetry. The only network use is the App Store, for your subscription." = "La transcripción se ejecuta por completo en este equipo. Ninguna grabación ni transcripción se sube nunca, y no hay telemetría. El único uso de la red es el App Store, para tu suscripción.";
+/* privacyFooterWithAccounts */
+"Transcription runs entirely on this machine. No recording and no transcript is ever uploaded, and there is no telemetry. An account is optional and carries only your email address, for signing in." = "La transcripción se ejecuta por completo en este equipo. Ninguna grabación ni transcripción se sube nunca, y no hay telemetría. La cuenta es opcional y solo contiene tu dirección de correo, para iniciar sesión.";
+
+/* Accounts */
+/* signIn */
+"Sign In" = "Iniciar sesión";
+/* signUp */
+"Create Account" = "Crear cuenta";
+/* signOut */
+"Sign Out" = "Cerrar sesión";
+/* account */
+"Account" = "Cuenta";
+/* notNow */
+"Not Now" = "Ahora no";
+/* emailField */
+"Email" = "Correo electrónico";
+/* passwordField */
+"Password" = "Contraseña";
+/* confirmPasswordField */
+"Password again" = "Repite la contraseña";
+/* showPassword */
+"Show password" = "Mostrar contraseña";
+/* hidePassword */
+"Hide password" = "Ocultar contraseña";
+/* forgotPassword */
+"Forgot your password?" = "¿Olvidaste tu contraseña?";
+/* resetPassword */
+"Reset Password" = "Restablecer contraseña";
+/* sendResetLink */
+"Send Reset Link" = "Enviar enlace de restablecimiento";
+/* continueWithGoogle */
+"Continue with Google" = "Continuar con Google";
+/* orDivider */
+"or" = "o";
+/* noAccountYet */
+"No account yet?" = "¿Aún no tienes cuenta?";
+/* haveAccount */
+"Already have an account?" = "¿Ya tienes cuenta?";
+/* passwordRequirements */
+"Your password needs" = "Tu contraseña necesita";
+/* resetSent */
+"If that address has an account, a reset link is on its way. Check your inbox, and your spam folder." = "Si esa dirección tiene una cuenta, el enlace para restablecerla va en camino. Revisa tu bandeja de entrada y también la carpeta de spam.";
+/* signInSubtitle */
+"An account is optional. Vox Scripta transcribes on this machine whether you sign in or not." = "La cuenta es opcional. Vox Scripta transcribe en este equipo tanto si inicias sesión como si no.";
+/* deleteAccount */
+"Delete Account" = "Eliminar cuenta";
+/* deleteAccountTitle */
+"Delete this account?" = "¿Eliminar esta cuenta?";
+/* deleteAccountBody */
+"The account and everything the account service holds for it are removed. This cannot be undone. Recordings, projects and transcripts on this Mac are not deleted — they were never on the account." = "Se elimina la cuenta y todo lo que el servicio de cuentas guarda sobre ella. Esto no se puede deshacer. Las grabaciones, los proyectos y las transcripciones de este Mac no se eliminan: nunca estuvieron en la cuenta.";
+/* deleteAccountBodyPhone */
+"The account and everything the account service holds for it are removed. This cannot be undone. Recordings, projects and transcripts on this device are not deleted — they were never on the account." = "Se elimina la cuenta y todo lo que el servicio de cuentas guarda sobre ella. Esto no se puede deshacer. Las grabaciones, los proyectos y las transcripciones de este dispositivo no se eliminan: nunca estuvieron en la cuenta.";
+/* keepAccount */
+"Keep It" = "Conservarla";
+/* signedInAs */
+"Signed in as" = "Sesión iniciada como";
+/* signedInWith */
+"Signed in with" = "Sesión iniciada con";
+/* signOutKeepsWork */
+"Your recordings and transcripts stay on this machine." = "Tus grabaciones y transcripciones permanecen en este equipo.";
+
+/* Account validation */
+/* localized:0 */
+"Enter your email address." = "Introduce tu dirección de correo.";
+/* localized:1 */
+"Enter your password." = "Introduce tu contraseña.";
+/* localized:2 */
+"That does not look like an email address." = "Eso no parece una dirección de correo.";
+/* localized:3 */
+"The password does not meet every rule yet." = "La contraseña todavía no cumple todas las reglas.";
+/* localized:4 */
+"The two passwords are not the same." = "Las dos contraseñas no coinciden.";
+
+/* Password rules */
+/* localized:0 */
+"At least %@ characters" = "Al menos %@ caracteres";
+/* localized:1 */
+"One capital letter" = "Una letra mayúscula";
+/* localized:2 */
+"One number" = "Un número";
+/* localized:3 */
+"One symbol, such as ! ? # or &" = "Un símbolo, como ! ? # o &";
+
+/* Subscription */
+/* subscribe */
+"Subscribe" = "Suscribirse";
+/* subscriptionNeededTitle */
+"Subscribe to continue" = "Suscríbete para continuar";
+/* seePlans */
+"See Plans" = "Ver planes";
+/* restorePurchase */
+"Restore" = "Restaurar";
+/* keepGoing */
+"Keep going after your trial" = "Continúa después de tu prueba";
+/* trialEndedTitle */
+"Your trial has ended" = "Tu prueba ha terminado";
+/* lapsedTitle */
+"Your subscription has lapsed" = "Tu suscripción ha vencido";
+/* subscribedTitle */
+"You are subscribed" = "Tu suscripción está activa";
+/* lastDayOfTrial */
+"Last day of your free trial." = "Último día de tu prueba gratuita.";
+/* trialEndedShort */
+"Your trial has ended. Everything already transcribed stays yours." = "Tu prueba ha terminado. Todo lo ya transcrito sigue siendo tuyo.";
+/* lapsedShort */
+"Your subscription has lapsed. Everything already transcribed stays yours." = "Tu suscripción ha vencido. Todo lo ya transcrito sigue siendo tuyo.";
+/* paywallPitch */
+"Vox Scripta transcribes on this machine. Nothing is uploaded, nothing is sent to a service, and none of that changes with a subscription — what it pays for is the work of making it." = "Vox Scripta transcribe en este equipo. No se sube nada, no se envía nada a ningún servicio, y nada de eso cambia con una suscripción: lo que pagas con ella es el trabajo de crear la aplicación.";
+/* whatStaysYours */
+"What stays yours either way" = "Lo que sigue siendo tuyo en cualquier caso";
+/* keepRecordings */
+"Every recording you imported — untouched, where you put it." = "Todas las grabaciones que importaste, intactas y donde las dejaste.";
+/* keepTranscripts */
+"Every transcript already made — readable, copyable, exportable." = "Todas las transcripciones ya hechas: se pueden leer, copiar y exportar.";
+/* keepFormats */
+"Every export format: txt, md, docx, srt, vtt." = "Todos los formatos de exportación: txt, md, docx, srt, vtt.";
+/* keepFolder */
+"Your projects folder, on your own disk." = "Tu carpeta de proyectos, en tu propio disco.";
+/* unlocksWhat */
+"A subscription unlocks new transcriptions and recording." = "La suscripción habilita nuevas transcripciones y la grabación.";
+/* renewalTerms */
+"Subscriptions renew automatically at the price shown until cancelled. Cancel any time; the subscription runs to the end of the period already paid for." = "Las suscripciones se renuevan automáticamente al precio indicado hasta que se cancelen. Puedes cancelar cuando quieras; la suscripción sigue vigente hasta el final del periodo ya pagado.";
+/* termsOfUse */
+"Terms of Use" = "Términos de uso";
+/* privacyPolicyLink */
+"Privacy Policy" = "Política de privacidad";
+/* manageSubscription */
+"Manage Subscription" = "Gestionar suscripción";
+/* noStoreWired */
+"No store is connected in this build" = "Esta versión no tiene ninguna tienda conectada";
+/* noStoreWiredBody */
+"Subscriptions are sold through the App Store, and it is not wired up yet, so there is nothing to buy here. This build cannot start new transcriptions once the trial ends." = "Las suscripciones se venden a través del App Store, que todavía no está conectado, así que aquí no hay nada que comprar. Esta versión no puede iniciar nuevas transcripciones cuando termine la prueba.";
+/* noPlansReturned */
+"No plans came back from the App Store." = "El App Store no devolvió ningún plan.";
+/* localized:0 */
+"per month" = "al mes";
+/* localized:1 */
+"per year" = "al año";
+/* localized:2 */
+"Save %@%" = "Ahorra %@%";
+/* localized:3 */
+"Cancelled." = "Cancelada.";
+
+/* Job state */
+/* localized:0 */
+"Failed" = "Falló";
+/* localized:1 */
+"Not finished" = "Sin terminar";
+/* localized:2 */
+"Not transcribed" = "Sin transcribir";
+/* localized:3 */
+"In progress" = "En curso";
+
+/* Engine */
+/* localized:0 */
+"no such polish backend: %@" = "no existe ese motor de pulido: %@";
+/* localized:0 */
+"the system model is unavailable" = "el modelo del sistema no está disponible";
+/* localized:0 */
+"rendering silence-removed audio off Apple" = "generar audio sin silencios fuera de Apple";
+
+/* Placeholders */
+/* localized:22 */
+"%@" = "%@";
+/* localized:0 */
+"…" = "…";
