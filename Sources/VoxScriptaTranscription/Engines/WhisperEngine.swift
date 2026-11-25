@@ -437,6 +437,83 @@ public actor WhisperEngine: TranscriptionEngine {
 
     /// One whisper segment, on the recording's timeline.
     ///
+    /// One decoded token, before the pieces are assembled into words.
+    struct Piece: Equatable {
+        let text: String
+        let start: MediaTime
+        let end: MediaTime
+        let confidence: Float
+    }
+
+    /// Turns Whisper's sub-word tokens into the word list the rest of the
+    /// project assumes it is given.
+    ///
+    /// Whisper does not emit words. It emits byte-pair pieces, and **the
+    /// leading space is the word boundary**: `["nov", " ice"]` is two words
+    /// and `["nov", "ice"]` is one. That distinction used to be destroyed
+    /// here — each piece was trimmed and appended as its own `Word` — and
+    /// everything downstream then had sub-word pieces in a field named
+    /// `words`.
+    ///
+    /// Nothing noticed on Apple, because `AppleSpeechEngine` returns real
+    /// words. Off Apple it surfaced as transcripts reading "nov ice",
+    /// "sub red dit", "code c ad emy", "20, 000" and "100 %" — the last two
+    /// because `CleanProcessor.join` attaches a comma to what precedes it and
+    /// then treats the following digits as a new word, which is right for
+    /// prose and wrong for a number that was never two words.
+    ///
+    /// Found on a five-minute recording, on Windows, with both the base and
+    /// small models. A comment below the old code already said these pieces
+    /// "are not a word list and nothing should treat them as one until they
+    /// are merged". Nothing merged them; this does.
+    ///
+    /// A word's span runs from its first piece's start to its last piece's
+    /// end, and its confidence is the mean over its own pieces — not over the
+    /// segment, so a word assembled from four uncertain pieces stays
+    /// uncertain.
+    static func assemble(_ pieces: [Piece]) -> [Word] {
+        var words: [Word] = []
+        var text = ""
+        var start = MediaTime.zero
+        var end = MediaTime.zero
+        var confidences: [Float] = []
+
+        func flush() {
+            // whitespacesAndNewlines, not whitespaces: the latter is spaces and
+            // tabs only, so a piece arriving as "\ntwo" kept its newline inside
+            // the word. Caught by this function's own test, not by a transcript.
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return }
+            words.append(Word(
+                text: trimmed,
+                originalStart: start,
+                originalEnd: end,
+                confidence: confidences.isEmpty
+                    ? nil
+                    : confidences.reduce(0, +) / Float(confidences.count)))
+        }
+
+        for piece in pieces {
+            // A piece that begins with whitespace starts a word; one that does
+            // not continues the word before it. Newlines count as boundaries
+            // too — Whisper uses them between sentences in some models.
+            let startsWord = piece.text.first?.isWhitespace ?? false
+            if startsWord || text.isEmpty {
+                if !text.isEmpty { flush() }
+                text = piece.text
+                start = piece.start
+                end = piece.end
+                confidences = [piece.confidence]
+            } else {
+                text += piece.text
+                end = piece.end
+                confidences.append(piece.confidence)
+            }
+        }
+        flush()
+        return words
+    }
+
     /// Confidence is the mean of the token probabilities the decoder reports.
     /// Worth knowing: that is not the same quantity Apple reports, so the
     /// CLEAN confidence floor — measured at 0.65 against Apple's numbers —
@@ -455,7 +532,7 @@ public actor WhisperEngine: TranscriptionEngine {
             Double(whisper_full_get_segment_t1(context, index)) * 10)
 
         var probabilities: [Float] = []
-        var words: [Word] = []
+        var pieces: [Piece] = []
         for token in 0..<whisper_full_n_tokens(context, index) {
             let data = whisper_full_get_token_data(context, index, token)
             // Timestamp and other special tokens carry no text worth keeping.
@@ -464,12 +541,13 @@ public actor WhisperEngine: TranscriptionEngine {
             guard let tokenText = whisper_full_get_token_text(context, index, token) else { continue }
             let piece = String(cString: tokenText)
             guard !piece.hasPrefix("[") else { continue }
-            words.append(Word(
-                text: piece.trimmingCharacters(in: .whitespaces),
-                originalStart: offset + MediaTime.milliseconds(Double(data.t0) * 10),
-                originalEnd: offset + MediaTime.milliseconds(Double(data.t1) * 10),
+            pieces.append(Piece(
+                text: piece,
+                start: offset + MediaTime.milliseconds(Double(data.t0) * 10),
+                end: offset + MediaTime.milliseconds(Double(data.t1) * 10),
                 confidence: data.p))
         }
+        let words = Self.assemble(pieces)
 
         let confidence = probabilities.isEmpty
             ? nil
@@ -479,9 +557,8 @@ public actor WhisperEngine: TranscriptionEngine {
             originalStart: start,
             originalEnd: end,
             text: text,
-            // Whisper's tokens are sub-word pieces, not words. They are kept
-            // because subtitle export needs timings, but they are not a word
-            // list and nothing should treat them as one until they are merged.
+            // Assembled into real words above, so this is a word list and may
+            // be treated as one. It did not used to be: see ``assemble``.
             words: words.filter { !$0.text.isEmpty },
             confidence: confidence)
     }
