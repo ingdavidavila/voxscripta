@@ -1,3 +1,6 @@
+# The generated lib/l10n/app_localizations*.dart are committed on purpose, so a
+# checkout builds without running gen-l10n first. After changing an .arb file,
+# run `flutter gen-l10n` and commit the regenerated files with it.
 arb-dir: lib/l10n
 template-arb-file: app_en.arb
 output-localization-file: app_localizations.dart

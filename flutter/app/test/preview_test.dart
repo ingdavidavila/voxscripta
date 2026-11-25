@@ -39,6 +39,16 @@ import 'package:voxscripta_engine/voxscripta_engine.dart';
 /// default: Roboto on Android and Linux, Segoe UI on Windows. So the shapes,
 /// spacing and colour are the app's; the letterforms are not.
 void main() {
+  // The images were rendered with macOS system fonts and are compared pixel for
+  // pixel, so anywhere else every one of these fails for a reason that is about
+  // the machine, not the app. Skipping them says so once instead of failing
+  // thirteen times, and lets the rest of the suite be a gate.
+  if (!Platform.isMacOS) {
+    test('previews are compared on macOS only', () {},
+        skip: 'the reference images use macOS fonts');
+    return;
+  }
+
   setUpAll(() async {
     await _loadFont('Preview', const {
       '/System/Library/Fonts/Supplemental/Arial.ttf': FontWeight.normal,
