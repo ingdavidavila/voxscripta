@@ -416,8 +416,10 @@ class _NoStoreWired extends StatelessWidget {
               Icon(Icons.storefront_outlined,
                   size: 20, color: theme.colorScheme.onSurfaceVariant),
               const SizedBox(width: 10),
-              Text(context.l10n.noStoreTitle,
-                  style: theme.textTheme.titleSmall),
+              Expanded(
+                child: Text(context.l10n.noStoreTitle,
+                    style: theme.textTheme.titleSmall),
+              ),
             ],
           ),
           const SizedBox(height: 10),
