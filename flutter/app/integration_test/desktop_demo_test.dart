@@ -14,9 +14,9 @@ import 'package:voxscripta/main.dart' as app;
 /// what Flutter drew, and need no display server or window grab. They are not a
 /// capture of the operating system's window.
 ///
-///   VOXSCRIPTA_TEST_AUDIO=<jfk.wav> VOXSCRIPTA_WHISPER_MODEL=<ggml-base.bin>
-///   VOXSCRIPTA_FRAME_DIR=<folder>
-///   flutter test integration_test/desktop_demo_test.dart -d <windows|linux>
+///     VOXSCRIPTA_TEST_AUDIO=<jfk.wav> VOXSCRIPTA_WHISPER_MODEL=<ggml-base.bin>
+///     VOXSCRIPTA_FRAME_DIR=<folder>
+///     flutter test integration_test/desktop_demo_test.dart -d <windows|linux>
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   final audio = Platform.environment['VOXSCRIPTA_TEST_AUDIO'];
