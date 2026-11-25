@@ -75,6 +75,8 @@ class Job {
       fraction: _bindings.jobFraction(handle),
       detail: _bindings.takeString(_bindings.jobDetailCopy(handle)) ?? '',
       failure: _bindings.takeString(_bindings.jobErrorCopy(handle)),
+      failureDetail:
+          state == JobState.failed ? _bindings.jobFailure(handle) : null,
     );
 
     final changed = !next.sameAs(_latest);

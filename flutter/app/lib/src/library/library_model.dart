@@ -17,11 +17,15 @@ class LibraryModel extends ChangeNotifier {
 
   List<ProjectEntry> _projects = const [];
   String? _error;
+  EngineFailure? _errorFailure;
   bool _isLoading = true;
   String? _selectedId;
 
   List<ProjectEntry> get projects => _projects;
   String? get error => _error;
+
+  /// The same failure as a code and values, for the screen to word.
+  EngineFailure? get errorFailure => _errorFailure;
   bool get isLoading => _isLoading;
   String? get selectedId => _selectedId;
 
@@ -43,10 +47,13 @@ class LibraryModel extends ChangeNotifier {
     try {
       _projects = _source.list();
       _error = null;
+    _errorFailure = null;
+      _errorFailure = null;
       // A project that was deleted elsewhere should not stay selected.
       if (selected == null) _selectedId = null;
     } on VoxScriptaException catch (failure) {
       _error = failure.message;
+      _errorFailure = failure.failure;
       _projects = const [];
     } finally {
       _isLoading = false;

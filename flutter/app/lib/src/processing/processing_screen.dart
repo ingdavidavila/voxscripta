@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:voxscripta_engine/voxscripta_engine.dart';
 
+import '../failure_text.dart';
 import '../l10n.dart';
 import '../model_preparation.dart';
 import 'processing_model.dart';
@@ -89,7 +90,11 @@ class _ProcessingScreenState extends State<ProcessingScreen> {
                     context.l10n.modelCopyFailed(problem.detail ?? ''),
                 })
           else if (model.startFailure case final message?)
-            _Failure(title: context.l10n.jobCouldNotStart, detail: message)
+            _Failure(
+              title: context.l10n.jobCouldNotStart,
+              detail: failureText(context.l10n, model.startFailureDetail,
+                  fallback: message),
+            )
           else ...[
             if (model.isPreparingModel) ...[
               _PreparingModel(fraction: model.modelFraction),
@@ -102,7 +107,11 @@ class _ProcessingScreenState extends State<ProcessingScreen> {
             _Phases(current: progress.state),
             if (progress.failure case final message?) ...[
               const SizedBox(height: 24),
-              _Failure(title: context.l10n.jobStopped, detail: message),
+              _Failure(
+                title: context.l10n.jobStopped,
+                detail: failureText(context.l10n, progress.failureDetail,
+                    fallback: message),
+              ),
             ],
           ],
         ],

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:voxscripta_engine/voxscripta_engine.dart';
 
+import '../failure_text.dart';
 import '../l10n.dart';
 import '../platform_traits.dart';
 import 'file_saver.dart';
@@ -102,7 +103,7 @@ class _TranscriptScreenState extends State<TranscriptScreen> {
       return _Centred(
         icon: Icons.error_outline,
         title: context.l10n.projectUnreadableTitle,
-        detail: message,
+        detail: failureText(context.l10n, model.errorFailure, fallback: message),
       );
     }
     if (model.availableVariants.isEmpty) {
@@ -178,16 +179,7 @@ class _TranscriptScreenState extends State<TranscriptScreen> {
     final saver = widget.saver ?? FileSaver.forPlatform();
     try {
       final bytes = await model.render(format);
-      final name = safeFileName(
-        model.displayName,
-        format.wireName,
-        variant: switch (model.selected) {
-          TranscriptVariant.verbatim => 'Verbatim',
-          TranscriptVariant.clean => 'Clean',
-          TranscriptVariant.polished => 'Polished',
-          null => null,
-        },
-      );
+      final name = model.exportFileName(format);
       final outcome = await saver.save(
         suggestedName: name,
         mimeType: mimeTypeFor(format.wireName),
@@ -275,7 +267,7 @@ class _TranscriptText extends StatelessWidget {
       return _Centred(
         icon: Icons.error_outline,
         title: context.l10n.transcriptUnreadableTitle,
-        detail: message,
+        detail: failureText(context.l10n, model.errorFailure, fallback: message),
       );
     }
     return Scrollbar(

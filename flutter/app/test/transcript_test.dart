@@ -223,6 +223,14 @@ void main() {
 }
 
 class _StubSource implements TranscriptSource {
+  @override
+  String exportFilename({
+    required String base,
+    required TranscriptVariant variant,
+    required ExportFormat format,
+  }) =>
+      '$base \u2014 ${variant.wireName}.${format.wireName}';
+
   _StubSource({required ProjectSummary summary, this.texts = const {}})
       : summaryValue = summary;
 

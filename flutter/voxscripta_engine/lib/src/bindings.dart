@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:ffi';
 import 'package:ffi/ffi.dart';
 
+import 'model.dart' show VoxScriptaException;
+
 /// The symbols of `ffi/voxscripta.h`, and nothing else.
 ///
 /// The count used to be written here and was wrong twice; Tools/check-abi.sh
@@ -193,6 +195,17 @@ final class VoxScriptaBindings {
   /// engine's sentence is English off Apple and always will be, so a
   /// localized interface has to build its own from [EngineFailure.code].
   EngineFailure? lastFailure() => EngineFailure.parse(takeString(lastErrorJsonCopy()));
+
+  /// A [VoxScriptaException] for the last failure on this thread, carrying the
+  /// structured form beside the engine's sentence.
+  VoxScriptaException exception(String fallback, {int? code}) {
+    final failure = lastFailure();
+    return VoxScriptaException(
+      failure?.message.isNotEmpty == true ? failure!.message : (lastError() ?? fallback),
+      code: code,
+      failure: failure,
+    );
+  }
 
   /// Why a job failed, structured, or null if it has not.
   EngineFailure? jobFailure(int handle) =>

@@ -140,19 +140,4 @@ void main() {
           isA<SaveFailed>().having((s) => s.reason, 'reason', 'disk full'));
     });
   });
-
-  group('names', () {
-    test('drops the audio extension and refuses unsafe characters', () {
-      expect(safeFileName('Board meeting.m4a', 'txt'), 'Board meeting.txt');
-      expect(safeFileName('a/b:c*d', 'md'), 'a_b_c_d.md');
-      expect(safeFileName('', 'srt'), 'transcript.srt');
-    });
-
-    test('two variants of one transcript never share a name', () {
-      expect(safeFileName('jfk.wav', 'txt', variant: 'Clean'),
-          'jfk — Clean.txt');
-      expect(safeFileName('jfk.wav', 'txt', variant: 'Clean'),
-          isNot(safeFileName('jfk.wav', 'txt', variant: 'Verbatim')));
-    });
-  });
 }

@@ -11,6 +11,13 @@ import 'package:voxscripta_engine/voxscripta_engine.dart';
 abstract interface class TranscriptSource {
   ProjectSummary summary(String projectPath);
 
+  /// What a rendered export should be called. The engine owns the convention.
+  String exportFilename({
+    required String base,
+    required TranscriptVariant variant,
+    required ExportFormat format,
+  });
+
   Future<Uint8List> export({
     required String projectPath,
     required TranscriptVariant variant,
@@ -26,6 +33,15 @@ class EngineTranscriptSource implements TranscriptSource {
 
   @override
   ProjectSummary summary(String projectPath) => _engine.summary(projectPath);
+
+  @override
+  String exportFilename({
+    required String base,
+    required TranscriptVariant variant,
+    required ExportFormat format,
+  }) =>
+      _engine.exportFilename(base: base, variant: variant, format: format) ??
+      '$base.${format.wireName}';
 
   @override
   Future<Uint8List> export({
@@ -81,6 +97,7 @@ class TranscriptModel extends ChangeNotifier {
   String _text = '';
   bool _isLoading = true;
   String? _error;
+  EngineFailure? _errorFailure;
   bool _showsReview = false;
   bool _includeTimestamps = false;
   String? _notice;
@@ -90,6 +107,7 @@ class TranscriptModel extends ChangeNotifier {
   String get text => _text;
   bool get isLoading => _isLoading;
   String? get error => _error;
+  EngineFailure? get errorFailure => _errorFailure;
   bool get showsReview => _showsReview;
   bool get includeTimestamps => _includeTimestamps;
 
@@ -111,6 +129,7 @@ class TranscriptModel extends ChangeNotifier {
       final summary = _source.summary(projectPath);
       _summary = summary;
       _error = null;
+      _errorFailure = null;
 
       final available = summary.variants.map((v) => v.variant).toList();
       // The preferred variant when it exists, otherwise the best one that
@@ -124,6 +143,7 @@ class TranscriptModel extends ChangeNotifier {
       await _loadText();
     } on VoxScriptaException catch (failure) {
       _error = failure.message;
+      _errorFailure = failure.failure;
       _summary = null;
       _text = '';
     } finally {
@@ -154,9 +174,11 @@ class TranscriptModel extends ChangeNotifier {
       );
       _text = utf8.decode(bytes);
       _error = null;
+      _errorFailure = null;
     } on VoxScriptaException catch (failure) {
       _text = '';
       _error = failure.message;
+      _errorFailure = failure.failure;
     }
   }
 
@@ -182,6 +204,22 @@ class TranscriptModel extends ChangeNotifier {
       variant: variant,
       format: format,
       options: ExportOptions(includeTimestamps: _includeTimestamps),
+    );
+  }
+
+  /// The name to offer for [format] of the variant on screen.
+  ///
+  /// The base is the audio's name without its extension, which is what
+  /// [displayName] holds for an imported recording, and the rest is the
+  /// engine's own rule — the SwiftUI app asks the same question, so a
+  /// transcript has the same file name on every platform.
+  String exportFileName(ExportFormat format) {
+    final dot = displayName.lastIndexOf('.');
+    final base = dot > 0 ? displayName.substring(0, dot) : displayName;
+    return _source.exportFilename(
+      base: base.isEmpty ? 'transcript' : base,
+      variant: _selected ?? TranscriptVariant.clean,
+      format: format,
     );
   }
 

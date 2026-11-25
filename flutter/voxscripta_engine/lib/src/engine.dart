@@ -79,10 +79,7 @@ class VoxScriptaEngine {
       final directory = dataDirectory.toNativeUtf8();
       try {
         if (bindings.setDataDirectory(directory) != 0) {
-          throw VoxScriptaException(
-            bindings.lastError() ??
-                'the engine refused the data directory $dataDirectory',
-          );
+          throw bindings.exception('the engine refused the data directory $dataDirectory');
         }
       } finally {
         calloc.free(directory);
@@ -104,6 +101,20 @@ class VoxScriptaEngine {
 
   /// The ABI the loaded library announces.
   int get abiVersion => _bindings.abiVersion();
+
+  /// What an export of [variant] as [format] should be called, from the
+  /// engine's own rule so no second copy of the convention exists here.
+  /// [base] is the audio's name without its extension.
+  String? exportFilename({
+    required String base,
+    required TranscriptVariant variant,
+    required ExportFormat format,
+  }) =>
+      _bindings.exportFilenameFor(
+        base: base,
+        variant: variant.wireName,
+        format: format.wireName,
+      );
 
   /// Creates or opens the project at [projectPath] for the audio at
   /// [audioPath], and starts the pipeline.
@@ -130,10 +141,7 @@ class VoxScriptaEngine {
     try {
       final handle = _bindings.jobStart(audio, project, settings.cast());
       if (handle <= 0) {
-        throw VoxScriptaException(
-          _bindings.lastError() ?? 'the engine refused to start the job',
-          code: handle,
-        );
+        throw _bindings.exception('the engine refused to start the job', code: handle);
       }
       return makeJob(_bindings, handle, pollInterval);
     } finally {
@@ -161,8 +169,7 @@ class VoxScriptaEngine {
     try {
       final text = _bindings.takeString(_bindings.libraryList(path));
       if (text == null) {
-        throw VoxScriptaException(
-            _bindings.lastError() ?? 'the library could not be read');
+        throw _bindings.exception('the library could not be read');
       }
       final rows = jsonDecode(text) as List<Object?>;
       return rows
@@ -185,10 +192,7 @@ class VoxScriptaEngine {
     try {
       final status = _bindings.projectDelete(path, out);
       if (status != 0) {
-        throw VoxScriptaException(
-          _bindings.lastError() ?? 'the project could not be deleted',
-          code: status,
-        );
+        throw _bindings.exception('the project could not be deleted', code: status);
       }
       final text = _bindings.takeString(out.value);
       if (text == null) return null;
@@ -210,8 +214,7 @@ class VoxScriptaEngine {
     try {
       final text = _bindings.takeString(_bindings.projectSummary(path));
       if (text == null) {
-        throw VoxScriptaException(
-            _bindings.lastError() ?? 'the project could not be read');
+        throw _bindings.exception('the project could not be read');
       }
       return ProjectSummary.fromJson(jsonDecode(text) as Map<String, Object?>);
     } finally {
@@ -229,8 +232,7 @@ class VoxScriptaEngine {
   Capabilities capabilities() {
     final text = _bindings.takeString(_bindings.capabilities());
     if (text == null) {
-      throw VoxScriptaException(
-          _bindings.lastError() ?? 'the engine would not report its capabilities');
+      throw _bindings.exception('the engine would not report its capabilities');
     }
     return Capabilities.fromJson(jsonDecode(text) as Map<String, Object?>);
   }
@@ -278,8 +280,7 @@ class VoxScriptaEngine {
     try {
       final json = _bindings.takeString(_bindings.passwordRules(text));
       if (json == null) {
-        throw VoxScriptaException(
-            _bindings.lastError() ?? 'the password rules could not be read');
+        throw _bindings.exception('the password rules could not be read');
       }
       return (jsonDecode(json) as List<Object?>)
           .cast<Map<String, Object?>>()
@@ -316,8 +317,7 @@ class VoxScriptaEngine {
   Entitlement entitlement() {
     final json = _bindings.takeString(_bindings.entitlementState());
     if (json == null) {
-      throw VoxScriptaException(
-          _bindings.lastError() ?? 'the entitlement could not be read');
+      throw _bindings.exception('the entitlement could not be read');
     }
     return Entitlement.fromJson(jsonDecode(json) as Map<String, Object?>);
   }
@@ -345,8 +345,7 @@ class VoxScriptaEngine {
     final text = payload.toNativeUtf8();
     try {
       if (_bindings.entitlementRecordSubscription(text) != 0) {
-        throw VoxScriptaException(
-            _bindings.lastError() ?? 'the subscription could not be recorded');
+        throw _bindings.exception('the subscription could not be recorded');
       }
     } finally {
       calloc.free(text);
@@ -389,10 +388,7 @@ class VoxScriptaEngine {
     try {
       final handle = _bindings.recordingStart(path);
       if (handle <= 0) {
-        throw VoxScriptaException(
-          _bindings.lastError() ?? 'the microphone could not be opened',
-          code: handle,
-        );
+        throw _bindings.exception('the microphone could not be opened', code: handle);
       }
       return makeRecording(_bindings, handle, defaultMeterInterval);
     } finally {
@@ -416,8 +412,7 @@ class VoxScriptaEngine {
   Map<String, Object?> _decodeDefaults(Pointer<Utf8> pointer, String what) {
     final text = _bindings.takeString(pointer);
     if (text == null) {
-      throw VoxScriptaException(
-          _bindings.lastError() ?? 'the engine would not report its $what');
+      throw _bindings.exception('the engine would not report its $what');
     }
     return jsonDecode(text) as Map<String, Object?>;
   }
@@ -496,10 +491,7 @@ class VoxScriptaEngine {
       final status = bindings.export(
           project, variantName, formatName, settings.cast(), outBytes, outLength);
       if (status != 0) {
-        throw VoxScriptaException(
-          bindings.lastError() ?? 'the export failed',
-          code: status,
-        );
+        throw bindings.exception('the export failed', code: status);
       }
       final buffer = outBytes.value;
       final length = outLength.value;

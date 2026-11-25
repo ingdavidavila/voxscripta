@@ -453,5 +453,210 @@
   "showPassword": "Show password",
   "continueWithApple": "Continue with Apple",
   "continueWithGoogle": "Continue with Google",
-  "signInOptionalNote": "Optional. Transcription works without one."
+  "signInOptionalNote": "Optional. Transcription works without one.",
+  "errSourceUnavailable": "The audio file could not be found at {path}.",
+  "@errSourceUnavailable": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "errSourceChanged": "The audio file at {path} has changed since it was imported.",
+  "@errSourceChanged": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "errUnsupportedFormat": "This audio format is not supported: {description}.",
+  "@errUnsupportedFormat": {
+    "placeholders": {
+      "description": {
+        "type": "String"
+      }
+    }
+  },
+  "errNoAudioTrack": "“{name}” has no audio track, so there is nothing to transcribe.",
+  "@errNoAudioTrack": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "errUnsupportedContainer": "Vox Scripta cannot read .{extension} files. Convert it to .mp4, .m4a or .wav first — a stream copy is enough, and costs no quality.",
+  "@errUnsupportedContainer": {
+    "placeholders": {
+      "extension": {
+        "type": "String"
+      }
+    }
+  },
+  "errDecodingFailed": "The audio could not be decoded: {reason}.",
+  "@errDecodingFailed": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "errNoWordsRecognized": "No words were recognised. This recording was transcribed as {locale} — if it is in another language, change it in Settings and import the file again.",
+  "@errNoWordsRecognized": {
+    "placeholders": {
+      "locale": {
+        "type": "String"
+      }
+    }
+  },
+  "errMicrophoneDenied": "Vox Scripta does not have permission to use the microphone. Grant it in Settings, then try recording again.",
+  "errRecordingFailed": "The recording could not be started: {reason}.",
+  "@errRecordingFailed": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "errAnalysisFailed": "Audio analysis failed during {stage}: {reason}.",
+  "@errAnalysisFailed": {
+    "placeholders": {
+      "stage": {
+        "type": "String"
+      },
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "errNoSpeechDetected": "No speech was detected in this recording.",
+  "errEngineUnavailable": "The {engine} engine is unavailable: {reason}.",
+  "@errEngineUnavailable": {
+    "placeholders": {
+      "engine": {
+        "type": "String"
+      },
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "errLocaleUnsupported": "The {engine} engine does not support {locale}.",
+  "@errLocaleUnsupported": {
+    "placeholders": {
+      "engine": {
+        "type": "String"
+      },
+      "locale": {
+        "type": "String"
+      }
+    }
+  },
+  "errTranscriptionFailed": "Chunk {chunk} could not be transcribed: {reason}.",
+  "@errTranscriptionFailed": {
+    "placeholders": {
+      "chunk": {
+        "type": "String"
+      },
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "errModelAssetMissing": "A required model asset is missing: {description}.",
+  "@errModelAssetMissing": {
+    "placeholders": {
+      "description": {
+        "type": "String"
+      }
+    }
+  },
+  "errModelUnavailable": "The language model {model} is unavailable: {reason}.",
+  "@errModelUnavailable": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      },
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "errContextWindowExceeded": "Input of {tokens} tokens exceeds the {limit}-token limit.",
+  "@errContextWindowExceeded": {
+    "placeholders": {
+      "tokens": {
+        "type": "int",
+        "format": "decimalPattern"
+      },
+      "limit": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "errValidationRejected": "Polished output failed validation: {reasons}.",
+  "@errValidationRejected": {
+    "placeholders": {
+      "reasons": {
+        "type": "String"
+      }
+    }
+  },
+  "errProjectCorrupt": "The project file is damaged: {reason}.",
+  "@errProjectCorrupt": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "errSchemaTooNew": "This project was made by a newer version (schema {found}, this app supports {supported}).",
+  "@errSchemaTooNew": {
+    "placeholders": {
+      "found": {
+        "type": "int",
+        "format": "decimalPattern"
+      },
+      "supported": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "errInsufficientDiskSpace": "Needs {needed} of free space; {available} available.",
+  "@errInsufficientDiskSpace": {
+    "placeholders": {
+      "needed": {
+        "type": "String"
+      },
+      "available": {
+        "type": "String"
+      }
+    }
+  },
+  "errIoFailure": "Could not read or write {path}: {reason}.",
+  "@errIoFailure": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      },
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "errCancelled": "Processing was cancelled.",
+  "passwordRuleLength": "At least {minimum} characters",
+  "@passwordRuleLength": {
+    "placeholders": {
+      "minimum": {
+        "type": "int"
+      }
+    }
+  },
+  "passwordRuleUppercase": "One capital letter",
+  "passwordRuleNumber": "One number",
+  "passwordRuleSpecial": "One symbol, such as ! ? # or &"
 }

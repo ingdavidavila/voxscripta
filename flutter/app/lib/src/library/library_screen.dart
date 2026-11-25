@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:voxscripta_engine/voxscripta_engine.dart';
 
+import '../failure_text.dart';
 import '../l10n.dart';
 
 import '../platform_traits.dart';
@@ -141,7 +142,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
         title: context.l10n.libraryUnreadableTitle,
         // The engine's own words. Paraphrasing them would lose the path, which
         // is usually the only part that makes this fixable.
-        detail: message,
+        detail: failureText(context.l10n, model.errorFailure, fallback: message),
         action: FilledButton(onPressed: model.refresh, child: Text(context.l10n.tryAgain)),
       );
     }

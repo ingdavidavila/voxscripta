@@ -1,3 +1,5 @@
+import 'bindings.dart' show EngineFailure;
+
 /// Where a job has got to.
 ///
 /// Mirrors the `VS_STATE_*` codes in `ffi/voxscripta.h`. The mapping is an
@@ -58,6 +60,7 @@ class JobProgress {
     required this.fraction,
     required this.detail,
     this.failure,
+    this.failureDetail,
   });
 
   final JobState state;
@@ -70,6 +73,10 @@ class JobProgress {
 
   /// Why the job failed, when it did. Null otherwise.
   final String? failure;
+
+  /// The same reason as a code and values, for an interface that translates.
+  /// Null unless the job failed and the engine reported one.
+  final EngineFailure? failureDetail;
 
   /// Compared so the stream can suppress repeats. Polling runs at 10 Hz and
   /// most ticks say nothing new; forwarding them all would rebuild a Flutter
@@ -118,10 +125,17 @@ enum ExportFormat {
 
 /// A refusal from the engine, carrying what it said rather than a code.
 class VoxScriptaException implements Exception {
-  const VoxScriptaException(this.message, {this.code});
+  const VoxScriptaException(this.message, {this.code, this.failure});
 
+  /// The engine's own sentence. English off Apple. See [failure] for a form an
+  /// interface can put in the reader's language.
   final String message;
   final int? code;
+
+  /// The same failure as a code and values, when the engine reported one, so a
+  /// screen can say it in its own language and fall back to [message] for a
+  /// code it has no wording for.
+  final EngineFailure? failure;
 
   @override
   String toString() =>
@@ -550,12 +564,18 @@ class PasswordRule {
     required this.id,
     required this.demand,
     required this.satisfied,
+    this.details = const {},
   });
 
   factory PasswordRule.fromJson(Map<String, Object?> json) => PasswordRule(
         id: json['id'] as String? ?? '',
         demand: json['demand'] as String? ?? '',
         satisfied: json['satisfied'] as bool? ?? false,
+        details: switch (json['details']) {
+          final Map<Object?, Object?> raw =>
+            raw.map((k, v) => MapEntry('$k', '$v')),
+          _ => const {},
+        },
       );
 
   /// Stable identifier, so a form keys off this rather than the wording.
@@ -565,6 +585,10 @@ class PasswordRule {
   final String demand;
 
   final bool satisfied;
+
+  /// The values the wording would carry, unformatted: `{"minimum": "8"}` for
+  /// the length rule, empty for the others.
+  final Map<String, String> details;
 }
 
 // ── The paywall ────────────────────────────────────────────────────────────

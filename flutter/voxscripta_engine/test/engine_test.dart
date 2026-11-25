@@ -69,6 +69,44 @@ void main() {
       );
     });
 
+    test('a refusal carries a code an interface can word, beside the sentence',
+        () {
+      expect(
+        () => engine.startJob(audioPath: '', projectPath: ''),
+        throwsA(isA<VoxScriptaException>()
+            .having((e) => e.failure, 'failure', isNotNull)
+            .having((e) => e.failure!.code, 'code', isNotEmpty)
+            .having((e) => e.message, 'message', isNotEmpty)),
+      );
+    });
+
+    test('a failed job carries its code and values as well as its sentence',
+        () async {
+      final directory = Directory.systemTemp.createTempSync('engine-test');
+      addTearDown(() => directory.deleteSync(recursive: true));
+      final job = engine.startJob(
+        audioPath: '${directory.path}/nothing.wav',
+        projectPath: '${directory.path}/p.voxscripta',
+      );
+      addTearDown(job.dispose);
+
+      final outcome = await job.done.timeout(const Duration(seconds: 20));
+      expect(outcome.state, JobState.failed);
+      expect(outcome.failureDetail, isNotNull);
+      expect(outcome.failureDetail!.code, isNotEmpty);
+    });
+
+    test('the engine names an export, so no second copy of the rule exists', () {
+      expect(
+        engine.exportFilename(
+          base: 'jfk',
+          variant: TranscriptVariant.clean,
+          format: ExportFormat.plainText,
+        ),
+        'jfk \u2014 clean.txt',
+      );
+    });
+
     test('a failing job reaches a terminal state with a reason', () async {
       final directory = Directory.systemTemp.createTempSync('engine-test');
       addTearDown(() => directory.deleteSync(recursive: true));

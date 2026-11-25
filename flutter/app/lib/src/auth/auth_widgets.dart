@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../failure_text.dart';
 import '../l10n.dart';
 import 'package:voxscripta_engine/voxscripta_engine.dart';
 
@@ -97,7 +98,7 @@ class PasswordChecklist extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    rule.demand,
+                    passwordRuleText(context.l10n, rule),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: rule.satisfied
                           ? theme.colorScheme.onSurface

@@ -1555,6 +1555,168 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Optional. Transcription works without one.'**
   String get signInOptionalNote;
+
+  /// No description provided for @errSourceUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'The audio file could not be found at {path}.'**
+  String errSourceUnavailable(String path);
+
+  /// No description provided for @errSourceChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'The audio file at {path} has changed since it was imported.'**
+  String errSourceChanged(String path);
+
+  /// No description provided for @errUnsupportedFormat.
+  ///
+  /// In en, this message translates to:
+  /// **'This audio format is not supported: {description}.'**
+  String errUnsupportedFormat(String description);
+
+  /// No description provided for @errNoAudioTrack.
+  ///
+  /// In en, this message translates to:
+  /// **'“{name}” has no audio track, so there is nothing to transcribe.'**
+  String errNoAudioTrack(String name);
+
+  /// No description provided for @errUnsupportedContainer.
+  ///
+  /// In en, this message translates to:
+  /// **'Vox Scripta cannot read .{extension} files. Convert it to .mp4, .m4a or .wav first — a stream copy is enough, and costs no quality.'**
+  String errUnsupportedContainer(String extension);
+
+  /// No description provided for @errDecodingFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The audio could not be decoded: {reason}.'**
+  String errDecodingFailed(String reason);
+
+  /// No description provided for @errNoWordsRecognized.
+  ///
+  /// In en, this message translates to:
+  /// **'No words were recognised. This recording was transcribed as {locale} — if it is in another language, change it in Settings and import the file again.'**
+  String errNoWordsRecognized(String locale);
+
+  /// No description provided for @errMicrophoneDenied.
+  ///
+  /// In en, this message translates to:
+  /// **'Vox Scripta does not have permission to use the microphone. Grant it in Settings, then try recording again.'**
+  String get errMicrophoneDenied;
+
+  /// No description provided for @errRecordingFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The recording could not be started: {reason}.'**
+  String errRecordingFailed(String reason);
+
+  /// No description provided for @errAnalysisFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Audio analysis failed during {stage}: {reason}.'**
+  String errAnalysisFailed(String stage, String reason);
+
+  /// No description provided for @errNoSpeechDetected.
+  ///
+  /// In en, this message translates to:
+  /// **'No speech was detected in this recording.'**
+  String get errNoSpeechDetected;
+
+  /// No description provided for @errEngineUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'The {engine} engine is unavailable: {reason}.'**
+  String errEngineUnavailable(String engine, String reason);
+
+  /// No description provided for @errLocaleUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'The {engine} engine does not support {locale}.'**
+  String errLocaleUnsupported(String engine, String locale);
+
+  /// No description provided for @errTranscriptionFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Chunk {chunk} could not be transcribed: {reason}.'**
+  String errTranscriptionFailed(String chunk, String reason);
+
+  /// No description provided for @errModelAssetMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'A required model asset is missing: {description}.'**
+  String errModelAssetMissing(String description);
+
+  /// No description provided for @errModelUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'The language model {model} is unavailable: {reason}.'**
+  String errModelUnavailable(String model, String reason);
+
+  /// No description provided for @errContextWindowExceeded.
+  ///
+  /// In en, this message translates to:
+  /// **'Input of {tokens} tokens exceeds the {limit}-token limit.'**
+  String errContextWindowExceeded(int tokens, int limit);
+
+  /// No description provided for @errValidationRejected.
+  ///
+  /// In en, this message translates to:
+  /// **'Polished output failed validation: {reasons}.'**
+  String errValidationRejected(String reasons);
+
+  /// No description provided for @errProjectCorrupt.
+  ///
+  /// In en, this message translates to:
+  /// **'The project file is damaged: {reason}.'**
+  String errProjectCorrupt(String reason);
+
+  /// No description provided for @errSchemaTooNew.
+  ///
+  /// In en, this message translates to:
+  /// **'This project was made by a newer version (schema {found}, this app supports {supported}).'**
+  String errSchemaTooNew(int found, int supported);
+
+  /// No description provided for @errInsufficientDiskSpace.
+  ///
+  /// In en, this message translates to:
+  /// **'Needs {needed} of free space; {available} available.'**
+  String errInsufficientDiskSpace(String needed, String available);
+
+  /// No description provided for @errIoFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not read or write {path}: {reason}.'**
+  String errIoFailure(String path, String reason);
+
+  /// No description provided for @errCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Processing was cancelled.'**
+  String get errCancelled;
+
+  /// No description provided for @passwordRuleLength.
+  ///
+  /// In en, this message translates to:
+  /// **'At least {minimum} characters'**
+  String passwordRuleLength(int minimum);
+
+  /// No description provided for @passwordRuleUppercase.
+  ///
+  /// In en, this message translates to:
+  /// **'One capital letter'**
+  String get passwordRuleUppercase;
+
+  /// No description provided for @passwordRuleNumber.
+  ///
+  /// In en, this message translates to:
+  /// **'One number'**
+  String get passwordRuleNumber;
+
+  /// No description provided for @passwordRuleSpecial.
+  ///
+  /// In en, this message translates to:
+  /// **'One symbol, such as ! ? # or &'**
+  String get passwordRuleSpecial;
 }
 
 class _AppLocalizationsDelegate

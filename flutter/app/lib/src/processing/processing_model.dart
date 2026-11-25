@@ -106,6 +106,7 @@ class ProcessingModel extends ChangeNotifier {
   AudioFacts? _audio;
   List<(double, double)>? _waveform;
   String? _startFailure;
+  EngineFailure? _startFailureDetail;
 
   JobProgress get progress => _progress;
   AudioFacts? get audio => _audio;
@@ -113,6 +114,7 @@ class ProcessingModel extends ChangeNotifier {
 
   /// Why the job would not start at all, as opposed to failing once running.
   String? get startFailure => _startFailure;
+  EngineFailure? get startFailureDetail => _startFailureDetail;
 
   bool get isFinished => _progress.state.isTerminal;
 
@@ -167,6 +169,7 @@ class ProcessingModel extends ChangeNotifier {
       _progress = job.latest;
     } on VoxScriptaException catch (failure) {
       _startFailure = failure.message;
+      _startFailureDetail = failure.failure;
     }
     _refreshFacts();
     notifyListeners();

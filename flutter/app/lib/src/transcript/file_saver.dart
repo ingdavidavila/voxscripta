@@ -43,23 +43,6 @@ abstract interface class FileSaver {
       Platform.isAndroid ? const ChannelFileSaver() : DesktopFileSaver();
 }
 
-/// A name that is safe to put in a file dialog: no separators, no characters
-/// Windows refuses, and never empty.
-///
-/// STOPGAP, to be replaced by the engine's own `vs_export_filename` once ABI 11
-/// is on main, so the naming rule lives in one place. Until then the variant is
-/// included, because without it exporting two variants of one transcript gives
-/// both the same name and the second silently replaces the first.
-String safeFileName(String name, String extension, {String? variant}) {
-  var base = name.trim().replaceAll(RegExp(r'[\\/:*?"<>|\x00-\x1f]'), '_');
-  // The project's own name usually carries the audio's extension. A transcript
-  // called "talk.m4a.txt" reads as a mistake.
-  final dot = base.lastIndexOf('.');
-  if (dot > 0 && base.length - dot <= 6) base = base.substring(0, dot);
-  if (base.isEmpty) base = 'transcript';
-  return variant == null ? '$base.$extension' : '$base — $variant.$extension';
-}
-
 class ChannelFileSaver implements FileSaver {
   const ChannelFileSaver([this._channel = const MethodChannel(channelName)]);
 

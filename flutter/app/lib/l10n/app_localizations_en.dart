@@ -859,4 +859,142 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get signInOptionalNote => 'Optional. Transcription works without one.';
+
+  @override
+  String errSourceUnavailable(String path) {
+    return 'The audio file could not be found at $path.';
+  }
+
+  @override
+  String errSourceChanged(String path) {
+    return 'The audio file at $path has changed since it was imported.';
+  }
+
+  @override
+  String errUnsupportedFormat(String description) {
+    return 'This audio format is not supported: $description.';
+  }
+
+  @override
+  String errNoAudioTrack(String name) {
+    return '“$name” has no audio track, so there is nothing to transcribe.';
+  }
+
+  @override
+  String errUnsupportedContainer(String extension) {
+    return 'Vox Scripta cannot read .$extension files. Convert it to .mp4, .m4a or .wav first — a stream copy is enough, and costs no quality.';
+  }
+
+  @override
+  String errDecodingFailed(String reason) {
+    return 'The audio could not be decoded: $reason.';
+  }
+
+  @override
+  String errNoWordsRecognized(String locale) {
+    return 'No words were recognised. This recording was transcribed as $locale — if it is in another language, change it in Settings and import the file again.';
+  }
+
+  @override
+  String get errMicrophoneDenied =>
+      'Vox Scripta does not have permission to use the microphone. Grant it in Settings, then try recording again.';
+
+  @override
+  String errRecordingFailed(String reason) {
+    return 'The recording could not be started: $reason.';
+  }
+
+  @override
+  String errAnalysisFailed(String stage, String reason) {
+    return 'Audio analysis failed during $stage: $reason.';
+  }
+
+  @override
+  String get errNoSpeechDetected => 'No speech was detected in this recording.';
+
+  @override
+  String errEngineUnavailable(String engine, String reason) {
+    return 'The $engine engine is unavailable: $reason.';
+  }
+
+  @override
+  String errLocaleUnsupported(String engine, String locale) {
+    return 'The $engine engine does not support $locale.';
+  }
+
+  @override
+  String errTranscriptionFailed(String chunk, String reason) {
+    return 'Chunk $chunk could not be transcribed: $reason.';
+  }
+
+  @override
+  String errModelAssetMissing(String description) {
+    return 'A required model asset is missing: $description.';
+  }
+
+  @override
+  String errModelUnavailable(String model, String reason) {
+    return 'The language model $model is unavailable: $reason.';
+  }
+
+  @override
+  String errContextWindowExceeded(int tokens, int limit) {
+    final intl.NumberFormat tokensNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String tokensString = tokensNumberFormat.format(tokens);
+    final intl.NumberFormat limitNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String limitString = limitNumberFormat.format(limit);
+
+    return 'Input of $tokensString tokens exceeds the $limitString-token limit.';
+  }
+
+  @override
+  String errValidationRejected(String reasons) {
+    return 'Polished output failed validation: $reasons.';
+  }
+
+  @override
+  String errProjectCorrupt(String reason) {
+    return 'The project file is damaged: $reason.';
+  }
+
+  @override
+  String errSchemaTooNew(int found, int supported) {
+    final intl.NumberFormat foundNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String foundString = foundNumberFormat.format(found);
+    final intl.NumberFormat supportedNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String supportedString = supportedNumberFormat.format(supported);
+
+    return 'This project was made by a newer version (schema $foundString, this app supports $supportedString).';
+  }
+
+  @override
+  String errInsufficientDiskSpace(String needed, String available) {
+    return 'Needs $needed of free space; $available available.';
+  }
+
+  @override
+  String errIoFailure(String path, String reason) {
+    return 'Could not read or write $path: $reason.';
+  }
+
+  @override
+  String get errCancelled => 'Processing was cancelled.';
+
+  @override
+  String passwordRuleLength(int minimum) {
+    return 'At least $minimum characters';
+  }
+
+  @override
+  String get passwordRuleUppercase => 'One capital letter';
+
+  @override
+  String get passwordRuleNumber => 'One number';
+
+  @override
+  String get passwordRuleSpecial => 'One symbol, such as ! ? # or &';
 }

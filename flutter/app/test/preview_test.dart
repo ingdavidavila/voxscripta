@@ -457,6 +457,14 @@ class _PreviewSource implements LibrarySource {
 
 /// Sample outputs for the transcript previews.
 class _PreviewTranscripts implements TranscriptSource {
+  @override
+  String exportFilename({
+    required String base,
+    required TranscriptVariant variant,
+    required ExportFormat format,
+  }) =>
+      '$base \u2014 ${variant.wireName}.${format.wireName}';
+
   const _PreviewTranscripts();
 
   @override

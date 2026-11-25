@@ -7,6 +7,7 @@
 /// interfaces would start to disagree. Everything is a call into the engine.
 library;
 
+export 'src/bindings.dart' show EngineFailure;
 export 'src/engine.dart' show VoxScriptaEngine;
 export 'src/job.dart' show Job;
 export 'src/recording.dart'
