@@ -147,5 +147,12 @@ void main() {
       expect(safeFileName('a/b:c*d', 'md'), 'a_b_c_d.md');
       expect(safeFileName('', 'srt'), 'transcript.srt');
     });
+
+    test('two variants of one transcript never share a name', () {
+      expect(safeFileName('jfk.wav', 'txt', variant: 'Clean'),
+          'jfk — Clean.txt');
+      expect(safeFileName('jfk.wav', 'txt', variant: 'Clean'),
+          isNot(safeFileName('jfk.wav', 'txt', variant: 'Verbatim')));
+    });
   });
 }

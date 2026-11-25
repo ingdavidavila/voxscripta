@@ -178,7 +178,16 @@ class _TranscriptScreenState extends State<TranscriptScreen> {
     final saver = widget.saver ?? FileSaver.forPlatform();
     try {
       final bytes = await model.render(format);
-      final name = safeFileName(model.displayName, format.wireName);
+      final name = safeFileName(
+        model.displayName,
+        format.wireName,
+        variant: switch (model.selected) {
+          TranscriptVariant.verbatim => 'Verbatim',
+          TranscriptVariant.clean => 'Clean',
+          TranscriptVariant.polished => 'Polished',
+          null => null,
+        },
+      );
       final outcome = await saver.save(
         suggestedName: name,
         mimeType: mimeTypeFor(format.wireName),
