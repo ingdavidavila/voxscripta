@@ -97,6 +97,31 @@ struct PolishBackendResolverTests {
         #expect(resolved.host.configuration.backend == .llama)
     }
 
+    @Test("A declining provider still falls through to a GGUF that is there")
+    func decliningProviderFallsThroughToLlama() throws {
+        // This is the iPhone case, and neither test above covers it. The Apple
+        // apps register MLX unconditionally, and on iPhone no MLX model ships,
+        // so the provider returns nil — "this build has no MLX model" — while
+        // a GGUF may still be present beside the executable.
+        //
+        // The two tests above check a declining provider with no GGUF, and a
+        // GGUF with no provider. The combination is what decides whether
+        // shipping a GGUF to iPhone needs a code change or only an asset. It
+        // does not need a code change, and this pins that.
+        let directory = URL(filePath: NSTemporaryDirectory())
+            .appending(path: "resolver-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let gguf = directory.appending(path: "polish.gguf")
+        try Data("not a model".utf8).write(to: gguf)
+
+        let resolved = try withRegistration({ _ in nil }) {
+            try PolishBackendResolver.resolve(.bundled, modelDirectory: gguf)
+        }
+        #expect(resolved.kind == .bundled)
+        #expect(resolved.host.configuration.backend == .llama)
+    }
+
     @Test("A named .system is refused rather than substituted")
     func systemIsNeverSubstituted() throws {
         // A registered bundled host is available throughout, so if `.system`
