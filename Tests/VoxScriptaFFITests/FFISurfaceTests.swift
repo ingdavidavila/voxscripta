@@ -40,10 +40,46 @@ struct FFISurfaceTests {
 
     @Test("The ABI announces a version")
     func version() {
-        // Bumped to 11 for vs_last_error_json_copy and vs_job_error_json_copy.
+        // 12 adds vs_diagnostics_report_copy; 11 added the JSON error pair.
         // The Dart side compares this for equality and refuses to load on a
         // mismatch, so changing it is a coordinated change, not a detail.
-        #expect(vs_abi_version() == 11)
+        #expect(vs_abi_version() == 12)
+    }
+
+    // MARK: - Diagnostics
+
+    @Test("A report with no project describes the installation and nothing else")
+    func diagnosticsWithoutAProject() throws {
+        let text = try #require("".withCString { vs_diagnostics_report_copy($0) })
+        defer { vs_string_free(text) }
+        let report = String(cString: text)
+
+        #expect(report.contains("Vox Scripta diagnostics"))
+        #expect(report.contains("No failures recorded."))
+        // The contract is printed on the document, because the person deciding
+        // whether to send it is reading the document and not a dialog.
+        #expect(report.contains("you choose where this goes"))
+    }
+
+    @Test("A report never carries the path it was asked about")
+    func diagnosticsRedactsTheProjectPath() throws {
+        // An unopenable path is the easy case to get wrong: the error names it,
+        // and the error is what goes in the report.
+        let secret = "/Users/marta/Private/Entrevista con Marta.voxscripta"
+        let text = secret.withCString { vs_diagnostics_report_copy($0) }
+        if let text {
+            defer { vs_string_free(text) }
+            let report = String(cString: text)
+            #expect(!report.contains("marta"))
+            #expect(!report.contains("Marta"))
+            #expect(!report.contains("/Users"))
+        } else {
+            // Refusing is also correct; what must not happen is a report
+            // carrying the path.
+            let message = try #require(vs_last_error_copy())
+            defer { vs_string_free(message) }
+            #expect(true)
+        }
     }
 
     // MARK: - Export naming

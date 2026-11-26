@@ -61,7 +61,7 @@ import VoxScriptaExport
 /// growing a second entry point beside them, because nothing has shipped
 /// against version 1 and a legacy variant kept forever costs more than a
 /// break that nobody can observe.
-private let abiVersion: Int32 = 11
+private let abiVersion: Int32 = 12
 
 // MARK: - Job states
 
@@ -439,6 +439,86 @@ public func vs_job_release(_ handle: Int64) {
 /// Bytes rather than a string because `docx` is a ZIP. One entry point for all
 /// five formats means the interface never learns how any of them is built —
 /// which is the guard that keeps the two interfaces from drifting apart.
+/// A diagnostics report for `project_path`, as text a person can read.
+///
+/// There is no telemetry in this application and no network entitlement in the
+/// build, so nothing here is sent anywhere. The interface shows this to the
+/// person and hands it to the platform's share sheet; they decide where it
+/// goes, or that it goes nowhere. That division is what lets the privacy claim
+/// stand while a bug still gets reported.
+///
+/// Pass NULL or "" for a report about this installation with no project in it.
+///
+/// Carries no transcript text, no audio, and no paths — every value an error
+/// holds is reduced to its file extension, because a path carries the person's
+/// account name and a recording's title often names somebody who never agreed
+/// to appear in a bug report. See `DiagnosticsReport.redact`.
+///
+/// Caller releases the string with `vs_string_free`. NULL only if the report
+/// could not be built, with the reason in `vs_last_error_copy`.
+@_cdecl("vs_diagnostics_report_copy")
+public func vs_diagnostics_report_copy(
+    _ project_path: UnsafePointer<CChar>?
+) -> UnsafeMutablePointer<CChar>? {
+    setLastError(nil)
+    let path = project_path.map { String(cString: $0) } ?? ""
+
+    guard !path.isEmpty else {
+        return copyOut(DiagnosticsReport().formatted())
+    }
+
+    // JobStore is an actor and this is a C function, so it goes through the
+    // same semaphore every other project call here uses rather than a second
+    // mechanism of its own.
+    //
+    // The failure is carried out rather than recorded inside. setLastError
+    // writes to Thread.current.threadDictionary and Synchronously.run runs its
+    // body on a detached task, so an error set in there lands on a thread the
+    // caller will never read — the call returned NULL with no reason, which is
+    // this function's own documented contract broken. Caught by the test that
+    // asks for the reason. No other FFI call sets an error inside that helper;
+    // if one ever does, it needs this shape.
+    enum Outcome { case ok(String), failed(any Error) }
+    let outcome = Synchronously.run { () -> Outcome in
+        do {
+            let package = ProjectPackage(root: URL(filePath: path))
+            let manifest = try AtomicFile.readJSON(ProjectManifest.self,
+                                                   from: package.manifestURL)
+            let store = try JobStore(url: package.jobStoreURL)
+            let chunks = try await store.loadChunkRecords()
+        // The chunk's own recorded reason is a rendered sentence from an
+        // earlier run, not a live error, so it cannot be mapped back to a
+        // code. It is reduced the same way and reported as text.
+            let failures = chunks.filter { $0.lastError != nil }.map {
+                DiagnosticsReport.Failure(
+                    code: "chunkFailed",
+                    details: ["reason": DiagnosticsReport.redact($0.lastError ?? "")],
+                    chunk: $0.sequence)
+            }
+            let report = DiagnosticsReport(
+                engine: manifest.engineID.rawValue,
+                concurrency: manifest.concurrency,
+                locale: manifest.locale,
+                jobState: (try? await store.loadState())?.rawValue,
+                chunksTotal: chunks.count,
+                chunksComplete: chunks.filter { $0.state == .completed }.count,
+                chunksFailed: failures.count,
+                failures: failures)
+            return .ok(report.formatted())
+        } catch {
+            return .failed(error)
+        }
+    }
+
+    switch outcome {
+    case .ok(let text):
+        return copyOut(text)
+    case .failed(let error):
+        setLastError(error)   // on the calling thread, where it can be read
+        return nil
+    }
+}
+
 /// What a rendered export should be called.
 ///
 /// `vs_export` hands back bytes and says nothing about the file, so an

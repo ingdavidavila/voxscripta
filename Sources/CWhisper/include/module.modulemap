@@ -1,0 +1,11 @@
+// Explicit, for the reason given in Sources/CGGML/include/module.modulemap:
+// an umbrella header that does not cover its directory is a warning, CI builds
+// with -warnings-as-errors, and the pair had the macOS job failing.
+//
+// parakeet.h is a model family this build does not use; whisper.h is the surface.
+module CWhisper {
+    umbrella header "CWhisper.h"
+    export *
+
+    exclude header "parakeet.h"
+}

@@ -1,0 +1,11 @@
+// Explicit, for the reason given in Sources/CGGML/include/module.modulemap:
+// an umbrella header that does not cover its directory is a warning, CI builds
+// with -warnings-as-errors, and the pair had the macOS job failing.
+//
+// llama-cpp.h is C++ RAII wrappers over llama.h and has no place in a C module.
+module CLlama {
+    umbrella header "CLlama.h"
+    export *
+
+    exclude header "llama-cpp.h"
+}

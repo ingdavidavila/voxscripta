@@ -44,6 +44,10 @@ final class VoxScriptaBindings {
             Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>),
             Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>,
                 Pointer<Utf8>)>('vs_export_filename'),
+        diagnosticsReportCopy = library.lookupFunction<
+            Pointer<Utf8> Function(Pointer<Utf8>),
+            Pointer<Utf8> Function(
+                Pointer<Utf8>)>('vs_diagnostics_report_copy'),
         jobCancel =
             library.lookupFunction<Int32 Function(Int64), int Function(int)>('vs_job_cancel'),
         jobRelease =
@@ -132,6 +136,7 @@ final class VoxScriptaBindings {
   final Pointer<Utf8> Function(int) jobErrorJsonCopy;
   final Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>)
       exportFilename;
+  final Pointer<Utf8> Function(Pointer<Utf8>) diagnosticsReportCopy;
   final int Function(int) jobCancel;
   final void Function(int) jobRelease;
   final int Function(Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>,
@@ -217,6 +222,23 @@ final class VoxScriptaBindings {
   /// — the separator is an em dash with spaces — and a second copy of it
   /// drifts the first time it changes, with nothing comparing the two.
   ///
+  /// A diagnostics report, as text a person reads before deciding to send it.
+  ///
+  /// Nothing is transmitted by the engine and nothing can be: there is no
+  /// network entitlement in the build. Show this text, then hand it to the
+  /// platform's share sheet and let the person choose where it goes.
+  ///
+  /// It carries no transcript, no audio and no paths. Pass an empty
+  /// [projectPath] for a report about the installation alone.
+  String? diagnosticsReport({String projectPath = ''}) {
+    final ptr = projectPath.toNativeUtf8();
+    try {
+      return takeString(diagnosticsReportCopy(ptr));
+    } finally {
+      calloc.free(ptr);
+    }
+  }
+
   /// Null for an unknown variant or format; [lastError] says which.
   String? exportFilenameFor({
     required String base,

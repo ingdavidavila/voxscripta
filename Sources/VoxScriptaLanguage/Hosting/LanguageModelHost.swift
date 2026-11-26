@@ -187,7 +187,7 @@ public actor LanguageModelHost: LanguageModelHosting {
         let options = GenerationOptions(
             // Greedy rather than a zero temperature: no sampling at all, so the
             // same window returns the same text on every run.
-            sampling: .greedy,
+            samplingMode: .greedy,
             temperature: configuration.temperature,
             maximumResponseTokens: Self.responseBudget(for: sentences))
 

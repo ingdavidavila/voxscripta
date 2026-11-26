@@ -822,7 +822,9 @@ public final class AppModel {
     /// doing so hurts transcription — this is for someone who wants the shortened
     /// recording for its own sake.
     func renderSilenceRemovedAudio() {
-        guard let project = openProject, let map = silenceMap else { return }
+        // silenceMap is a precondition, not a value this needs: the action is
+        // only offered once the recording has been measured.
+        guard let project = openProject, silenceMap != nil else { return }
         let base = URL(filePath: project.manifest.source.displayName)
             .deletingPathExtension().lastPathComponent
 

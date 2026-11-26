@@ -163,6 +163,26 @@ void vs_job_release(int64_t handle);
  * in vs_last_error_copy. Release with vs_string_free. */
 char *vs_export_filename(const char *base, const char *variant, const char *format);
 
+/* ─── Diagnostics ──────────────────────────────────────────────────────── */
+
+/* A report about a failure, as text a person reads before deciding to send it.
+ *
+ * Nothing is transmitted. This application has no telemetry and the build has
+ * no network entitlement; the interface shows this text and hands it to the
+ * platform's share sheet, and the person chooses where it goes. That division
+ * is what lets the privacy claim stand while a bug still gets reported.
+ *
+ * Pass NULL or "" for a report about the installation with no project in it.
+ *
+ * Carries no transcript text, no audio and no paths: every value an error holds
+ * is reduced to its file extension, because a path carries the person's account
+ * name and a recording's title often names somebody who never agreed to appear
+ * in a bug report.
+ *
+ * Release with vs_string_free. NULL only if the report could not be built, with
+ * the reason in vs_last_error_copy. */
+char *vs_diagnostics_report_copy(const char *project_path);
+
 int32_t vs_export(const char *project_path,
                   const char *variant,
                   const char *format,

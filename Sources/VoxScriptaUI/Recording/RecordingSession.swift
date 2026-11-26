@@ -139,13 +139,13 @@ final class RecordingSession: NSObject, AVCaptureAudioDataOutputSampleBufferDele
 
         let centre = NotificationCenter.default
         centre.addObserver(self, selector: #selector(sessionFailed(_:)),
-                           name: .AVCaptureSessionRuntimeError, object: session)
+                           name: AVCaptureSession.runtimeErrorNotification, object: session)
         // The capture session's own interruptions: another app taking the
         // device, or the system taking it back.
         centre.addObserver(self, selector: #selector(captureInterrupted(_:)),
-                           name: .AVCaptureSessionWasInterrupted, object: session)
+                           name: AVCaptureSession.wasInterruptedNotification, object: session)
         centre.addObserver(self, selector: #selector(captureResumed(_:)),
-                           name: .AVCaptureSessionInterruptionEnded, object: session)
+                           name: AVCaptureSession.interruptionEndedNotification, object: session)
         #if os(iOS) || os(visionOS)
         // And the one that matters most on a phone: a call. Without this a
         // two-hour lecture ends the moment someone rings.

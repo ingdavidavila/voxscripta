@@ -1,0 +1,36 @@
+// Explicit, because the vendored ggml tree carries a header per backend and
+// only five of them are this module. Clang warns that an umbrella header does
+// not cover its directory, CI builds with -warnings-as-errors, and that pair
+// had the macOS job failing on ggml-vulkan.h, ggml-virtgpu.h and ggml-zdnn.h.
+//
+// Deleting the unused headers would be the other fix and is wrong: the Windows
+// Vulkan work needs ggml-vulkan.h, and ggml-metal.h and ggml-blas.h describe
+// backends Apple already links. They are vendored on purpose. This says which
+// of them the module is, which is the honest statement rather than a smaller
+// directory.
+module CGGML {
+    umbrella header "CGGML.h"
+    export *
+
+    // ggml-alloc.h and ggml-cpp.h were assumed to arrive transitively through
+    // ggml-backend.h. They do not — Clang wants every header in the directory
+    // either covered or named. ggml-cpp.h is C++ RAII wrappers and has no place
+    // in a C module at all.
+    exclude header "ggml-alloc.h"
+    exclude header "ggml-cpp.h"
+    exclude header "ggml-blas.h"
+    exclude header "ggml-cann.h"
+    exclude header "ggml-cuda.h"
+    exclude header "ggml-et.h"
+    exclude header "ggml-hexagon.h"
+    exclude header "ggml-metal.h"
+    exclude header "ggml-opencl.h"
+    exclude header "ggml-openvino.h"
+    exclude header "ggml-rpc.h"
+    exclude header "ggml-sycl.h"
+    exclude header "ggml-virtgpu.h"
+    exclude header "ggml-vulkan.h"
+    exclude header "ggml-webgpu.h"
+    exclude header "ggml-zdnn.h"
+    exclude header "ggml-zendnn.h"
+}

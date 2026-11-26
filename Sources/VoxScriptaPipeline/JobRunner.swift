@@ -376,7 +376,7 @@ public struct JobRunner: Sendable {
                     // The text stages follow the detected language, not the
                     // one the project was created with.
                     options = Self.applyingLanguage(to: options)
-                    try await project.recordDetectedLocale(detected)
+                    try project.recordDetectedLocale(detected)
                     try await advance(project, .transcribing, progress, 0.13,
                                       "Language: \(detected) (\(summary))")
                 } else {
@@ -405,7 +405,7 @@ public struct JobRunner: Sendable {
         // chunks in flight still means fewer, and never loads a model this
         // job will not use.
         let capabilities = await engine.capabilities()
-        let slots = Swift.max(1, Swift.min(options.transcription.concurrency,
+        let slots = Swift.max(1, Swift.min(transcription.concurrency,
                                            capabilities.recommendedConcurrency))
 
         // Distinct instances only where one cannot serve several calls at
@@ -419,9 +419,9 @@ public struct JobRunner: Sendable {
 
         // Each distinct instance is prepared exactly once. Repeating the same
         // engine across slots must not load its model `slots` times.
-        try await engine.prepare(locale: options.transcription.locale)
+        try await engine.prepare(locale: transcription.locale)
         for extra in extras {
-            try await extra.prepare(locale: options.transcription.locale)
+            try await extra.prepare(locale: transcription.locale)
         }
         defer {
             let releasing = [engine] + extras
@@ -453,7 +453,7 @@ public struct JobRunner: Sendable {
 
             let outcome = try await ChunkScheduler().run(
                 plan: chunkPlan, canonicalFile: package.canonicalAudioURL,
-                engines: pool, options: options.transcription,
+                engines: pool, options: transcription,
                 skipping: alreadyHandled,
                 onChunkComplete: { transcript in
                     // The result file lands before the row, so a crash between
@@ -499,7 +499,7 @@ public struct JobRunner: Sendable {
                 engineID: engine.identifier,
                 silenceParameterHash: inputs.hash(for: .silence),
                 chunkParameterHash: inputs.hash(for: .chunking),
-                concurrency: options.transcription.concurrency))
+                concurrency: transcription.concurrency))
 
         // Before anything is written as a result, check it is one. A
         // recording in the wrong language does not make the engine fail — it
@@ -508,7 +508,7 @@ public struct JobRunner: Sendable {
         // difference can still be seen.
         if let finding = LanguageDetection.diagnose(
             text: transcript.plainText(),
-            locale: options.transcription.locale,
+            locale: transcription.locale,
             speechDuration: silenceMap.speechDuration) {
             switch finding {
             case .noWordsRecognized(let locale, _):
@@ -648,7 +648,7 @@ public struct JobRunner: Sendable {
             + "\(t.maximumContentWordInjection),\(t.perWindowPolarity)"
     }
 
-    /// Points the text stages at the language of `transcription.locale`.
+    /// Points the text stages at the language of `options.transcription.locale`.
     ///
     /// Applied twice: once from the manifest, and again after the language
     /// probe, because the probe changes the locale and everything downstream

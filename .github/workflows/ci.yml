@@ -118,9 +118,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Pinned, not floating. `channel: stable` drifted past the 3.47.9 this
+      # project uses and the analyzer then failed on deprecations nobody here
+      # had opted into — a gate reporting problems from a future Flutter.
       - uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: 3.47.9
 
       # Without this the analyzer cannot see any package and reports 507
       # undefined names. flutter-action installs the SDK; it does not resolve
