@@ -217,6 +217,9 @@ public final class AppModel {
                         policy: settings.copyOriginalIntoProject ? .copy : .reference,
                         silence: settings.silenceParameters,
                         chunking: settings.chunkParameters,
+                        // See the note at the FFI's create: the default
+                        // recorded Apple's recogniser whatever actually ran.
+                        engine: JobRunner.defaultEngine().identifier,
                         locale: settings.locale,
                         concurrency: settings.concurrency,
                         probe: { (try await decoder.probe(url: $0), try decoder.duration(of: $0)) })

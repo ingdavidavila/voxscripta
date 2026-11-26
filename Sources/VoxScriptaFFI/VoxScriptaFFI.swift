@@ -327,6 +327,11 @@ func jobStart(
                     from: audioURL!, at: projectURL,
                     silence: wire.silence ?? .default,
                     chunking: wire.chunking ?? .default,
+                    // The engine that will actually run. Left to its default
+                    // this recorded Apple's recogniser for a project whisper
+                    // transcribed — false in the manifest a user can read, and
+                    // the value ResumePlanner hashes the transcription stage on.
+                    engine: JobRunner.defaultEngine().identifier,
                     locale: options.transcription.locale,
                     concurrency: options.transcription.concurrency,
                     probe: { url in

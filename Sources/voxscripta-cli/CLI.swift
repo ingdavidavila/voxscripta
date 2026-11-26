@@ -487,6 +487,9 @@ struct CLI {
                 from: URL(filePath: audioPath), at: projectURL,
                 policy: opts.flag("copy") ? .copy : .reference,
                 silence: silence, chunking: chunking,
+                // Same reason as the app and the FFI: the default recorded
+                // Apple's recogniser whichever engine really ran.
+                engine: JobRunner.defaultEngine().identifier,
                 locale: opts.value("locale") ?? "en-US",
                 concurrency: opts.value("concurrency").flatMap(Int.init) ?? 4,
                 probe: { url in
