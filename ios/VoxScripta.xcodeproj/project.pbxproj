@@ -9,19 +9,19 @@
 /* Begin PBXBuildFile section */
 		18C15E85BBD52D4743B532CD /* VoxScriptaiOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20A75D69BB38B3E37BDFD839 /* VoxScriptaiOSApp.swift */; };
 		4F5E0CB29363AEC5672DE29D /* VoxScriptaUI in Frameworks */ = {isa = PBXBuildFile; productRef = 05B4C13CEE8FCA4F3D850987 /* VoxScriptaUI */; };
-		AA0000000000000000000002 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000001 /* Assets.xcassets */; };
 		5DDACE626236C425C2055E25 /* en.lproj in Resources */ = {isa = PBXBuildFile; fileRef = C21398BBBF4F166D213BFDEA /* en.lproj */; };
+		AA0000000000000000000002 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000001 /* Assets.xcassets */; };
 		B1150DCB5028B8B051B4AFC9 /* es.lproj in Resources */ = {isa = PBXBuildFile; fileRef = AF4A3B9EDD821B77A1EA3F3C /* es.lproj */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		1126D461F13F13732FA1C607 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		AA0000000000000000000001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		20A75D69BB38B3E37BDFD839 /* VoxScriptaiOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoxScriptaiOSApp.swift; sourceTree = "<group>"; };
+		5F0C7A3B91D4E6820AC15D47 /* VoxScripta.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = VoxScripta.storekit; sourceTree = "<group>"; };
 		85673086EF6CFD3A1F8591AF /* Vox Scripta.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Vox Scripta.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA0000000000000000000001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AF4A3B9EDD821B77A1EA3F3C /* es.lproj */ = {isa = PBXFileReference; lastKnownFileType = folder; name = es.lproj; path = ../Resources/Localization/es.lproj; sourceTree = SOURCE_ROOT; };
 		C21398BBBF4F166D213BFDEA /* en.lproj */ = {isa = PBXFileReference; lastKnownFileType = folder; name = en.lproj; path = ../Resources/Localization/en.lproj; sourceTree = SOURCE_ROOT; };
-		5F0C7A3B91D4E6820AC15D47 /* VoxScripta.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = VoxScripta.storekit; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -153,6 +153,7 @@
 		639A7CA24D39909E713B47F7 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
@@ -163,7 +164,6 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.2.0;
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				PRODUCT_BUNDLE_IDENTIFIER = com.voxscripta.app;
 				PRODUCT_NAME = "Vox Scripta";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -174,6 +174,7 @@
 		7082CC0B6FC1282FCEABD07A /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
@@ -184,7 +185,6 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.2.0;
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				PRODUCT_BUNDLE_IDENTIFIER = com.voxscripta.app;
 				PRODUCT_NAME = "Vox Scripta";
 				SWIFT_EMIT_LOC_STRINGS = YES;

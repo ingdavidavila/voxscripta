@@ -59,7 +59,28 @@ sat outside that guard until `vs_export_filename` was added.
 **If a rule must be known across the FFI, export it.** A second implementation
 is not duplication to tidy later; it is a divergence with a date on it.
 
-### 4. Record what happened, not what was configured or shipped
+### 4. An unused exported symbol means one of two opposite things
+
+Both sessions audited this repository for dead code on the same day. The Swift
+side had three unused `public` declarations in 26,000 lines; the Dart side
+looked up all 41 ABI symbols and found four with no application caller. Two of
+those four looked identical in the count and were opposites.
+
+`vs_recording_new_path` really is surface nobody needs: `vs_recording_start`
+generates a path when given none, and Dart never builds one.
+
+`vs_export_options_defaults` is the reverse. `PARITY.md` says *"the engine
+reports its own defaults… a settings screen with its own hardcoded default
+silence margin is a rule living in an interface"*, and that symbol exists to
+enforce it. Dart does not call it — it carries `_includeTimestamps = false`
+while the engine carries `includeTimestamps: Bool = false`. **They agree by
+coincidence, not by construction.** Its non-use is the defect, and deleting it
+would have made the duplication permanent.
+
+**A usage count cannot tell the two apart. Look at what the caller does instead
+of calling it** — nothing, or the same thing again in its own words.
+
+### 5. Record what happened, not what was configured or shipped
 
 The sharpest version of this came from the Vulkan work. The obvious design was
 to record which DLL loaded. But the Vulkan DLL with GPU drivers hidden produces
@@ -72,7 +93,7 @@ the two can differ. Provenance, logs and resume hashes record what the run did.
 
 **Ask the component what it did. Never infer it from how it was built.**
 
-### 5. A field joins a contract defaulted-empty — for old data only
+### 6. A field joins a contract defaulted-empty — for old data only
 
 `modelIdentity` joined the resume hash defaulted to `""`, so every engine
 without weights and every existing project hashed exactly as before. That is why
@@ -91,7 +112,7 @@ compile without answering.
 
 ## Platforms and builds
 
-### 6. A fix for one platform must be proven not to change the others
+### 7. A fix for one platform must be proven not to change the others
 
 `_fileName` was changed to split on `[\\/]` so Windows paths worked. Backslash
 is legal in a macOS or Linux filename, so `my\recording.m4a` began truncating to
@@ -103,7 +124,7 @@ platform as a parameter, so both behaviours are testable from any host.
 **Take the condition as an argument** rather than reading the ambient platform
 inside the function. One machine then tests every branch.
 
-### 7. What changes *what* is built changes *where* it is built
+### 8. What changes *what* is built changes *where* it is built
 
 A manifest that reads an environment variable — `VOXSCRIPTA_IOS_SLICE`,
 `VOXSCRIPTA_VULKAN` — produces a different build from the same source. Xcode
@@ -115,7 +136,7 @@ cost four builds before it was understood, and is written up in `RELEASE.md`.
 **Every build variant gets its own scratch and output directory.** Not a cleaned
 one: its own.
 
-### 8. A new native dependency is a delivery change
+### 9. A new native dependency is a delivery change
 
 Linking something new is the easy half. The questions that bite are whether the
 binary's import table names what you think, and what happens on a machine
@@ -127,7 +148,7 @@ were hidden to prove it finishes on CPU.
 
 **Read the import table, and test the failure to load — not only the success.**
 
-### 9. An optional input on a search path changes behaviour silently
+### 10. An optional input on a search path changes behaviour silently
 
 A `polish.gguf` left in `build/models` made every run polish, turning a
 five-minute file into a fifteen-minute one, with nothing on screen saying why.
@@ -141,14 +162,14 @@ developer's build tree.**
 
 ## Tests
 
-### 10. Inject the dependency rather than mutate a global
+### 11. Inject the dependency rather than mutate a global
 
 The first `ModelSearch` tests set the process-wide data directory and raced each
 other — a global is global, so a test that mutates it is testing every test
 beside it. Passing the directory removed the race, the need for `.serialized`,
 and the ambiguity about what was under test.
 
-### 11. A fixture must resemble the input that breaks things
+### 12. A fixture must resemble the input that breaks things
 
 `jfk.wav` is byte-identical on CPU and Vulkan. Real disfluent speech differed by
 24 tokens — fillers and stutters sitting near the decode threshold, which clean
@@ -160,7 +181,7 @@ the corpus is entirely the clean case.
 **We need a disfluent sample we have permission to commit.** Not anyone's
 private recording without their say-so.
 
-### 12. A check that cannot fail is decoration
+### 13. A check that cannot fail is decoration
 
 Three ways this has happened here, all in one week:
 
@@ -182,26 +203,26 @@ coverage.
 
 ## Working together
 
-### 13. Delete the stopgap in the commit that replaces it
+### 14. Delete the stopgap in the commit that replaces it
 
 Android carried its own filename rule while `vs_export_filename` was written,
 and deleted it the moment the real one landed, in the same change. A stopgap
 with no deletion date is a permanent second home — rule 3, arriving by a route
 that feels responsible.
 
-### 14. Numbers in prose rot; put them where they are compared
+### 15. Numbers in prose rot; put them where they are compared
 
 `bindings.dart` opened with *"The thirty-three symbols of ffi/voxscripta.h"*. It
 had been 38 for some time and is 41 now; wrong twice. The count lives in
 `Tools/check-abi.sh`, where it is checked rather than remembered.
 
-### 15. Green on two branches is not green on the merge
+### 16. Green on two branches is not green on the merge
 
 `windows-engine` and `whisper-words` each passed `flutter analyze`. Their merge
 did not — four angle-bracket warnings in a doc comment, from a commit pushed
 after the branch was reviewed. **Run the gates on the combination.**
 
-### 16. Say where the work is, and what was not tested
+### 17. Say where the work is, and what was not tested
 
 Two sessions work this repository and two different people approve their pushes.
 Work reported as "done" was repeatedly done *locally*, and the other session
@@ -222,5 +243,5 @@ defect wearing a different hat.
 
 What streamlining is *not*: removing a check because it is inconvenient, or
 collapsing a platform branch because it looks redundant on the machine in front
-of you. Rules 6, 9 and 12 exist because both are tempting and both have already
+of you. Rules 7, 10 and 13 exist because both are tempting and both have already
 cost us.
