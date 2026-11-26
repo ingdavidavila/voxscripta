@@ -29,4 +29,16 @@ mkdir -p "$OUT"
 cp "$PRODUCTS/VoxScriptaFFI.dll" "$OUT/"
 cp "$FFMPEG_BIN"/*.dll "$OUT/"
 cp "$SWIFT_RUNTIME"/*.dll "$OUT/"
+# The GPU engine, if it was built. The app tries it first and falls back to the
+# one above, so leaving it out is a valid build.
+VULKAN_DLL="${VOXSCRIPTA_SWIFT_PRODUCTS_VULKAN:-$ROOT/build/win-swift-vulkan/out/Products/Debug-windows-x86_64}/VoxScriptaFFI.dll"
+if [ -f "$VULKAN_DLL" ]; then
+    # Same ABI number, older code, would load without complaint.
+    if [ "$VULKAN_DLL" -ot "$PRODUCTS/VoxScriptaFFI.dll" ]; then
+        echo "warning: the Vulkan engine is older than the CPU one; rebuild it if the source changed" >&2
+    fi
+    cp "$VULKAN_DLL" "$OUT/VoxScriptaFFI-vulkan.dll"
+else
+    echo "no Vulkan engine; staging the CPU engine only"
+fi
 echo "staged $(ls "$OUT" | wc -l) files into $OUT"

@@ -53,6 +53,23 @@ void main() {
       expect(engine.abiVersion, VoxScriptaEngine.supportedAbiVersion);
     });
 
+    test('a candidate that will not load gives way to the next', () {
+      final engine = VoxScriptaEngine.open(
+          libraryCandidates: ['/nonexistent/libNope.dylib', libraryPath!],
+          dataDirectory: dataDirectory.path);
+      // The one that loaded is what a recording isolate reopens.
+      expect(engine.libraryPath, libraryPath);
+    });
+
+    test('when no candidate loads, the last one says why', () {
+      expect(
+        () => VoxScriptaEngine.open(
+            libraryCandidates: ['/nonexistent/first', '/nonexistent/last']),
+        throwsA(isA<VoxScriptaException>()
+            .having((e) => e.message, 'message', contains('/nonexistent/last'))),
+      );
+    });
+
     test('a library that is not there fails with a readable message', () {
       expect(
         () => VoxScriptaEngine.open(libraryPath: '/nonexistent/libNope.dylib'),

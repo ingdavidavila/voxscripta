@@ -53,6 +53,35 @@ cd flutter/app && flutter build windows --debug
 After any `flutter` command, `git checkout -- flutter/app/linux flutter/app/macos
 flutter/app/windows/flutter`: it regenerates plugin files there.
 
+## The GPU engine (optional)
+
+A second build of the engine runs transcription, and polish when a model is
+present, on any GPU with a Vulkan driver: NVIDIA, AMD or Intel. It needs the
+Vulkan SDK (headers, `glslc`, `vulkan-1.lib`).
+
+```bash
+VOXSCRIPTA_VULKAN=1 CMAKE_GENERATOR=Ninja CC=clang-cl CXX=clang-cl Tools/build-engines.sh host
+VOXSCRIPTA_VULKAN=1 swift build --product VoxScriptaFFI     --scratch-path build/win-swift-vulkan --cache-path build/win-swift-cache
+Tools/stage-windows.sh
+```
+
+Without the SDK, name the pieces with `Vulkan_INCLUDE_DIR`, `Vulkan_LIBRARY`
+and `Vulkan_GLSLC_EXECUTABLE`, and the folder holding `vulkan-1.lib` with
+`VOXSCRIPTA_VULKAN_LIB_DIR`.
+
+Staging puts it beside the CPU engine as `VoxScriptaFFI-vulkan.dll`. The app
+tries it first. What happens on each machine:
+
+| Machine | Runs |
+|---|---|
+| Vulkan and a usable GPU | the GPU engine, on the GPU |
+| Vulkan but no usable GPU driver | the GPU engine, which falls back to its CPU code |
+| no `vulkan-1.dll` | the GPU engine fails to load; the CPU engine is used |
+
+Not covered: only an NVIDIA GTX 1660 has run it; running out of video memory
+has not been tried; a driver that crashes takes the app with it, because the
+choice is made once, at load. The GPU's text is not identical to the CPU's.
+
 ## Checking it
 
 ```

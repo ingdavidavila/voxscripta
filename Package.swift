@@ -49,7 +49,24 @@ let packageRoot = URL(fileURLWithPath: #filePath).deletingLastPathComponent().pa
 let iOSSlice = ProcessInfo.processInfo.environment["VOXSCRIPTA_IOS_SLICE"] == "sim"
     ? "ios-sim" : "ios"
 
-let engineLinkerSettings: [LinkerSetting] = [
+// Windows builds the engine twice: for the CPU (the default) and, with
+// VOXSCRIPTA_VULKAN=1, for any GPU with a Vulkan driver. The Vulkan library
+// requires vulkan-1.dll to load at all, so it ships beside the CPU one rather
+// than instead of it, and the app tries it first. As with the iOS slice, this
+// is read when the manifest is evaluated: give each variant its own
+// --scratch-path. See Docs/WINDOWS.md.
+let windowsVulkan = ProcessInfo.processInfo.environment["VOXSCRIPTA_VULKAN"] == "1"
+let windowsEngines = windowsVulkan ? "host-vulkan" : "host"
+// Where vulkan-1.lib is: the SDK's Lib folder unless told otherwise.
+let vulkanLibraryDirectory = ProcessInfo.processInfo.environment["VOXSCRIPTA_VULKAN_LIB_DIR"]
+    ?? (ProcessInfo.processInfo.environment["VULKAN_SDK"] ?? "") + "/Lib"
+let windowsVulkanLinkerSettings: [LinkerSetting] = windowsVulkan ? [
+    .unsafeFlags(["-L" + vulkanLibraryDirectory], .when(platforms: [.windows])),
+    .linkedLibrary("ggml-vulkan", .when(platforms: [.windows])),
+    .linkedLibrary("vulkan-1", .when(platforms: [.windows])),
+] : []
+
+let engineLinkerSettings: [LinkerSetting] = windowsVulkanLinkerSettings + [
     // Per platform, because the two are built by the same script into
     // different prefixes: `Tools/build-engines.sh` for the Mac and
     // `Tools/build-engines.sh linux-musl` for Linux. One hardcoded `host`
@@ -94,7 +111,7 @@ let engineLinkerSettings: [LinkerSetting] = [
     .linkedLibrary("c++", .when(platforms: [.macOS, .iOS, .linux, .android])),
     // Tools/build-engines.sh host, built with clang-cl so the static libraries
     // use the same MSVC runtime the Swift side links against.
-    .unsafeFlags(["-L" + packageRoot + "/build/engines/host/prefix/lib"],
+    .unsafeFlags(["-L" + packageRoot + "/build/engines/" + windowsEngines + "/prefix/lib"],
                  .when(platforms: [.windows])),
     .linkedLibrary("ggml-metal", .when(platforms: [.macOS, .iOS])),
     .linkedLibrary("ggml-blas", .when(platforms: [.macOS, .iOS])),
