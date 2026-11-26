@@ -87,6 +87,12 @@ jobs:
       - name: Header matches the library
         run: Tools/check-abi.sh
 
+      # The gate that watches the gates. check-localization.sh existed, worked
+      # and was wired to nothing for three weeks; this fails if that happens
+      # again to any of them.
+      - name: Conventions
+        run: Tools/check-conventions.sh
+
       # The privacy claim in §26 is structural, so it gets checked mechanically
       # rather than trusted. No source file may import a networking API.
       - name: Assert no networking imports
