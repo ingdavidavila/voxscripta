@@ -458,6 +458,9 @@ class _PreviewSource implements LibrarySource {
 /// Sample outputs for the transcript previews.
 class _PreviewTranscripts implements TranscriptSource {
   @override
+  bool get includesTimestampsByDefault => false;
+
+  @override
   String exportFilename({
     required String base,
     required TranscriptVariant variant,
