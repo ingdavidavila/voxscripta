@@ -173,6 +173,27 @@ void main() {
       return model;
     }
 
+    testWidgets('on a phone a slider sits under its label, not beside it',
+        (tester) async {
+      tester.view
+        ..physicalSize = const Size(360, 4000)
+        ..devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(MaterialApp(
+          home: SettingsScreen(
+              model: SettingsModel(
+                  source: _Stub(capabilities: capabilities())))));
+      await tester.pumpAndSettle();
+
+      final label = find.text('Threshold above noise');
+      // Beside a 260-wide slider the label had under 80 to itself and broke
+      // mid-word.
+      expect(tester.getSize(label).width, greaterThan(120));
+      expect(tester.getTopLeft(find.byType(Slider).first).dy,
+          greaterThan(tester.getBottomLeft(label).dy));
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('shows what would actually run', (tester) async {
       await show(tester,
           SettingsModel(source: _Stub(capabilities: capabilities())));
