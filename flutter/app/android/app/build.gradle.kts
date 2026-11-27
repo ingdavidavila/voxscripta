@@ -39,7 +39,7 @@ android {
         }
     }
 
-    assetPacks += listOf(":speech_model")
+    assetPacks += listOf(":speech_model", ":polish_model")
 
     buildTypes {
         release {
@@ -86,8 +86,27 @@ val verifySpeechModel = tasks.register("verifySpeechModel") {
     }
 }
 
+// Polish is part of the app on every platform, so a bundle without its model is
+// refused for the same reason as one without the speech model.
+val verifyPolishModel = tasks.register("verifyPolishModel") {
+    val model = rootProject.file("polish_model/src/main/assets/models/polish.gguf")
+    doLast {
+        if (!model.isFile) {
+            throw GradleException(
+                "The polish model pack is empty. Run Tools/fetch-polish-model.sh phone " +
+                    "and Tools/stage-polish-model.sh phone " +
+                    "flutter/app/android/polish_model/src/main/assets/models",
+            )
+        }
+        val magic = model.inputStream().use { input -> ByteArray(4).also { input.read(it) } }
+        if (!magic.contentEquals("GGUF".toByteArray())) {
+            throw GradleException("polish.gguf in the polish model pack is not a GGUF model.")
+        }
+    }
+}
+
 tasks.whenTaskAdded {
     if (name in setOf("bundleRelease", "bundleDebug", "bundleProfile")) {
-        dependsOn(verifySpeechModel)
+        dependsOn(verifySpeechModel, verifyPolishModel)
     }
 }

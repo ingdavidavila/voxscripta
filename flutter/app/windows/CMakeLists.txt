@@ -124,6 +124,13 @@ endif()
 # The speech model, where ModelSearch looks beside the executable. Optional:
 # a bundle without one fails a job with the engine's own "no model" message.
 file(GLOB VOXSCRIPTA_MODELS "${VOXSCRIPTA_MODEL_DIR}/ggml-*.bin")
+# Polish is part of the app, under the one name the engine looks for.
+# Tools/fetch-polish-model.sh desktop puts it there.
+if(EXISTS "${VOXSCRIPTA_MODEL_DIR}/polish.gguf")
+  list(APPEND VOXSCRIPTA_MODELS "${VOXSCRIPTA_MODEL_DIR}/polish.gguf")
+else()
+  message(WARNING "No polish model in ${VOXSCRIPTA_MODEL_DIR}; run Tools/fetch-polish-model.sh desktop. An installed app would not polish.")
+endif()
 if(VOXSCRIPTA_MODELS)
   install(FILES ${VOXSCRIPTA_MODELS} DESTINATION "${INSTALL_BUNDLE_LIB_DIR}/models"
     COMPONENT Runtime)

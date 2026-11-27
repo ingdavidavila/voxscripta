@@ -80,3 +80,4 @@ accuracy-check/
 # megabytes. The shipped one arrives as a Play asset pack, never from this tree.
 flutter/app/android/app/src/main/assets/models/
 flutter/app/android/speech_model/src/main/assets/models/
+flutter/app/android/polish_model/src/main/assets/models/

@@ -26,3 +26,4 @@ plugins {
 
 include(":app")
 include(":speech_model")
+include(":polish_model")
