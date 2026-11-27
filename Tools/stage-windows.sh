@@ -5,7 +5,7 @@
 # Run after the three native builds, in this order:
 #   Tools/build-ffmpeg.sh host     (from an MSYS2 UCRT64 shell)
 #   Tools/build-engines.sh host    (CMAKE_GENERATOR=Ninja CC=clang-cl CXX=clang-cl)
-#   swift build --product VoxScriptaFFI
+#   swift build -c release --product VoxScriptaFFI
 # then this. It copies, it does not build, so a stale input stays stale: rerun
 # the step that produced it.
 #
@@ -16,13 +16,20 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="$ROOT/build/windows-engine"
-PRODUCTS="${VOXSCRIPTA_SWIFT_PRODUCTS:-$ROOT/build/win-swift/out/Products/Debug-windows-x86_64}"
+PRODUCTS="${VOXSCRIPTA_SWIFT_PRODUCTS:-$ROOT/build/win-swift/out/Products/Release-windows-x86_64}"
 FFMPEG_BIN="$ROOT/build/ffmpeg/host/prefix/bin"
 SWIFT_RUNTIME="${VOXSCRIPTA_SWIFT_RUNTIME:-$(ls -d "$LOCALAPPDATA"/Programs/Swift/Runtimes/*/usr/bin 2>/dev/null | sort | tail -1)}"
 
-[ -f "$PRODUCTS/VoxScriptaFFI.dll" ] || { echo "no VoxScriptaFFI.dll in $PRODUCTS; run swift build --product VoxScriptaFFI" >&2; exit 1; }
+[ -f "$PRODUCTS/VoxScriptaFFI.dll" ] || { echo "no VoxScriptaFFI.dll in $PRODUCTS; run swift build -c release --product VoxScriptaFFI" >&2; exit 1; }
 [ -d "$FFMPEG_BIN" ] || { echo "no FFmpeg DLLs in $FFMPEG_BIN; run Tools/build-ffmpeg.sh host" >&2; exit 1; }
 [ -d "$SWIFT_RUNTIME" ] || { echo "no Swift runtime; set VOXSCRIPTA_SWIFT_RUNTIME" >&2; exit 1; }
+
+# A debug engine contains the variable that fakes a subscription. Release
+# builds compile it out, so finding its name means this must not be packaged.
+if grep -aqF VOXSCRIPTA_ENTITLEMENT "$PRODUCTS/VoxScriptaFFI.dll"; then
+    echo "$PRODUCTS/VoxScriptaFFI.dll is a debug build; run swift build -c release --product VoxScriptaFFI" >&2
+    exit 1
+fi
 
 rm -rf "$OUT"
 mkdir -p "$OUT"

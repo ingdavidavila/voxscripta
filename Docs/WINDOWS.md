@@ -37,7 +37,7 @@ MSYSTEM=UCRT64 /c/msys64/usr/bin/bash.exe -lc "cd $PWD && Tools/build-ffmpeg.sh 
 CMAKE_GENERATOR=Ninja CC=clang-cl CXX=clang-cl Tools/build-engines.sh host
 
 # 3. The engine
-swift build --product VoxScriptaFFI --scratch-path build/win-swift
+swift build -c release --product VoxScriptaFFI --scratch-path build/win-swift
 
 # 4. Gather the DLLs the app loads
 Tools/stage-windows.sh

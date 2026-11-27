@@ -5,7 +5,7 @@
 # Run after the native builds, in this order:
 #   Tools/build-ffmpeg.sh host
 #   Tools/build-engines.sh host
-#   swift build --product VoxScriptaFFI \
+#   swift build -c release --product VoxScriptaFFI \
 #       -Xlinker -lstdc++ -Xlinker -lgomp -Xlinker -rpath -Xlinker '$ORIGIN'
 # then this. The rpath is what lets the engine find the libraries sitting next
 # to it without LD_LIBRARY_PATH.
@@ -18,10 +18,10 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="$ROOT/build/linux-engine"
-ENGINE="${VOXSCRIPTA_ENGINE_SO:-$(find "$ROOT/.build" -name libVoxScriptaFFI.so -path '*linux*' 2>/dev/null | head -1)}"
+ENGINE="${VOXSCRIPTA_ENGINE_SO:-$(find "$ROOT/.build" -name libVoxScriptaFFI.so -ipath '*release*linux*' 2>/dev/null | head -1)}"
 FFMPEG_LIB="$ROOT/build/ffmpeg/host/prefix/lib"
 
-[ -f "$ENGINE" ] || { echo "no libVoxScriptaFFI.so; run swift build --product VoxScriptaFFI" >&2; exit 1; }
+[ -f "$ENGINE" ] || { echo "no libVoxScriptaFFI.so; run swift build -c release --product VoxScriptaFFI" >&2; exit 1; }
 [ -d "$FFMPEG_LIB" ] || { echo "no FFmpeg libraries in $FFMPEG_LIB; run Tools/build-ffmpeg.sh host" >&2; exit 1; }
 
 # A library built without the rpath loads here, where the build tree is, and
@@ -29,6 +29,13 @@ FFMPEG_LIB="$ROOT/build/ffmpeg/host/prefix/lib"
 if command -v readelf >/dev/null 2>&1; then
     readelf -d "$ENGINE" | grep -E 'R(UN)?PATH' | grep -qF '$ORIGIN' \
         || { echo "$ENGINE has no \$ORIGIN rpath; see the build command above" >&2; exit 1; }
+fi
+
+# A debug engine contains the variable that fakes a subscription. Release
+# builds compile it out, so finding its name means this must not be packaged.
+if grep -aqF VOXSCRIPTA_ENTITLEMENT "$ENGINE"; then
+    echo "$ENGINE is a debug build; rebuild with swift build -c release" >&2
+    exit 1
 fi
 
 rm -rf "$OUT"
