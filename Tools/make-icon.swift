@@ -170,6 +170,31 @@ for (name, size) in variants {
 
 print("wrote \(iconset.path)")
 
+// ── Plainly-named slices, for the platforms that are not Apple ──────────────
+//
+// The .iconset above is Apple's shape: `iconutil` consumes it and the names
+// encode retina scale rather than pixels. Windows and Android want neither.
+// A Windows .ico conventionally carries 16, 32, 48 and 256, and **48 is not in
+// the iconset at all** — the @2x naming happens to produce 16, 32, 64, 128,
+// 256, 512 and 1024 and skips it. Android wants the mipmap densities: 48, 72,
+// 96, 144, 192.
+//
+// So the same drawing is written a second time under names that say what they
+// are. Not a copy of the iconset: regenerating produces both from one
+// `drawIcon`, so they cannot drift from each other or from the Mac and iOS
+// icons.
+let plainSizes: [Int] = [16, 32, 48, 64, 72, 96, 128, 144, 192, 256, 512, 1024]
+let plain = output.appending(path: "png")
+try? FileManager.default.createDirectory(at: plain, withIntermediateDirectories: true)
+for pixels in plainSizes {
+    guard let png = iconPNG(pixels: pixels, fullBleed: false) else {
+        FileHandle.standardError.write(Data("could not render icon-\(pixels)\n".utf8))
+        exit(1)
+    }
+    try png.write(to: plain.appending(path: "icon-\(pixels).png"))
+}
+print("wrote \(plain.path) — \(plainSizes.count) sizes, rounded, not full bleed")
+
 // ── The iOS app icon ────────────────────────────────────────────────────────
 //
 // One 1024 square, which is the whole of a modern iOS icon set. Written
