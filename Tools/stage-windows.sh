@@ -24,12 +24,17 @@ SWIFT_RUNTIME="${VOXSCRIPTA_SWIFT_RUNTIME:-$(ls -d "$LOCALAPPDATA"/Programs/Swif
 [ -d "$FFMPEG_BIN" ] || { echo "no FFmpeg DLLs in $FFMPEG_BIN; run Tools/build-ffmpeg.sh host" >&2; exit 1; }
 [ -d "$SWIFT_RUNTIME" ] || { echo "no Swift runtime; set VOXSCRIPTA_SWIFT_RUNTIME" >&2; exit 1; }
 
+VULKAN_DLL="${VOXSCRIPTA_SWIFT_PRODUCTS_VULKAN:-$ROOT/build/win-swift-vulkan/out/Products/Release-windows-x86_64}/VoxScriptaFFI.dll"
+
 # A debug engine contains the variable that fakes a subscription. Release
 # builds compile it out, so finding its name means this must not be packaged.
-if grep -aqF VOXSCRIPTA_ENTITLEMENT "$PRODUCTS/VoxScriptaFFI.dll"; then
-    echo "$PRODUCTS/VoxScriptaFFI.dll is a debug build; run swift build -c release --product VoxScriptaFFI" >&2
-    exit 1
-fi
+# Both engines are checked: the app loads the GPU one first.
+for dll in "$PRODUCTS/VoxScriptaFFI.dll" "$VULKAN_DLL"; do
+    if [ -f "$dll" ] && grep -aqF VOXSCRIPTA_ENTITLEMENT "$dll"; then
+        echo "$dll is a debug build; rebuild it with swift build -c release" >&2
+        exit 1
+    fi
+done
 
 rm -rf "$OUT"
 mkdir -p "$OUT"
@@ -38,7 +43,6 @@ cp "$FFMPEG_BIN"/*.dll "$OUT/"
 cp "$SWIFT_RUNTIME"/*.dll "$OUT/"
 # The GPU engine, if it was built. The app tries it first and falls back to the
 # one above, so leaving it out is a valid build.
-VULKAN_DLL="${VOXSCRIPTA_SWIFT_PRODUCTS_VULKAN:-$ROOT/build/win-swift-vulkan/out/Products/Debug-windows-x86_64}/VoxScriptaFFI.dll"
 if [ -f "$VULKAN_DLL" ]; then
     # Same ABI number, older code, would load without complaint.
     if [ "$VULKAN_DLL" -ot "$PRODUCTS/VoxScriptaFFI.dll" ]; then

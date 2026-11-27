@@ -61,7 +61,7 @@ Vulkan SDK (headers, `glslc`, `vulkan-1.lib`).
 
 ```bash
 VOXSCRIPTA_VULKAN=1 CMAKE_GENERATOR=Ninja CC=clang-cl CXX=clang-cl Tools/build-engines.sh host
-VOXSCRIPTA_VULKAN=1 swift build --product VoxScriptaFFI     --scratch-path build/win-swift-vulkan --cache-path build/win-swift-cache
+VOXSCRIPTA_VULKAN=1 swift build -c release --product VoxScriptaFFI     --scratch-path build/win-swift-vulkan --cache-path build/win-swift-cache
 Tools/stage-windows.sh
 ```
 
