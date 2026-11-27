@@ -9,6 +9,15 @@ incident, so a reader can judge whether the rule still earns its place. Where a
 rule was argued down or sharpened by the other session working this repo, it
 says so, because the argument is part of why it is phrased this way.
 
+A rule's number is its name, not its position. New rules are appended to the
+section they belong to and take the next unused number, so numbering runs out of
+order down the page. That is deliberate: `check-conventions.sh` cited "rule 12"
+for two of rule 13's clauses, because the rule it meant had been renumbered
+under it — rule 15's own disease, caught in the script that enforces these. A
+number that never moves cannot go stale, and the citation check at the bottom of
+`check-conventions.sh` now proves every reference in `Tools/` still lands on the
+rule it names.
+
 ---
 
 ## Invariants and contracts
@@ -108,6 +117,30 @@ existed. Anything that can know the real value has no default to fall back on**
 — a protocol requirement with no default implementation, so a new engine cannot
 compile without answering.
 
+### 18. A flag that reads like the guard may be aimed at another mechanism
+
+`WhisperEngine` pinned `params.translate = false` under a comment saying a
+transcript is a record of what was said and Vox Scripta will not silently return
+it in another language. The comment states the right invariant. The flag does
+not enforce it: `translate` governs translation *to English* and says nothing
+about the other direction, so a decoder conditioned on a mismatched language
+token still wrote fluent Spanish over English audio, and fluent English over
+Spanish audio, with the flag off the whole time. Found on Windows and Linux, in
+both directions, on both model sizes.
+
+The damage is the shape to remember. VERBATIM read perfectly, in whole
+sentences, of words nobody said. CLEAN and POLISH then saw internally consistent
+prose, and the validation gauntlet compares a revision against *that prose*
+rather than against the audio, so nine checks passed on a transcript with no
+relationship to the recording. Every downstream reader of a guarded value
+inherits the guard's blind spot.
+
+**Test the invariant, not the flag.** A flag is evidence about configuration; a
+test that feeds the mismatched input and asserts the output is evidence about
+behaviour. Where the invariant can only be checked against something outside the
+text — here the audio — that check has to exist even when it costs an extra pass,
+because nothing inside the text can stand in for it.
+
 ---
 
 ## Platforms and builds
@@ -157,6 +190,20 @@ is exactly the mechanism that makes this invisible.
 
 **A run records which optional inputs it found. Tests take none from a
 developer's build tree.**
+
+### 19. One gate passing while another cannot compile is an environment signal
+
+`swift build` was clean and `Tools/test.sh` failed with 28 × `no such module
+'Testing'`, in targets nobody had touched. It read exactly like a broken
+checkout, and it cost a stash-and-rebuild at `HEAD` to establish that the working
+tree was fine. The cause was `xcode-select` pointing at the Command Line Tools,
+whose toolchain ships no swift-testing; the library compiles because nothing in
+it imports `Testing`, so only the tests break.
+
+**Before reading the code, check what the failure cannot be.** A diff cannot
+break a module import in a file it does not touch. `Tools/test.sh` now detects
+this case and names it, searching for an Xcode rather than hardcoding one — that
+path being baked in was one of the three faults that kept CI from ever passing.
 
 ---
 

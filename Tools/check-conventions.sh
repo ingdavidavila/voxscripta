@@ -3,7 +3,7 @@
 #
 # Docs/CONVENTIONS.md has sixteen rules. Most are judgements a program cannot
 # make: whether a default fails closed, whether a fixture resembles real input,
-# whether a stopgap was deleted. Pretending otherwise would be rule 12's third
+# whether a stopgap was deleted. Pretending otherwise would be rule 13's third
 # face — a check judged by eye, dressed up as automation.
 #
 # What a script *can* check is whether the other checks are wired to anything.
@@ -31,7 +31,7 @@ else
         if grep -q "$gate" "$WORKFLOW"; then
             pass "$gate is wired into CI"
         else
-            fail "Tools/$gate exists and CI never runs it (CONVENTIONS rule 12)"
+            fail "Tools/$gate exists and CI never runs it (CONVENTIONS rule 13)"
         fi
     done
 fi
@@ -44,7 +44,7 @@ piped="$(grep -rnE '(check-[a-z-]+\.sh|test\.sh|flutter analyze|swift build)[^|&
           Tools/ "$WORKFLOW" 2>/dev/null | grep -v 'check-conventions.sh' || true)"
 if [ -n "$piped" ]; then
     echo "$piped" >&2
-    fail "a gate is judged through a pipe (CONVENTIONS rule 12)"
+    fail "a gate is judged through a pipe (CONVENTIONS rule 13)"
 else
     pass "no gate is judged through a pipe"
 fi
@@ -78,6 +78,25 @@ else
     else
         pass "no stale symbol count in prose"
     fi
+fi
+
+# Every "rule N" this repository cites has to land on a rule that exists.
+#
+# This script cited rule 12 twice for clauses belonging to rule 13, because the
+# rule it meant had been renumbered under it. Rule 15 says numbers in prose rot
+# and belong where they are compared — so here is where they are compared. The
+# document's rule numbers are now stable names rather than positions, which is
+# what makes this check possible at all.
+cited="$(grep -rhoE 'rule [0-9]+' Tools/ Sources/ Docs/CONVENTIONS.md 2>/dev/null \
+          | grep -oE '[0-9]+' | sort -un || true)"
+missing=""
+for n in $cited; do
+    grep -qE "^### $n\. " Docs/CONVENTIONS.md || missing="$missing $n"
+done
+if [ -n "$missing" ]; then
+    fail "cited CONVENTIONS rules that do not exist:$missing"
+else
+    pass "every cited rule number exists"
 fi
 
 if [ "$status" -eq 0 ]; then
