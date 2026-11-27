@@ -126,3 +126,27 @@ if(NOT CMAKE_BUILD_TYPE MATCHES "Debug")
   install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
     COMPONENT Runtime)
 endif()
+
+# The engine and the libraries it loads. Tools/stage-linux.sh puts them in
+# build/linux-engine; without them the app starts and says the engine cannot be
+# loaded. They go in lib/, where the executable's rpath looks.
+set(VOXSCRIPTA_ENGINE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../build/linux-engine")
+set(VOXSCRIPTA_MODEL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../build/models")
+if(EXISTS "${VOXSCRIPTA_ENGINE_DIR}/libVoxScriptaFFI.so")
+  file(GLOB VOXSCRIPTA_ENGINE_LIBS "${VOXSCRIPTA_ENGINE_DIR}/*.so*")
+  install(FILES ${VOXSCRIPTA_ENGINE_LIBS} DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+    COMPONENT Runtime)
+else()
+  message(WARNING "No engine in ${VOXSCRIPTA_ENGINE_DIR}; run Tools/stage-linux.sh. The app will build but cannot open its engine.")
+endif()
+# The speech model and the polish model, in models/ beside the executable.
+file(GLOB VOXSCRIPTA_MODELS "${VOXSCRIPTA_MODEL_DIR}/ggml-*.bin")
+if(EXISTS "${VOXSCRIPTA_MODEL_DIR}/polish.gguf")
+  list(APPEND VOXSCRIPTA_MODELS "${VOXSCRIPTA_MODEL_DIR}/polish.gguf")
+else()
+  message(WARNING "No polish model in ${VOXSCRIPTA_MODEL_DIR}; run Tools/fetch-polish-model.sh desktop. The bundle would not polish.")
+endif()
+if(VOXSCRIPTA_MODELS)
+  install(FILES ${VOXSCRIPTA_MODELS} DESTINATION "${CMAKE_INSTALL_PREFIX}/models"
+    COMPONENT Runtime)
+endif()

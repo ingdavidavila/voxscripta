@@ -616,7 +616,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cleanFooter =>
-      'Tidying prepares the text for polish using fixed rules only. No language model is involved, and every edit is recorded.';
+      'Tidying prepares the text for polish using fixed rules only. No language model is involved, and every edit is recorded. Anything left out is noted above the transcript and kept in the verbatim transcript.';
 
   @override
   String get removeFillers => 'Remove fillers';
@@ -631,11 +631,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get collapseStuttersHelp => 'Turns “the the the” into “the”.';
 
   @override
-  String get dropLowConfidence => 'Drop low-confidence words';
+  String get dropLowConfidence => 'Drop unsure passages';
 
   @override
   String get dropLowConfidenceHelp =>
-      'Removes words the recogniser was unsure of.';
+      'Leaves out whole passages the recogniser was unsure of.';
 
   @override
   String get sectionStorage => 'Storage and privacy';

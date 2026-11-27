@@ -39,7 +39,7 @@ android {
         }
     }
 
-    assetPacks += listOf(":speech_model")
+    assetPacks += listOf(":speech_model", ":polish_model")
 
     buildTypes {
         release {
@@ -86,8 +86,53 @@ val verifySpeechModel = tasks.register("verifySpeechModel") {
     }
 }
 
+// Polish is part of the app on every platform, so a bundle without its model is
+// refused for the same reason as one without the speech model.
+val verifyPolishModel = tasks.register("verifyPolishModel") {
+    val model = rootProject.file("polish_model/src/main/assets/models/polish.gguf")
+    doLast {
+        if (!model.isFile) {
+            throw GradleException(
+                "The polish model pack is empty. Run Tools/fetch-polish-model.sh phone " +
+                    "and Tools/stage-polish-model.sh phone " +
+                    "flutter/app/android/polish_model/src/main/assets/models",
+            )
+        }
+        val magic = model.inputStream().use { input -> ByteArray(4).also { input.read(it) } }
+        if (!magic.contentEquals("GGUF".toByteArray())) {
+            throw GradleException("polish.gguf in the polish model pack is not a GGUF model.")
+        }
+    }
+}
+
+// A debug engine contains the variable that fakes a subscription. Release
+// builds compile it out, so finding its name means this must not be shipped.
+val verifyReleaseEngine = tasks.register("verifyReleaseEngine") {
+    val libs = file("src/main/jniLibs")
+    doLast {
+        val engines = libs.walkTopDown().filter { it.name == "libVoxScriptaFFI.so" }.toList()
+        if (engines.isEmpty()) {
+            throw GradleException("No libVoxScriptaFFI.so in src/main/jniLibs.")
+        }
+        for (engine in engines) {
+            // ISO-8859-1 maps every byte to one character, so this is a byte search.
+            if (engine.readText(Charsets.ISO_8859_1).contains("VOXSCRIPTA_ENTITLEMENT")) {
+                throw GradleException(
+                    "$engine is a debug build. Rebuild it with swift build -c release.",
+                )
+            }
+        }
+    }
+}
+
+tasks.whenTaskAdded {
+    if (name in setOf("assembleRelease", "bundleRelease")) {
+        dependsOn(verifyReleaseEngine)
+    }
+}
+
 tasks.whenTaskAdded {
     if (name in setOf("bundleRelease", "bundleDebug", "bundleProfile")) {
-        dependsOn(verifySpeechModel)
+        dependsOn(verifySpeechModel, verifyPolishModel)
     }
 }
