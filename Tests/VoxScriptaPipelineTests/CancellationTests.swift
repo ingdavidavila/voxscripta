@@ -221,10 +221,30 @@ actor ChunkWatcher {
     var count: Int { completed }
 
     /// Waits until at least `target` chunks are done, or the deadline passes.
+    ///
+    /// Says so when the deadline passes, which it did not used to. The caller
+    /// then cancelled a job that had barely started and failed on "the chunk
+    /// plan should have been committed before transcription" — which points at
+    /// the chunking stage, when what had actually happened was this wait
+    /// running out. Seen once on a loaded machine, where the pipeline suite ran
+    /// 70% slower than usual and this was the only test to fall over; three
+    /// runs in isolation then passed in 118 to 155 seconds.
+    ///
+    /// The budget is deliberately not raised. Raising it would hide the
+    /// condition rather than report it: sixty seconds for two chunks of a mock
+    /// engine sleeping 80ms apiece is three orders of magnitude of headroom,
+    /// and failing to meet it is worth a line of output rather than a confusing
+    /// assertion thirty lines further down.
     func waitFor(_ target: Int, timeout: Duration) async throws {
         let deadline = ContinuousClock.now + timeout
         while completed < target && ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(20))
+        }
+        if completed < target {
+            let message = "waited \(timeout) for \(target) chunks and saw "
+                + "\(completed); anything failing below this is a consequence "
+                + "of that, not a finding of its own"
+            Issue.record("\(message)")
         }
     }
 }

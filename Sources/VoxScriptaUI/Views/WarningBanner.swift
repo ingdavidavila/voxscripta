@@ -151,13 +151,33 @@ struct WarningBanner: View {
         return String(format: "%d:%02d", whole / 60, whole % 60)
     }
 
+    /// Where "something is wrong with the text" ends and "for your
+    /// information" begins.
+    ///
+    /// The boundary sits between `cleanKeptAllBelowFloor` and
+    /// `polishFellBack`, and it is a real one rather than a round number:
+    /// everything above it means words may be missing or may not be what was
+    /// said, and everything below it means the text is present and intact and
+    /// something merely happened on the way to it.
+    ///
+    /// It was `<= 2` first, which rendered `cleanRemovedLowConfidence` as a
+    /// grey note. Seeing it on screen showed that for what it was: with CLEAN
+    /// no longer offered, that warning is the *only* evidence that passages
+    /// were dropped from the only edited version a reader has. A grey ⓘ is the
+    /// wrong thing to say about missing words.
+    private static let informationalFrom = 5
+
+    private func isAboutTheText(_ warning: SegmentWarning) -> Bool {
+        warning.severity < Self.informationalFrom
+    }
+
     private func tint(for warning: SegmentWarning) -> Color {
         // Severity is the engine's, so the colour follows it rather than a
         // per-case opinion that could drift from the ordering.
-        warning.severity <= 2 ? .orange : .secondary
+        isAboutTheText(warning) ? .orange : .secondary
     }
 
     private func icon(for warning: SegmentWarning) -> String {
-        warning.severity <= 2 ? "exclamationmark.triangle.fill" : "info.circle"
+        isAboutTheText(warning) ? "exclamationmark.triangle.fill" : "info.circle"
     }
 }

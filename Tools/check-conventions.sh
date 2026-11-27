@@ -115,14 +115,21 @@ c_abi="$(grep -oE 'vs_abi_version\(\) == [0-9]+' Tools/check-abi.sh \
           | grep -oE '[0-9]+$' || true)"
 test_abi="$(grep -oE 'vs_abi_version\(\) == [0-9]+' \
              Tests/VoxScriptaFFITests/FFISurfaceTests.swift | grep -oE '[0-9]+$' || true)"
+# The fifth pin is a file rather than a line of source, so that a build system
+# with no Swift parser can read it. The Android side needs that: after a bump,
+# staged jniLibs are silently the old ABI and the app only says so at launch —
+# a release bundle built happily around one. Checked here rather than written
+# here, because a gate with a side effect dirties the tree it is run in.
+file_abi="$(tr -d '[:space:]' < Tools/abi-version.txt 2>/dev/null || true)"
 if [ -z "$engine_abi" ]; then
     fail "cannot find the engine's abiVersion for this check to compare"
 elif [ "$dart_abi" = "$engine_abi" ] && [ "$c_abi" = "$engine_abi" ] \
-     && [ "$test_abi" = "$engine_abi" ]; then
-    pass "all four ABI pins agree ($engine_abi)"
+     && [ "$test_abi" = "$engine_abi" ] && [ "$file_abi" = "$engine_abi" ]; then
+    pass "all five ABI pins agree ($engine_abi)"
 else
-    echo "  engine $engine_abi / dart $dart_abi / check-abi $c_abi / test $test_abi" >&2
-    fail "the ABI version is pinned in four places and they disagree"
+    echo "  engine $engine_abi / dart $dart_abi / check-abi $c_abi" >&2
+    echo "  test $test_abi / Tools/abi-version.txt $file_abi" >&2
+    fail "the ABI version is pinned in five places and they disagree"
 fi
 
 if [ "$status" -eq 0 ]; then
