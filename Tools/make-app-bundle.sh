@@ -89,13 +89,24 @@ for bundle in "$BIN"/*.bundle; do
     cp -R "$bundle" "$APP/Contents/Resources/"
 done
 
-# The bundled language model, if one has been fetched. Its absence is not an
+# The bundled polish model, if one has been fetched. Its absence is not an
 # error: the app falls back to Apple's system model, and says so when it cannot.
-if [ -d "$ROOT/build/Model" ] && [ -f "$ROOT/build/Model/config.json" ]; then
-    cp -R "$ROOT/build/Model" "$APP/Contents/Resources/Model"
-    MODEL_SIZE=$(du -sh "$APP/Contents/Resources/Model" | cut -f1)
+#
+# A GGUF rather than the MLX safetensors this used to copy. The Mac was the one
+# platform where polish worked, and it worked through a model format no other
+# platform could load — 835 MB of it, 92% of the download, for a feature the
+# app degrades gracefully without. The same GGUF now ships everywhere, so there
+# is one model format across all five platforms and one thing to test.
+#
+# MLX is still registered at launch and still preferred when its model is
+# present; with none present the resolver falls through to llama.cpp, which is
+# the path every other platform already takes.
+if [ -d "$ROOT/build/models" ] && [ -f "$ROOT/build/models/polish.gguf" ]; then
+    mkdir -p "$APP/Contents/Resources/models"
+    "$ROOT/Tools/stage-polish-model.sh" desktop "$APP/Contents/Resources/models" >/dev/null
+    MODEL_SIZE=$(du -sh "$APP/Contents/Resources/models/polish.gguf" | cut -f1)
 else
-    MODEL_SIZE="none — run Tools/fetch-model.sh for a self-contained build"
+    MODEL_SIZE="none — run Tools/fetch-polish-model.sh for a self-contained build"
 fi
 
 cat > "$APP/Contents/Info.plist" <<PLIST

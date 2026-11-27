@@ -75,6 +75,7 @@
 				4E57AE888889001C06A4F7E8 /* Sources */,
 				69BE8A4D8E4D9DA4E7DB3928 /* Frameworks */,
 				D6C9E8A172005E68A1DD674F /* Resources */,
+				AE356332FA464A4CC0D7E023 /* Stage the polish model */,
 			);
 			buildRules = (
 			);
@@ -124,6 +125,25 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		AE356332FA464A4CC0D7E023 /* Stage the polish model */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/../build/models/polish-0.5b.gguf",
+			);
+			name = "Stage the polish model";
+			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/models/polish.gguf",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# The 0.5B on a phone: 469 MB against the desktop model's 1.0 GB, and it\n# revises 30% of sentences where the larger one revises 75%. A weaker model\n# cannot make the transcript wrong — the gauntlet rejects a bad revision\n# whichever model proposed it — so the cost is that polish does less, not\n# that it misleads.\n#\n# Absence is not an error. Without a model the resolver falls back to Apple\n# Intelligence, and without that polish declines with a stated reason.\nif [ -f \"$SRCROOT/../build/models/polish-0.5b.gguf\" ]; then\n  \"$SRCROOT/../Tools/stage-polish-model.sh\" phone \"$BUILT_PRODUCTS_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/models\"\nelse\n  echo \"note: no polish model staged — run Tools/fetch-polish-model.sh\"\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXResourcesBuildPhase section */
 		D6C9E8A172005E68A1DD674F /* Resources */ = {
