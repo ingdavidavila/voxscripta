@@ -45,3 +45,57 @@ a { color: var(--accent); }
   th, td { display: block; width: auto; border-bottom: none; padding: .2rem 0; }
   td { padding-bottom: .75rem; border-bottom: 1px solid var(--rule); }
 }
+
+/* ── Landing page ──────────────────────────────────────────────────────────
+   Added for index.html. privacy.html and terms.html use nothing below this
+   line, so they render exactly as they did. */
+
+.hero { margin-bottom: 2.5rem; }
+.hero .lede { font-size: 1.15rem; max-width: 34rem; }
+
+.claims { list-style: none; padding: 0; margin: 1.5rem 0 0; display: grid; gap: .5rem; }
+.claims li { padding-left: 1.4rem; position: relative; color: var(--muted); }
+.claims li::before {
+  content: "—"; position: absolute; left: 0; color: var(--accent);
+}
+.claims b { color: var(--fg); font-weight: 600; }
+
+.variants { display: grid; gap: 1rem; margin: 1rem 0 0; }
+@media (min-width: 40rem) { .variants { grid-template-columns: 1fr 1fr; } }
+.variant {
+  border: 1px solid var(--rule); border-radius: 6px; padding: 1rem 1.1rem;
+  min-width: 0;
+}
+.variant h3 { margin: 0 0 .35rem; font-size: 1rem; font-weight: 600; }
+.variant p { margin: 0; color: var(--muted); font-size: .95rem; }
+
+/* Platforms. A row per platform, each saying plainly where it will be and
+   whether you can have it yet. No dead links: a platform that is not ready
+   carries no anchor at all, because a button that does nothing is worse than
+   no button. */
+.platforms { display: grid; gap: .5rem; margin: 1rem 0 0; }
+.platform {
+  display: grid; grid-template-columns: 1fr auto; gap: .5rem 1rem;
+  align-items: baseline;
+  border: 1px solid var(--rule); border-radius: 6px; padding: .85rem 1rem;
+}
+.platform .name { font-weight: 600; }
+.platform .where { color: var(--muted); font-size: .9rem; grid-column: 1; }
+.pill {
+  font-size: .78rem; letter-spacing: .02em; white-space: nowrap;
+  border: 1px solid var(--rule); border-radius: 999px; padding: .15rem .6rem;
+  color: var(--muted); grid-row: 1; grid-column: 2;
+}
+.pill.soon { border-color: var(--accent); color: var(--accent); }
+@media (max-width: 30rem) {
+  .platform { grid-template-columns: 1fr; }
+  .pill { grid-column: 1; grid-row: auto; justify-self: start; }
+}
+
+.note {
+  border-left: 3px solid var(--accent); padding: .1rem 0 .1rem 1rem;
+  margin: 1.5rem 0 0; color: var(--muted); font-size: .95rem;
+}
+.note p { color: inherit; margin: .4rem 0; }
+.note p:first-child { margin-top: 0; }
+.note p:last-child { margin-bottom: 0; }
