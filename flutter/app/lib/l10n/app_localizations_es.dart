@@ -60,7 +60,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get librarySettingsTooltip =>
-      'Detección de silencio, idioma, limpieza y pulido.';
+      'Detección de silencio, idioma y pulido.';
 
   @override
   String get libraryUnreadableTitle => 'No se pudo leer la biblioteca';
@@ -454,11 +454,12 @@ class AppLocalizationsEs extends AppLocalizations {
   String get dispositionAcceptedAfterRetry => 'Aceptada tras un reintento';
 
   @override
-  String get dispositionFellBackToClean => 'Se conservó el texto limpio';
+  String get dispositionFellBackToClean =>
+      'Se conservó el texto tal como estaba';
 
   @override
   String get dispositionModelFailed =>
-      'El modelo falló: se conservó el texto limpio';
+      'El modelo falló: se conservó el texto tal como estaba';
 
   @override
   String get dispositionUnknown => 'Desconocido';
@@ -605,7 +606,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get verbatimOnlyNotice =>
-      'En este idioma solo hay versión literal. Limpia y Pulida necesitan léxicos que Vox Scripta aún no tiene.';
+      'En este idioma solo hay transcripción literal. La versión pulida necesita léxicos que Vox Scripta todavía no tiene.';
 
   @override
   String get polishedUnavailableNotice =>
@@ -619,7 +620,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get cleanFooter =>
-      'La versión limpia usa solo reglas fijas. No interviene ningún modelo de lenguaje, y cada cambio queda registrado.';
+      'La depuración prepara el texto para el pulido usando solo reglas fijas. No interviene ningún modelo de lenguaje y cada cambio queda registrado.';
 
   @override
   String get removeFillers => 'Quitar muletillas';
@@ -663,14 +664,14 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get polishFooter =>
-      'El pulido reescribe frase a frase y contrasta cada reescritura con el original. Una reescritura que falla se descarta y se conserva la frase limpia.';
+      'El pulido reescribe frase por frase y compara cada propuesta con el original. Una propuesta que no supera la comprobación se descarta y la frase queda como estaba.';
 
   @override
   String get createPolished => 'Crear una transcripción pulida';
 
   @override
   String get polishRunsAfterClean =>
-      'Ejecuta el paso del modelo después de la limpieza.';
+      'Ejecuta el modelo después de depurar el texto.';
 
   @override
   String get polishUnavailableInLanguage =>
@@ -1037,4 +1038,10 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get reportUnavailable => 'No se pudo crear el informe.';
+
+  @override
+  String get sectionTidying => 'Depuración';
+
+  @override
+  String get reviewBeforeLabel => 'Antes';
 }

@@ -70,7 +70,7 @@ class TranscriptModel extends ChangeNotifier {
     required TranscriptSource source,
     required this.projectPath,
     required this.displayName,
-    TranscriptVariant preferred = TranscriptVariant.clean,
+    TranscriptVariant preferred = TranscriptVariant.polished,
   })  : _source = source,
         _preferred = preferred;
 
@@ -78,7 +78,7 @@ class TranscriptModel extends ChangeNotifier {
     VoxScriptaEngine engine, {
     required String projectPath,
     required String displayName,
-    TranscriptVariant preferred = TranscriptVariant.clean,
+    TranscriptVariant preferred = TranscriptVariant.polished,
   }) =>
       TranscriptModel(
         source: EngineTranscriptSource(engine),
@@ -115,7 +115,17 @@ class TranscriptModel extends ChangeNotifier {
   String? get notice => _notice;
 
   List<TranscriptVariant> get availableVariants =>
-      (_summary?.variants ?? const []).map((v) => v.variant).toList(growable: false);
+      offered(_summary?.variants ?? const []);
+
+  /// What a person can choose between: what was said, and the polished text.
+  ///
+  /// The engine also writes a clean transcript. That is a step on the way to
+  /// the polished one rather than a third thing to read, so it is not offered,
+  /// copied or saved.
+  static List<TranscriptVariant> offered(List<VariantSummary> variants) => [
+        for (final v in variants)
+          if (v.variant != TranscriptVariant.clean) v.variant,
+      ];
 
   VariantSummary? get selectedSummary =>
       _selected == null ? null : _summary?.forVariant(_selected!);
@@ -131,7 +141,7 @@ class TranscriptModel extends ChangeNotifier {
       _error = null;
       _errorFailure = null;
 
-      final available = summary.variants.map((v) => v.variant).toList();
+      final available = offered(summary.variants);
       // The preferred variant when it exists, otherwise the best one that
       // does — a project that stopped after CLEAN has no polished transcript,
       // and showing an empty pane would read as a bug.
@@ -218,7 +228,7 @@ class TranscriptModel extends ChangeNotifier {
     final base = dot > 0 ? displayName.substring(0, dot) : displayName;
     return _source.exportFilename(
       base: base.isEmpty ? 'transcript' : base,
-      variant: _selected ?? TranscriptVariant.clean,
+      variant: _selected ?? TranscriptVariant.verbatim,
       format: format,
     );
   }

@@ -306,7 +306,7 @@ class _SaveButton extends StatelessWidget {
     return MenuAnchor(
       menuChildren: [
         for (final format in Wording.formatsFor(
-            model.selected ?? TranscriptVariant.clean))
+            model.selected ?? TranscriptVariant.verbatim))
           MenuItemButton(
             onPressed: () => onSaved(format),
             child: Tooltip(

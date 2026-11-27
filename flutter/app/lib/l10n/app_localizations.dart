@@ -197,7 +197,7 @@ abstract class AppLocalizations {
   /// No description provided for @librarySettingsTooltip.
   ///
   /// In en, this message translates to:
-  /// **'Silence detection, language, clean and polish.'**
+  /// **'Silence detection, language and polish.'**
   String get librarySettingsTooltip;
 
   /// No description provided for @libraryUnreadableTitle.
@@ -821,13 +821,13 @@ abstract class AppLocalizations {
   /// No description provided for @dispositionFellBackToClean.
   ///
   /// In en, this message translates to:
-  /// **'Kept the clean text'**
+  /// **'Kept the text as it was'**
   String get dispositionFellBackToClean;
 
   /// No description provided for @dispositionModelFailed.
   ///
   /// In en, this message translates to:
-  /// **'Model failed — kept the clean text'**
+  /// **'Model failed — kept the text as it was'**
   String get dispositionModelFailed;
 
   /// No description provided for @dispositionUnknown.
@@ -1079,7 +1079,7 @@ abstract class AppLocalizations {
   /// No description provided for @verbatimOnlyNotice.
   ///
   /// In en, this message translates to:
-  /// **'Verbatim only in this language. Clean and Polished need lexicons Vox Scripta does not have yet.'**
+  /// **'Verbatim only in this language. Polished needs lexicons Vox Scripta does not have yet.'**
   String get verbatimOnlyNotice;
 
   /// No description provided for @polishedUnavailableNotice.
@@ -1103,7 +1103,7 @@ abstract class AppLocalizations {
   /// No description provided for @cleanFooter.
   ///
   /// In en, this message translates to:
-  /// **'Clean uses fixed rules only. No language model is involved, and every edit is recorded.'**
+  /// **'Tidying prepares the text for polish using fixed rules only. No language model is involved, and every edit is recorded.'**
   String get cleanFooter;
 
   /// No description provided for @removeFillers.
@@ -1181,7 +1181,7 @@ abstract class AppLocalizations {
   /// No description provided for @polishFooter.
   ///
   /// In en, this message translates to:
-  /// **'Polish rewrites sentence by sentence and checks each rewrite against the original. A rewrite that fails is discarded and the clean sentence stands.'**
+  /// **'Polish rewrites sentence by sentence and checks each rewrite against the original. A rewrite that fails is discarded and the sentence stands as it was.'**
   String get polishFooter;
 
   /// No description provided for @createPolished.
@@ -1193,7 +1193,7 @@ abstract class AppLocalizations {
   /// No description provided for @polishRunsAfterClean.
   ///
   /// In en, this message translates to:
-  /// **'Runs the model pass after Clean.'**
+  /// **'Runs the model pass after the text is tidied.'**
   String get polishRunsAfterClean;
 
   /// No description provided for @polishUnavailableInLanguage.
@@ -1777,6 +1777,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The report could not be made.'**
   String get reportUnavailable;
+
+  /// No description provided for @sectionTidying.
+  ///
+  /// In en, this message translates to:
+  /// **'Tidying'**
+  String get sectionTidying;
+
+  /// No description provided for @reviewBeforeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Before'**
+  String get reviewBeforeLabel;
 }
 
 class _AppLocalizationsDelegate

@@ -59,7 +59,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get librarySettingsTooltip =>
-      'Silence detection, language, clean and polish.';
+      'Silence detection, language and polish.';
 
   @override
   String get libraryUnreadableTitle => 'The library could not be read';
@@ -452,10 +452,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dispositionAcceptedAfterRetry => 'Accepted after a retry';
 
   @override
-  String get dispositionFellBackToClean => 'Kept the clean text';
+  String get dispositionFellBackToClean => 'Kept the text as it was';
 
   @override
-  String get dispositionModelFailed => 'Model failed — kept the clean text';
+  String get dispositionModelFailed => 'Model failed — kept the text as it was';
 
   @override
   String get dispositionUnknown => 'Unknown';
@@ -601,7 +601,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get verbatimOnlyNotice =>
-      'Verbatim only in this language. Clean and Polished need lexicons Vox Scripta does not have yet.';
+      'Verbatim only in this language. Polished needs lexicons Vox Scripta does not have yet.';
 
   @override
   String get polishedUnavailableNotice =>
@@ -616,7 +616,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cleanFooter =>
-      'Clean uses fixed rules only. No language model is involved, and every edit is recorded.';
+      'Tidying prepares the text for polish using fixed rules only. No language model is involved, and every edit is recorded.';
 
   @override
   String get removeFillers => 'Remove fillers';
@@ -660,13 +660,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get polishFooter =>
-      'Polish rewrites sentence by sentence and checks each rewrite against the original. A rewrite that fails is discarded and the clean sentence stands.';
+      'Polish rewrites sentence by sentence and checks each rewrite against the original. A rewrite that fails is discarded and the sentence stands as it was.';
 
   @override
   String get createPolished => 'Create a polished transcript';
 
   @override
-  String get polishRunsAfterClean => 'Runs the model pass after Clean.';
+  String get polishRunsAfterClean =>
+      'Runs the model pass after the text is tidied.';
 
   @override
   String get polishUnavailableInLanguage =>
@@ -1030,4 +1031,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get reportUnavailable => 'The report could not be made.';
+
+  @override
+  String get sectionTidying => 'Tidying';
+
+  @override
+  String get reviewBeforeLabel => 'Before';
 }

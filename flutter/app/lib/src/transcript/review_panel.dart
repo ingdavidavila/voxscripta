@@ -142,11 +142,16 @@ class _FlaggedRow extends StatelessWidget {
                 color: theme.colorScheme.onSurfaceVariant,
               ),
               const SizedBox(width: 6),
-              Text(Wording.dispositionName(context.l10n, sentence.disposition),
-                  style: theme.textTheme.labelMedium),
+              // Wraps: some of these are a short sentence, and the card is
+              // narrow.
+              Expanded(
+                child: Text(
+                    Wording.dispositionName(context.l10n, sentence.disposition),
+                    style: theme.textTheme.labelMedium),
+              ),
             ]),
             const SizedBox(height: 8),
-            _Line(label: context.l10n.variantClean, text: sentence.original),
+            _Line(label: context.l10n.reviewBeforeLabel, text: sentence.original),
             const SizedBox(height: 4),
             _Line(label: context.l10n.reviewModelLabel, text: sentence.revised),
             if (sentence.reasons.isNotEmpty) ...[

@@ -174,7 +174,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
         ),
         _Section(
-          title: context.l10n.variantClean,
+          title: context.l10n.sectionTidying,
           footer: context.l10n.cleanFooter,
           children: [
             _Switch(
