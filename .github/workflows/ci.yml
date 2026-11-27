@@ -87,6 +87,19 @@ jobs:
       - name: Header matches the library
         run: Tools/check-abi.sh
 
+      # A release build is the only one allowed to ship, and the only way to
+      # know a staged library is one. EntitlementStore.debugOverride() reads
+      # VOXSCRIPTA_ENTITLEMENT and can force `subscribed`; it is compiled out
+      # under -c release and compiled *in* otherwise, and three platforms were
+      # staging the otherwise. Built here rather than trusting each platform's
+      # staging script, because this is the one machine every change passes
+      # through.
+      - name: A release library carries no debug-only marker
+        run: |
+          swift build -c release --product VoxScriptaFFI
+          Tools/check-release-binary.sh \
+            "$(swift build -c release --show-bin-path)/libVoxScriptaFFI.dylib"
+
       # The gate that watches the gates. check-localization.sh existed, worked
       # and was wired to nothing for three weeks; this fails if that happens
       # again to any of them.

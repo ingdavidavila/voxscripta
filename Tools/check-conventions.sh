@@ -27,7 +27,13 @@ WORKFLOW=".github/workflows/ci.yml"
 if [ ! -f "$WORKFLOW" ]; then
     fail "no $WORKFLOW — the gates have nowhere to run"
 else
-    for gate in check-abi.sh check-localization.sh check-conventions.sh; do
+    # Discovered, not listed. This loop named three gates by hand, directly
+    # under a comment saying "a new check-*.sh that nothing invokes is the exact
+    # shape of the three-week failure" — so it could not see the one thing it
+    # exists to see. check-release-binary.sh was written, proved, and left
+    # unwired and uncommitted, and this said "Conventions ok".
+    for path in Tools/check-*.sh; do
+        gate="$(basename "$path")"
         if grep -q "$gate" "$WORKFLOW"; then
             pass "$gate is wired into CI"
         else
