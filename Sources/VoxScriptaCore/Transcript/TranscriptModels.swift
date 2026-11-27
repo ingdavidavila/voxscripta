@@ -21,6 +21,35 @@ public struct Word: Hashable, Sendable, Codable {
 ///
 /// Warnings are surfaced in the UI rather than swallowed. A transcript that
 /// quietly hides an ambiguous merge is worse than one that marks it.
+/// One value carried by a ``SegmentWarning``, encoded as itself.
+///
+/// Exists so the wire carries `{"confidence": 0.42}` rather than
+/// `{"confidence": "0.42"}`. Pre-formatting a number in the engine would
+/// decide the decimal separator for every language, and Spanish writes 0,42.
+public enum WarningValue: Hashable, Sendable, Codable {
+    case text(String)
+    case whole(Int)
+    case number(Double)
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .text(let value): try container.encode(value)
+        case .whole(let value): try container.encode(value)
+        case .number(let value): try container.encode(value)
+        }
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        // Int before Double: a whole number decodes as either, and reading it
+        // back as 2.0 would make an interface print "2.0 segments".
+        if let value = try? container.decode(Int.self) { self = .whole(value) }
+        else if let value = try? container.decode(Double.self) { self = .number(value) }
+        else { self = .text(try container.decode(String.self)) }
+    }
+}
+
 public enum SegmentWarning: Hashable, Sendable, Codable {
     /// Overlap de-duplication could not find a confident splice point.
     case mergeAmbiguity
@@ -52,6 +81,97 @@ public enum SegmentWarning: Hashable, Sendable, Codable {
     /// isolated garbage, and "all of it scored low" is a different situation
     /// that deserves a different answer.
     case cleanKeptAllBelowFloor(segments: Int, floor: Double)
+
+    /// A stable name for this case, for an interface to look wording up by.
+    ///
+    /// Engine-side wording cannot work off Apple — `String(localized:)` is
+    /// absent from swift-corelibs-foundation, this project shims it to the
+    /// identity function, and the shim is reached only after interpolation, so
+    /// the lookup key is destroyed before any table could be consulted. That
+    /// is why errors already travel as codes (see the commit that introduced
+    /// ``ErrorCode``), and warnings follow them rather than inventing a second
+    /// route beside the interfaces' own catalogues.
+    public var code: String {
+        switch self {
+        case .mergeAmbiguity: "mergeAmbiguity"
+        case .lowConfidence: "lowConfidence"
+        case .transcriptionGap: "transcriptionGap"
+        case .polishFellBack: "polishFellBack"
+        case .languageLooksWrong: "languageLooksWrong"
+        case .fewWordsForSpeech: "fewWordsForSpeech"
+        case .polishRetried: "polishRetried"
+        case .cleanRemovedLowConfidence: "cleanRemovedLowConfidence"
+        case .cleanKeptAllBelowFloor: "cleanKeptAllBelowFloor"
+        }
+    }
+
+    /// The case's own values, keyed by its label names.
+    ///
+    /// Keyed rather than positional so a catalogue interpolates by name and
+    /// cannot be broken by a case gaining a value. Numbers stay numbers rather
+    /// than becoming pre-formatted strings: a Spanish interface writes 0,42
+    /// where an English one writes 0.42, and that is the interface's decision,
+    /// not the engine's.
+    public var values: [String: WarningValue] {
+        switch self {
+        case .mergeAmbiguity, .transcriptionGap, .polishRetried:
+            [:]
+        case .lowConfidence(let confidence):
+            // Rounded, because widening a Float is not free: the engine
+            // reports confidence as Float and `Double(0.42)` from one is
+            // 0.4199999868869781. CleanProcessor already names this trap for
+            // the 0.65 floor. Rounding a number is not formatting it — the
+            // interface still decides the separator and the digits — but an
+            // interface should not have to know about Float widening to avoid
+            // printing noise.
+            ["confidence": .number((Double(confidence) * 10_000).rounded() / 10_000)]
+        case .polishFellBack(let reasons):
+            ["reasons": .text(reasons.joined(separator: ", ")),
+             "count": .whole(reasons.count)]
+        case .languageLooksWrong(let transcribedAs, let detected):
+            ["transcribedAs": .text(transcribedAs), "detected": .text(detected)]
+        case .fewWordsForSpeech(let words, let speechSeconds):
+            ["words": .whole(words), "speechSeconds": .whole(speechSeconds)]
+        case .cleanRemovedLowConfidence(let segments, let floor):
+            ["segments": .whole(segments), "floor": .number(floor)]
+        case .cleanKeptAllBelowFloor(let segments, let floor):
+            ["segments": .whole(segments), "floor": .number(floor)]
+        }
+    }
+
+    /// How serious this is, 0 being the most serious.
+    ///
+    /// Ordered here so that no interface ranks warnings and no two interfaces
+    /// can rank them differently. A banner showing one line shows the lowest
+    /// number present.
+    ///
+    /// The order is about how wrong the transcript might be, not about how
+    /// unusual the event is. `languageLooksWrong` leads because it is the only
+    /// case where the text may bear no relation to the recording;
+    /// `polishRetried` is last because the output was accepted and is fine.
+    ///
+    /// Between those two the rule is the Windows session's, and it is better
+    /// than the one it replaced: **words missing outrank words doubtful.** A
+    /// reader can judge text that is present and cannot judge text that is
+    /// gone. My first order had `cleanKeptAllBelowFloor` second, which has it
+    /// backwards — that case is the one where nothing was removed at all.
+    ///
+    /// The refinement on top of it is that the three missing-words cases are
+    /// not equal, so they are ordered by how much is missing: most of the
+    /// speech, then a span of it, then some segments of it.
+    public var severity: Int {
+        switch self {
+        case .languageLooksWrong: 0
+        case .fewWordsForSpeech: 1
+        case .transcriptionGap: 2
+        case .cleanRemovedLowConfidence: 3
+        case .cleanKeptAllBelowFloor: 4
+        case .polishFellBack: 5
+        case .mergeAmbiguity: 6
+        case .lowConfidence: 7
+        case .polishRetried: 8
+        }
+    }
 
     /// Whether this describes the whole transcript rather than one segment.
     ///

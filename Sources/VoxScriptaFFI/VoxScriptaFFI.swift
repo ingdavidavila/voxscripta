@@ -60,8 +60,13 @@ import VoxScriptaExport
 /// `vs_job_start` and `vs_export` each gained a JSON parameter rather than
 /// growing a second entry point beside them, because nothing has shipped
 /// against version 1 and a legacy variant kept forever costs more than a
-/// break that nobody can observe.
-private let abiVersion: Int32 = 12
+/// break that nobody can observe. 13 adds the warnings each variant carries to
+/// `vs_project_summary`, plus which locale the transcript was made in and
+/// whether anything detected it — everything a warning banner needs. Additive
+/// to the same payload, which is a bump here for the same reason 5 was: the
+/// Dart side compares this for equality, so a field it is told to rely on has
+/// to arrive with a version it can check.
+private let abiVersion: Int32 = 13
 
 // MARK: - Job states
 

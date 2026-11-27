@@ -40,10 +40,13 @@ struct FFISurfaceTests {
 
     @Test("The ABI announces a version")
     func version() {
-        // 12 adds vs_diagnostics_report_copy; 11 added the JSON error pair.
-        // The Dart side compares this for equality and refuses to load on a
-        // mismatch, so changing it is a coordinated change, not a detail.
-        #expect(vs_abi_version() == 12)
+        // 13 adds each variant's warnings and the transcript's language to
+        // vs_project_summary; 12 added vs_diagnostics_report_copy; 11 added
+        // the JSON error pair. The Dart side compares this for equality and
+        // refuses to load on a mismatch, so changing it is a coordinated
+        // change, not a detail — four places pin it, and
+        // check-conventions.sh now proves they agree.
+        #expect(vs_abi_version() == 13)
     }
 
     // MARK: - Diagnostics

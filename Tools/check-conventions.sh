@@ -99,6 +99,32 @@ else
     pass "every cited rule number exists"
 fi
 
+# The ABI version is pinned in four places and nothing proved they agree.
+#
+# Bumping it to 13 left the Swift test asserting 12 and the check-abi.sh C
+# assertion asserting 12, while its own success message had already been
+# changed to say 13 — prose and assertion disagreeing inside one file. The test
+# caught one of those. Nothing would have caught the combination that matters
+# most: an engine at 13 with the Dart package still at 12, which ships an app
+# that refuses to load its own engine.
+engine_abi="$(grep -oE 'private let abiVersion: Int32 = [0-9]+' \
+               Sources/VoxScriptaFFI/VoxScriptaFFI.swift | grep -oE '[0-9]+$' || true)"
+dart_abi="$(grep -oE 'supportedAbiVersion = [0-9]+' \
+             flutter/voxscripta_engine/lib/src/engine.dart | grep -oE '[0-9]+$' || true)"
+c_abi="$(grep -oE 'vs_abi_version\(\) == [0-9]+' Tools/check-abi.sh \
+          | grep -oE '[0-9]+$' || true)"
+test_abi="$(grep -oE 'vs_abi_version\(\) == [0-9]+' \
+             Tests/VoxScriptaFFITests/FFISurfaceTests.swift | grep -oE '[0-9]+$' || true)"
+if [ -z "$engine_abi" ]; then
+    fail "cannot find the engine's abiVersion for this check to compare"
+elif [ "$dart_abi" = "$engine_abi" ] && [ "$c_abi" = "$engine_abi" ] \
+     && [ "$test_abi" = "$engine_abi" ]; then
+    pass "all four ABI pins agree ($engine_abi)"
+else
+    echo "  engine $engine_abi / dart $dart_abi / check-abi $c_abi / test $test_abi" >&2
+    fail "the ABI version is pinned in four places and they disagree"
+fi
+
 if [ "$status" -eq 0 ]; then
     echo "Conventions ok — the mechanizable ones. The rest are in Docs/CONVENTIONS.md"
     echo "and are a reader's job, not this script's."

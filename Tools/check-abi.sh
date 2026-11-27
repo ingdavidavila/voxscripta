@@ -62,7 +62,7 @@ int main(void) {
     };
     (void)used;
     /* One real call, so the library is actually loaded and initialized. */
-    return vs_abi_version() == 12 ? 0 : 1;
+    return vs_abi_version() == 13 ? 0 : 1;
 }
 C
 
@@ -70,4 +70,4 @@ cc -I "$ROOT/ffi" -o "$WORK/abi" "$WORK/abi.c" \
    -L "$BIN" -lVoxScriptaFFI -Wl,-rpath,"$BIN"
 
 "$WORK/abi"
-echo "ABI ok — all 42 symbols resolve and vs_abi_version() is 12"
+echo "ABI ok — all 42 symbols resolve and vs_abi_version() is 13"
