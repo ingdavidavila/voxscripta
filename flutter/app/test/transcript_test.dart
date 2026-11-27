@@ -208,6 +208,18 @@ void main() {
       expect(source.lastOptions?.includeTimestamps, isTrue);
     });
 
+    test("the timestamps choice starts from the engine's default", () {
+      // Not a second copy of the engine's answer: a source that says yes
+      // starts the toggle on.
+      final model = TranscriptModel(
+        source: _StubSource(
+            summary: summaryWith(), includesTimestampsByDefault: true),
+        projectPath: '/p',
+        displayName: 'p',
+      );
+      expect(model.includeTimestamps, isTrue);
+    });
+
     test('exporting with no transcript throws rather than writing nothing',
         () async {
       final model = TranscriptModel(
@@ -231,8 +243,14 @@ class _StubSource implements TranscriptSource {
   }) =>
       '$base \u2014 ${variant.wireName}.${format.wireName}';
 
-  _StubSource({required ProjectSummary summary, this.texts = const {}})
-      : summaryValue = summary;
+  _StubSource({
+    required ProjectSummary summary,
+    this.texts = const {},
+    this.includesTimestampsByDefault = false,
+  }) : summaryValue = summary;
+
+  @override
+  final bool includesTimestampsByDefault;
 
   final ProjectSummary summaryValue;
   final Map<TranscriptVariant, String> texts;

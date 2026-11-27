@@ -11,6 +11,10 @@ import 'package:voxscripta_engine/voxscripta_engine.dart';
 abstract interface class TranscriptSource {
   ProjectSummary summary(String projectPath);
 
+  /// Whether an export carries timestamps until the user says otherwise. The
+  /// engine's setting, asked for rather than repeated here.
+  bool get includesTimestampsByDefault;
+
   /// What a rendered export should be called. The engine owns the convention.
   String exportFilename({
     required String base,
@@ -33,6 +37,10 @@ class EngineTranscriptSource implements TranscriptSource {
 
   @override
   ProjectSummary summary(String projectPath) => _engine.summary(projectPath);
+
+  @override
+  bool get includesTimestampsByDefault =>
+      _engine.exportOptionDefaults['includeTimestamps']! as bool;
 
   @override
   String exportFilename({
@@ -72,7 +80,8 @@ class TranscriptModel extends ChangeNotifier {
     required this.displayName,
     TranscriptVariant preferred = TranscriptVariant.clean,
   })  : _source = source,
-        _preferred = preferred;
+        _preferred = preferred,
+        _includeTimestamps = source.includesTimestampsByDefault;
 
   factory TranscriptModel.of(
     VoxScriptaEngine engine, {
@@ -99,7 +108,7 @@ class TranscriptModel extends ChangeNotifier {
   String? _error;
   EngineFailure? _errorFailure;
   bool _showsReview = false;
-  bool _includeTimestamps = false;
+  bool _includeTimestamps;
   String? _notice;
 
   ProjectSummary? get summary => _summary;
