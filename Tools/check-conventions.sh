@@ -32,7 +32,15 @@ else
     # shape of the three-week failure" — so it could not see the one thing it
     # exists to see. check-release-binary.sh was written, proved, and left
     # unwired and uncommitted, and this said "Conventions ok".
-    for path in Tools/check-*.sh; do
+    # Tracked gates only, not whatever is lying in Tools/.
+    #
+    # Globbing the working directory looked equivalent and is not: a gate
+    # written but deliberately held back — because it fails until a fix lands,
+    # which is exactly when you would hold one — is untracked, invisible to CI
+    # by definition, and was failing this check for existing. That turned a
+    # correct decision to wait into a red local chain, which is the kind of
+    # false positive that gets a gate switched off.
+    for path in $(git ls-files 'Tools/check-*.sh' 2>/dev/null); do
         gate="$(basename "$path")"
         if grep -q "$gate" "$WORKFLOW"; then
             pass "$gate is wired into CI"
