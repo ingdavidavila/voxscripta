@@ -23,5 +23,24 @@
 #define MA_NO_NODE_GRAPH
 #define MA_NO_DECODING
 #define MA_NO_ENCODING
+
+// Offered to C and Objective-C, withheld from C++.
+//
+// `VoxScriptaCoreParityTests` compiles with `.interoperabilityMode(.Cxx)` and
+// depends on VoxScriptaDSP, so Swift builds this module in C++ mode for that
+// target. On Xcode 26.6's SDK that fails: miniaudio.h imports pthread inside an
+// `extern "C"` block, which is illegal in a C++ module —
+//
+//   miniaudio.h:3907: import of C++ module '_DarwinFoundation3.pthread'
+//   appears within extern "C" language linkage specification
+//
+// It does not fail on 27.2, which is why CI caught it and no developer machine
+// did. Nothing in C++ uses miniaudio — the recorder is Swift and keeps every
+// `ma_` type private — so the honest fix is to not offer the vendor header to a
+// C++ parse at all, rather than to patch a vendored file or to drop the
+// parity tests' interop, which is the whole point of them.
+#ifndef __cplusplus
 #include "miniaudio.h"
+#endif
+
 #endif
