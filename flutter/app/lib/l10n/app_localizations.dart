@@ -1103,7 +1103,7 @@ abstract class AppLocalizations {
   /// No description provided for @cleanFooter.
   ///
   /// In en, this message translates to:
-  /// **'Tidying prepares the text for polish using fixed rules only. No language model is involved, and every edit is recorded.'**
+  /// **'Tidying prepares the text for polish using fixed rules only. No language model is involved, and every edit is recorded. Anything left out is noted above the transcript and kept in the verbatim transcript.'**
   String get cleanFooter;
 
   /// No description provided for @removeFillers.
@@ -1133,13 +1133,13 @@ abstract class AppLocalizations {
   /// No description provided for @dropLowConfidence.
   ///
   /// In en, this message translates to:
-  /// **'Drop low-confidence words'**
+  /// **'Drop unsure passages'**
   String get dropLowConfidence;
 
   /// No description provided for @dropLowConfidenceHelp.
   ///
   /// In en, this message translates to:
-  /// **'Removes words the recogniser was unsure of.'**
+  /// **'Leaves out whole passages the recogniser was unsure of.'**
   String get dropLowConfidenceHelp;
 
   /// No description provided for @sectionStorage.

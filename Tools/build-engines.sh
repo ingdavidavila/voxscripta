@@ -62,6 +62,24 @@ for src in "$WHISPER_SRC" "$LLAMA_SRC"; do
     }
 done
 
+# Processor features are named, never taken from the build machine. ggml's
+# default for a native build is GGML_NATIVE=ON, which compiles for whatever CPU
+# is doing the building: an engine built on an Apple M5 carried instructions
+# that no M1, M2 or M3 has, and one built on a Ryzen was -march=native.
+#
+# x86-64 desktops: Intel Haswell (2013) or AMD Excavator and later.
+x86_desktop_flags() {
+    for feature in SSE42 AVX AVX2 BMI2 FMA F16C; do echo "-DGGML_$feature=ON"; done
+}
+host_cpu_flags() {
+    echo "-DGGML_NATIVE=OFF"
+    case "$(uname -s):$(uname -m)" in
+        # The M1 is the oldest Apple silicon. No i8mm or sme: both postdate it.
+        Darwin:arm64) echo "-DGGML_CPU_ARM_ARCH=armv8.4-a+dotprod" ;;
+        *:x86_64) x86_desktop_flags ;;
+    esac
+}
+
 # Static, and nothing but the libraries: no servers, no command-line tools, no
 # tests. Those would pull a main() and a socket layer into an app that must
 # have neither.
@@ -135,6 +153,15 @@ common_flags() {
         echo "-DANDROID_ABI=$ABI"
         echo "-DANDROID_PLATFORM=android-26"
         echo "-DGGML_OPENMP=OFF"
+        echo "-DGGML_NATIVE=OFF"
+        # arm64-v8a stays at the ABI's baseline: dotprod and i8mm would crash
+        # the older phones that android-26 admits, and ggml cannot choose at
+        # run time in a static build. The x86_64 ABI guarantees SSE 4.2 and
+        # nothing newer.
+        case "$ABI" in
+            arm64-v8a) echo "-DGGML_CPU_ARM_ARCH=armv8-a" ;;
+            x86_64) echo "-DGGML_SSE42=ON" ;;
+        esac
         # The NDK toolchain file restricts find_package to the Android sysroot,
         # so whisper.cpp cannot see the ggml that llama.cpp just installed and
         # configure fails with "Could not find a package configuration file
@@ -142,6 +169,8 @@ common_flags() {
         # reason. Found by building for Android x86_64 and arm64-v8a with
         # NDK r30; with it both ABIs build.
         echo "-DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH"
+    else
+        host_cpu_flags
     fi
 }
 

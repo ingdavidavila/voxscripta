@@ -2,6 +2,7 @@ package dev.voxscripta.voxscripta
 
 import android.content.Context
 import android.system.Os
+import android.util.Log
 import java.io.File
 
 /**
@@ -21,6 +22,10 @@ import java.io.File
  * The copy is written to a `.part` file and renamed when complete, so an
  * interrupted copy is never mistaken for a model, and a half-written file never
  * reaches the engine.
+ *
+ * The polish model arrives the same way, from its own pack, and is copied after
+ * the speech model. It is not allowed to stop transcription: if it cannot be
+ * copied, the engine reports that polish did not run and why.
  */
 class ModelStore(private val context: Context) {
     enum class State { IDLE, COPYING, READY, ABSENT, FAILED }
@@ -77,6 +82,7 @@ class ModelStore(private val context: Context) {
 
             val existing = NAMES.map { File(directory, it) }.firstOrNull { it.isFile }
             if (existing != null) {
+                copyPolishModel()
                 finish(State.READY, existing)
                 return
             }
@@ -121,12 +127,55 @@ class ModelStore(private val context: Context) {
                 finish(State.FAILED, null, "not_in_place")
                 return
             }
+            copyPolishModel()
             finish(State.READY, target)
         } catch (e: Exception) {
             directory.listFiles { f -> f.name.endsWith(".part") }
                 ?.forEach { it.delete() }
             errorDetail = e.message
             finish(State.FAILED, null, "copy_failed")
+        }
+    }
+
+    /**
+     * Copies the polish model out of its pack, once. Quietly does nothing when
+     * the install carries none or there is no room: the speech model is what
+     * the app cannot work without.
+     */
+    private fun copyPolishModel() {
+        val target = File(directory, POLISH)
+        if (target.isFile) return
+        val part = File(directory, "$POLISH.part")
+        try {
+            if (context.assets.list("models")?.contains(POLISH) != true) return
+            val length = try {
+                context.assets.openFd("models/$POLISH").use { it.length }
+            } catch (_: Exception) {
+                -1
+            }
+            if (length > 0 && directory.usableSpace < length + SPACE_MARGIN) {
+                Log.w(TAG, "no room for the polish model")
+                return
+            }
+            // The progress bar starts again for this second file.
+            copiedBytes = 0
+            totalBytes = length
+            context.assets.open("models/$POLISH").use { input ->
+                part.outputStream().use { output ->
+                    val buffer = ByteArray(BUFFER)
+                    while (true) {
+                        val read = input.read(buffer)
+                        if (read < 0) break
+                        output.write(buffer, 0, read)
+                        copiedBytes += read
+                    }
+                    output.fd.sync()
+                }
+            }
+            if (!part.renameTo(target)) part.delete()
+        } catch (e: Exception) {
+            part.delete()
+            Log.w(TAG, "the polish model could not be copied: ${e.message}")
         }
     }
 
@@ -147,6 +196,9 @@ class ModelStore(private val context: Context) {
     companion object {
         /** Small first, then base, matching the engine's own order. */
         val NAMES = listOf("ggml-small.bin", "ggml-base.bin")
+        /** The only name the engine looks for. */
+        const val POLISH = "polish.gguf"
+        private const val TAG = "ModelStore"
         private const val BUFFER = 1 shl 20
         private const val MEGABYTE = 1L shl 20
         private const val SPACE_MARGIN = 64L shl 20
