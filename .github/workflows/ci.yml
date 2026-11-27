@@ -87,6 +87,14 @@ jobs:
       - name: Header matches the library
         run: Tools/check-abi.sh
 
+      # An engine compiled for the machine that built it is not shippable.
+      # ggml defaults GGML_NATIVE to ON, so a build that names no CPU features
+      # gets the builder's — which on one developer Mac meant
+      # -mcpu=native+dotprod+i8mm+nosve+sme, instructions absent from every
+      # Apple silicon part before the M4.
+      - name: No engine is built for the machine that built it
+        run: Tools/check-build-flags.sh
+
       # A release build is the only one allowed to ship, and the only way to
       # know a staged library is one. EntitlementStore.debugOverride() reads
       # VOXSCRIPTA_ENTITLEMENT and can force `subscribed`; it is compiled out

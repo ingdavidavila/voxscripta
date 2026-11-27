@@ -184,12 +184,25 @@ public actor LanguageModelHost: LanguageModelHosting {
         if case .failure(let error) = Self.availability() { throw error }
 
         let session = LanguageModelSession(instructions: instructions)
-        let options = GenerationOptions(
-            // Greedy rather than a zero temperature: no sampling at all, so the
-            // same window returns the same text on every run.
-            samplingMode: .greedy,
-            temperature: configuration.temperature,
-            maximumResponseTokens: Self.responseBudget(for: sentences))
+        // Built by assignment rather than through the initializer, and that is
+        // not a style choice. Apple renamed the initializer's first label
+        // between SDKs — Xcode 26.6 takes `sampling:` and 27.2 takes
+        // `samplingMode:` — so either spelling compiles on one machine and
+        // fails on the other. CI runs 26.6 and this project is developed on
+        // 27.2, which is how `swift build` passed locally while every CI run
+        // since 24 November failed on this line.
+        //
+        // The *property* kept its name through that rename: it is `sampling`
+        // in both. Assigning it is therefore the one spelling both SDKs
+        // accept, and it needs no version check — there is nothing to key one
+        // on anyway, since both ship the identical Swift 6.3.3 compiler and
+        // differ only in the SDK.
+        var options = GenerationOptions()
+        // Greedy rather than a zero temperature: no sampling at all, so the
+        // same window returns the same text on every run.
+        options.sampling = .greedy
+        options.temperature = configuration.temperature
+        options.maximumResponseTokens = Self.responseBudget(for: sentences)
 
         do {
             let response = try await session.respond(
