@@ -49,6 +49,12 @@ struct LanguageWarningTests {
     }
 
     /// Runs the pipeline with detection off, as the defect requires.
+    ///
+    /// Returns the CLEAN variant's notes, not VERBATIM's, and not a segment's
+    /// warnings. That is the assertion that matters: the note used to be
+    /// appended to `segments[0].warnings`, and CLEAN deleted that segment for
+    /// low confidence and the note with it. Reading CLEAN here means a
+    /// regression to the old storage fails this suite instead of passing it.
     private func warnings(
         head: [LanguageLikelihood], locale: String = "en-US"
     ) async throws -> [SegmentWarning] {
@@ -70,10 +76,10 @@ struct LanguageWarningTests {
         // POLISH is irrelevant here and costs a model load.
         options.polish = nil
 
-        let transcript = try await JobRunner(engineFactory: { engine },
-                                             gate: EntitlementFixture.freshTrial())
+        _ = try await JobRunner(engineFactory: { engine },
+                                gate: EntitlementFixture.freshTrial())
             .run(project: project, options: options)
-        return transcript.segments.first?.warnings ?? []
+        return try JobRunner.transcript(.clean, from: project.package).notes
     }
 
     /// Only the notes the acoustic check could have produced.
@@ -91,6 +97,23 @@ struct LanguageWarningTests {
         warnings.filter {
             guard case .languageLooksWrong(_, let detected) = $0 else { return false }
             return ShippingLanguages.languageCodes.contains(detected)
+        }
+    }
+
+    @Test("Every note the pipeline leaves describes the whole transcript")
+    func notesAreWholeTranscript() async throws {
+        // `notes` is for transcript-wide claims and `warnings` for per-segment
+        // ones. Nothing enforces that at the type level, so it is enforced
+        // here: a per-segment case put on `notes` by mistake would make a
+        // banner say something about the recording that is true of one
+        // sentence.
+        let found = try await warnings(head: [
+            LanguageLikelihood(locale: "es-ES", probability: 0.9987),
+            LanguageLikelihood(locale: "en-US", probability: 0.0006),
+        ])
+        #expect(!found.isEmpty)
+        for note in found {
+            #expect(note.describesWholeTranscript, "\(note) belongs on a segment")
         }
     }
 

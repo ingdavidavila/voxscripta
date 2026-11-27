@@ -39,6 +39,35 @@ public enum SegmentWarning: Hashable, Sendable, Codable {
     case fewWordsForSpeech(words: Int, speechSeconds: Int)
     /// Polished output was accepted only after a retry.
     case polishRetried
+    /// CLEAN removed this many segments for scoring below its confidence
+    /// floor. A reader looking at a shorter transcript than they expected is
+    /// owed the reason.
+    case cleanRemovedLowConfidence(segments: Int, floor: Double)
+    /// Every segment scored below CLEAN's confidence floor, so none was
+    /// removed and the text stands as it was recognised.
+    ///
+    /// The alternative was an empty CLEAN, which is what used to happen: a
+    /// blank default view, no explanation, and speech that had in fact been
+    /// recognised sitting in VERBATIM next to it. The floor exists to drop
+    /// isolated garbage, and "all of it scored low" is a different situation
+    /// that deserves a different answer.
+    case cleanKeptAllBelowFloor(segments: Int, floor: Double)
+
+    /// Whether this describes the whole transcript rather than one segment.
+    ///
+    /// The engine answers this so that no interface has to keep its own list
+    /// and no two interfaces can disagree. It is also what decides where the
+    /// warning is stored: see ``Transcript/notes``.
+    public var describesWholeTranscript: Bool {
+        switch self {
+        case .languageLooksWrong, .fewWordsForSpeech,
+             .cleanRemovedLowConfidence, .cleanKeptAllBelowFloor:
+            true
+        case .mergeAmbiguity, .lowConfidence, .transcriptionGap,
+             .polishFellBack, .polishRetried:
+            false
+        }
+    }
 }
 
 /// The unit of the transcript data model.
@@ -147,10 +176,52 @@ public struct Transcript: Sendable, Codable {
     public var segments: [TranscriptSegment]
     public let provenance: Provenance
 
-    public init(variant: TranscriptVariant, segments: [TranscriptSegment], provenance: Provenance) {
+    /// What the pipeline noticed about the recording as a whole.
+    ///
+    /// Separate from a segment's `warnings` because the two are different
+    /// claims, and storing one as the other cost a real defect. The
+    /// wrong-language note was appended to `segments[0].warnings` — `warnings`
+    /// being a segment field and nothing else existing — and CLEAN then
+    /// deleted that segment for scoring below its confidence floor, taking the
+    /// note with it. On one recording CLEAN dropped every segment and handed
+    /// back an empty transcript with no warning at all.
+    ///
+    /// The selection was not bad luck, which is the part worth remembering.
+    /// Decoding speech against the wrong language is *what produces* low
+    /// confidence, so the note was pinned to precisely the segment that the
+    /// condition it describes was most likely to remove. Found by the Windows
+    /// session running real audio in both directions.
+    ///
+    /// Joins the contract defaulted-empty, so every transcript written before
+    /// this decodes unchanged — and every writer populates it, because an
+    /// empty one that a live writer forgot would look exactly like a
+    /// recording with nothing to report. The merger starts it, and CLEAN and
+    /// POLISH carry it forward: a note about the recording is true of every
+    /// variant derived from that recording.
+    public var notes: [SegmentWarning]
+
+    public init(variant: TranscriptVariant, segments: [TranscriptSegment],
+                provenance: Provenance, notes: [SegmentWarning] = []) {
         self.variant = variant
         self.segments = segments
         self.provenance = provenance
+        self.notes = notes
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case variant, segments, provenance, notes
+    }
+
+    /// Written by hand for one reason: Swift's synthesised decoder does not
+    /// apply a property's default value to a missing key, so adding `notes`
+    /// with the synthesised one would have failed to read every project on
+    /// disk.
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        variant = try c.decode(TranscriptVariant.self, forKey: .variant)
+        segments = try c.decode([TranscriptSegment].self, forKey: .segments)
+        provenance = try c.decode(Provenance.self, forKey: .provenance)
+        notes = try c.decodeIfPresent([SegmentWarning].self, forKey: .notes) ?? []
     }
 
     public var isEmpty: Bool { segments.isEmpty }

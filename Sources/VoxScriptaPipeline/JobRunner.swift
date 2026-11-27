@@ -554,8 +554,16 @@ public struct JobRunner: Sendable {
         // because it is the only evidence in the case that matters. The text
         // check below reads the transcript, so a fluent transcript in the
         // wrong language looks right to it; this one listened to the audio.
-        if case .mismatch(let language) = languageCheck, !transcript.segments.isEmpty {
-            transcript.segments[0].warnings.append(
+        //
+        // On `notes`, not on `segments[0].warnings`. The first version of this
+        // put it on segment 0 because `warnings` was the only place a warning
+        // could go, and CLEAN then deleted that segment for low confidence and
+        // the note with it — on one recording leaving an empty CLEAN with
+        // nothing to explain it. Decoding against the wrong language is what
+        // produces low confidence, so the note had been pinned to the segment
+        // its own condition was most likely to remove.
+        if case .mismatch(let language) = languageCheck {
+            transcript.notes.append(
                 .languageLooksWrong(transcribedAs: transcription.locale, detected: language))
         }
 
@@ -566,23 +574,20 @@ public struct JobRunner: Sendable {
             switch finding {
             case .noWordsRecognized(let locale, _):
                 throw VoxScriptaError.noWordsRecognized(locale: locale)
-            // Carried on the first segment rather than on the transcript:
-            // warnings are a segment field, and adding one to Transcript would
-            // change the persisted shape of every existing project. The
-            // finding describes the whole transcript, which is what the
-            // wording says.
+            // Both of these describe the whole transcript, so both go on
+            // `notes`. They no longer need a non-empty segment list to have
+            // somewhere to live, which also means a transcript that is empty
+            // for some other reason can still say why.
             case .tooFewWords(_, let words, let speechSeconds):
-                if !transcript.segments.isEmpty {
-                    transcript.segments[0].warnings.append(
-                        .fewWordsForSpeech(words: words, speechSeconds: Int(speechSeconds)))
-                }
+                transcript.notes.append(
+                    .fewWordsForSpeech(words: words, speechSeconds: Int(speechSeconds)))
             case .languageMismatch(let locale, let detected, _):
                 // Skipped when the acoustic check already said so, rather than
                 // carrying the same note twice. The two agree in this case; it
                 // is the case where only the acoustic one fires that this
                 // whole path exists for.
-                if !transcript.segments.isEmpty, languageCheck.isMismatch == false {
-                    transcript.segments[0].warnings.append(
+                if languageCheck.isMismatch == false {
+                    transcript.notes.append(
                         .languageLooksWrong(transcribedAs: locale, detected: detected))
                 }
             }

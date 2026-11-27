@@ -243,7 +243,12 @@ public struct PolishProcessor: PolishProcessing {
                 promptVersion: parameters.promptVersion,
                 silenceParameterHash: clean.provenance.silenceParameterHash,
                 chunkParameterHash: clean.provenance.chunkParameterHash,
-                concurrency: clean.provenance.concurrency))
+                concurrency: clean.provenance.concurrency),
+            // Carried forward for the same reason CLEAN carries them: a note
+            // about the recording stays true however the text is rewritten.
+            // POLISH rewrites sentences, which is all the more reason a reader
+            // should still be told the recording may be in the wrong language.
+            notes: clean.notes)
 
         return PolishResult(transcript: transcript, sentences: records)
     }

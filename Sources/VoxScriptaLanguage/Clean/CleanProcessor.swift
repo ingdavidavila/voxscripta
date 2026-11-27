@@ -140,6 +140,10 @@ public struct CleanProcessor: CleanProcessing {
     ) throws -> CleanResult {
         var segments: [TranscriptSegment] = []
         var edits: [CleanEdit] = []
+        // Kept rather than forgotten, so the count can be reported and so the
+        // all-below-floor case can be undone. See the note construction after
+        // the loop.
+        var dropped: [TranscriptSegment] = []
 
         for (index, original) in verbatim.segments.enumerated() {
             // A gap marker has no content to clean and must survive intact, so
@@ -168,6 +172,7 @@ public struct CleanProcessor: CleanProcessing {
                     replacement: "confidence \(String(format: "%.4f", Double(confidence)))"
                         + " below floor \(String(format: "%.2f", floor))",
                     at: original.originalStart))
+                dropped.append(original)
                 continue
             }
 
@@ -220,13 +225,40 @@ public struct CleanProcessor: CleanProcessing {
             segments.append(segment)
         }
 
+        // Notes travel from VERBATIM unchanged: they describe the recording,
+        // and CLEAN does not change the recording. A wrong-language note is as
+        // true of the cleaned text as of the verbatim text — more pressingly
+        // so, because CLEAN is the default view.
+        var notes = verbatim.notes
+
+        // CLEAN must not hand back an empty transcript when VERBATIM had one.
+        //
+        // It did, on a real recording: every segment scored below the floor,
+        // all of them were dropped, and the default view was a blank page with
+        // no warning while the recognised speech sat in VERBATIM beside it.
+        // The floor is there to drop isolated garbage; "all of it scored low"
+        // is a different situation and the honest answer to it is the text
+        // plus the reason, not silence.
+        if segments.isEmpty, !dropped.isEmpty {
+            segments = dropped
+            edits.removeAll { $0.kind == .lowConfidenceDropped }
+            notes.append(.cleanKeptAllBelowFloor(
+                segments: dropped.count,
+                floor: parameters.confidenceFloor ?? CleanParameters.defaultConfidenceFloor))
+        } else if !dropped.isEmpty {
+            notes.append(.cleanRemovedLowConfidence(
+                segments: dropped.count,
+                floor: parameters.confidenceFloor ?? CleanParameters.defaultConfidenceFloor))
+        }
+
         let transcript = Transcript(
             variant: .clean, segments: segments,
             provenance: Provenance(
                 engineID: verbatim.provenance.engineID,
                 silenceParameterHash: verbatim.provenance.silenceParameterHash,
                 chunkParameterHash: verbatim.provenance.chunkParameterHash,
-                concurrency: verbatim.provenance.concurrency))
+                concurrency: verbatim.provenance.concurrency),
+            notes: notes)
 
         return CleanResult(transcript: transcript, edits: edits)
     }

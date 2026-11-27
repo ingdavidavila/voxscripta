@@ -141,6 +141,32 @@ behaviour. Where the invariant can only be checked against something outside the
 text — here the audio — that check has to exist even when it costs an extra pass,
 because nothing inside the text can stand in for it.
 
+### 20. Do not store a marker on the thing its own condition destroys
+
+The wrong-language warning was appended to `segments[0].warnings`, because
+`warnings` was a segment field and nothing else existed. CLEAN then dropped
+that segment for scoring below its confidence floor and took the warning with
+it; on one recording it dropped every segment and returned an empty transcript
+with no warning at all, while the recognised speech sat in VERBATIM beside it.
+
+The part worth keeping is not the bug, it is why it was certain to happen.
+Decoding speech against the wrong language is *what produces* low confidence.
+The note was therefore pinned to precisely the segment that the condition it
+describes was most likely to remove — so the warning disappeared exactly when
+it was needed and survived whenever it did not matter. A test with ordinary
+confidences passes every time. The Windows session found it by running real
+mismatched audio, which is the only input where the two conditions coincide.
+
+**Ask what removes the carrier, and whether the same cause removes it.** A flag
+about a failure must not live inside the thing the failure damages: a note about
+the whole recording belongs on the transcript (`Transcript.notes`), not on a
+segment. Where a marker must share a lifetime with its subject, the test has to
+use an input that triggers both at once, because independent inputs will not.
+
+And the second half, which is a rule of its own shape: **a derived output must
+not become empty in silence.** CLEAN now refuses to hand back nothing when
+VERBATIM had something, and says which floor removed what.
+
 ---
 
 ## Platforms and builds
