@@ -620,7 +620,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get cleanFooter =>
-      'La depuración prepara el texto para el pulido usando solo reglas fijas. No interviene ningún modelo de lenguaje y cada cambio queda registrado.';
+      'La depuración prepara el texto para el pulido usando solo reglas fijas. No interviene ningún modelo de lenguaje y cada cambio queda registrado. Todo lo que se omita se indica encima de la transcripción y se conserva en la transcripción literal.';
 
   @override
   String get removeFillers => 'Quitar muletillas';
@@ -635,11 +635,11 @@ class AppLocalizationsEs extends AppLocalizations {
   String get collapseStuttersHelp => 'Convierte “el el el” en “el”.';
 
   @override
-  String get dropLowConfidence => 'Descartar palabras dudosas';
+  String get dropLowConfidence => 'Descartar pasajes dudosos';
 
   @override
   String get dropLowConfidenceHelp =>
-      'Elimina las palabras de las que el motor no estaba seguro.';
+      'Omite pasajes enteros de los que el motor no estaba seguro.';
 
   @override
   String get sectionStorage => 'Almacenamiento y privacidad';
