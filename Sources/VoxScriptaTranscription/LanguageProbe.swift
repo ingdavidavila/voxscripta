@@ -173,12 +173,18 @@ public enum LanguageProbe {
         // model load is 487 MB with ggml-small.
         var prepared = (try? await first.prepare(locale: candidates[0])) != nil
 
-        if prepared,
-           let native = try? await identify(sample, in: canonicalFile,
-                                            using: first, candidates: candidates),
-           native.locale != nil {
-            await first.release()
-            return native
+        // Kept past the `if` so the probe's own answer below can carry the
+        // head's numbers too. They are the evidence the mismatch check wants,
+        // and a `detect` that threw them away would make that check ask the
+        // same question of the same engine a second time.
+        var native: Outcome?
+        if prepared {
+            native = try? await identify(sample, in: canonicalFile,
+                                         using: first, candidates: candidates)
+            if let native, native.locale != nil {
+                await first.release()
+                return native
+            }
         }
 
         var scores: [Score] = []
@@ -227,7 +233,14 @@ public enum LanguageProbe {
         }
 
         if reusable { await first.release() }
-        return Outcome(locale: decide(scores), scores: scores)
+        // The head's own numbers travel with the probe's, even though the
+        // probe is what decided. The caller after this one checks the chosen
+        // locale against what the model heard, and a confident head answer in
+        // a language nobody offered is exactly the evidence it needs — dropped
+        // here, that caller would ask the engine a second time to learn what
+        // this function already knew.
+        return Outcome(locale: decide(scores), scores: scores,
+                       likelihoods: native?.likelihoods ?? [])
     }
 
     /// Asks the engine's own language identifier, if it has one.
@@ -256,10 +269,8 @@ public enum LanguageProbe {
             return Outcome(locale: nil, scores: [], method: .modelLanguageHead,
                            likelihoods: likelihoods)
         }
-        let language = top.locale.split(separator: "-").first.map(String.init)?.lowercased()
-        let chosen = candidates.first {
-            $0.split(separator: "-").first.map(String.init)?.lowercased() == language
-        }
+        let heard = Self.language(of: top.locale)
+        let chosen = candidates.first { Self.language(of: $0) == heard }
         // A confident answer in a language nobody asked about is not an answer
         // to the question, so it falls through rather than being forced.
         return Outcome(locale: chosen, scores: [], method: .modelLanguageHead,
@@ -305,5 +316,137 @@ public enum LanguageProbe {
         let startSample = start.samples(at: sampleRate)
         let count = target.samples(at: sampleRate)
         return SampleRange(start: Swift.max(0, startSample), count: Swift.max(0, count))
+    }
+
+    // MARK: - Checking a language the user chose
+
+    /// What asking the model's language head about a recording told us.
+    ///
+    /// Three states rather than a `Bool`, because "no warning" and "nobody
+    /// looked" are different claims and flattening them is how a blind spot
+    /// gets built. A caller that cannot tell them apart would report a
+    /// recording as checked when nothing checked it.
+    public enum MismatchCheck: Sendable, Equatable {
+        /// The head was confident, and it agrees with the locale asked for.
+        case matches
+        /// The head is confident the audio is this language instead, given as
+        /// a bare language code to match what the transcript note carries.
+        case mismatch(String)
+        /// Nothing conclusive: no head on this engine, too little speech to
+        /// sample, or an answer below ``minimumLanguageProbability``. The
+        /// absence of a warning says nothing about this recording.
+        case unchecked(reason: String)
+
+        /// True only for ``mismatch(_:)``. ``unchecked(reason:)`` is not a
+        /// pass: a caller that treats it as one reports a recording as
+        /// verified when nothing verified it.
+        public var isMismatch: Bool {
+            if case .mismatch = self { return true }
+            return false
+        }
+    }
+
+    /// Whether the recording sounds like a language other than the one asked
+    /// for.
+    ///
+    /// ## Why this exists next to `detect` rather than inside it
+    ///
+    /// `detect` answers "what language is this?", and it only runs when the
+    /// user turned detection on. With detection off nothing asked the model
+    /// anything — and off is the setting where the engine does its most
+    /// dangerous thing.
+    ///
+    /// Whisper's decoder is conditioned on a language token it is handed, not
+    /// one it heard. Asked for Spanish over English audio it does not fail and
+    /// does not fall silent: it writes fluent Spanish. `WhisperEngine` already
+    /// pins `params.translate = false`, and that guard is aimed at the wrong
+    /// mechanism — `translate` governs translation *to English* and has
+    /// nothing to say about the other direction. Confirmed on Windows and
+    /// Linux.
+    ///
+    /// What comes out is the worst thing this program can produce: a VERBATIM
+    /// transcript, reading fluently, of words nobody said in a language nobody
+    /// spoke. Nothing downstream can catch it. CLEAN and POLISH see internally
+    /// consistent Spanish, and the gauntlet compares a revision against that
+    /// text rather than against the audio. The only evidence is acoustic,
+    /// which is why this asks the language head instead of reading the
+    /// transcript the way ``LanguageDetection/diagnose(text:locale:speechDuration:)``
+    /// does — that function cannot see this case at all, because the text
+    /// really is in the language it was asked to check for.
+    ///
+    /// ## Why the same threshold as detection
+    ///
+    /// ``minimumLanguageProbability`` is reused deliberately rather than given
+    /// a second value to tune. The two paths then cannot disagree about what
+    /// the same evidence shows: at any probability that would have made
+    /// `detect` *switch* the whole job to Spanish, this warns that it looks
+    /// Spanish. Warning is the milder consequence of the identical reading, so
+    /// a threshold low enough to be trusted for the override is low enough to
+    /// be trusted for the note.
+    ///
+    /// ## What it cannot see
+    ///
+    /// `WhisperEngine.identifyLanguage` reports only the locales the app
+    /// ships, with each probability taken from whisper's own full-vocabulary
+    /// softmax rather than renormalised across those few. So Japanese audio
+    /// scores low for every shipping language and returns ``unchecked`` — the
+    /// user's own setting stands, and the transcript carries no claim that it
+    /// was verified. A language the app does not ship cannot be named by a
+    /// note whose other half is a language it does.
+    public static func check(
+        _ likelihoods: [LanguageLikelihood], requested: String
+    ) -> MismatchCheck {
+        guard let top = likelihoods.first else {
+            return .unchecked(reason: "no language head")
+        }
+        guard top.probability >= minimumLanguageProbability else {
+            return .unchecked(reason: String(format: "top %.2f below %.2f",
+                                             top.probability, minimumLanguageProbability))
+        }
+        guard let heard = language(of: top.locale), let asked = language(of: requested) else {
+            return .unchecked(reason: "unreadable locale")
+        }
+        return heard == asked ? .matches : .mismatch(heard)
+    }
+
+    /// Asks a prepared engine's language head about a sample of the recording.
+    ///
+    /// - Parameters:
+    ///   - engine: already prepared, and deliberately **not** released here.
+    ///     Passing in the job's own transcription engine is what keeps this
+    ///     check honest about its cost: one encoder pass over a twenty-second
+    ///     sample with no decoding, and not one extra model load. A `release`
+    ///     here would throw away weights the caller is about to transcribe
+    ///     with.
+    /// - Returns: ``MismatchCheck/unchecked(reason:)`` rather than a thrown
+    ///   error when the head cannot answer. A check that cannot run must not
+    ///   fail a job that can — but it must say so, which is what the reason is
+    ///   for and why the caller puts it in the progress line.
+    public static func check(
+        in canonicalFile: URL,
+        speech: [TimeRange],
+        requested: String,
+        sampleRate: Int = CanonicalFormat.sampleRate,
+        using engine: any TranscriptionEngine
+    ) async -> MismatchCheck {
+        guard let sample = sampleRange(from: speech, sampleRate: sampleRate) else {
+            return .unchecked(reason: "too little speech to sample")
+        }
+        do {
+            let likelihoods = try await engine.identifyLanguage(sample, in: canonicalFile)
+            return check(likelihoods, requested: requested)
+        } catch {
+            return .unchecked(reason: "language head failed")
+        }
+    }
+
+    /// The language part of a locale: `es-MX` -> `es`.
+    ///
+    /// Whisper identifies languages, not regions, so `es-ES` audio asked for
+    /// as `es-MX` is not a mismatch and must never warn. Factored out of the
+    /// two places in ``identify(_:in:using:candidates:)`` that were doing this
+    /// by hand, so the comparison has one definition.
+    static func language(of locale: String) -> String? {
+        locale.split(separator: "-").first.map { $0.lowercased() }
     }
 }

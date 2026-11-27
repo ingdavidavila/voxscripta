@@ -353,6 +353,12 @@ public struct JobRunner: Sendable {
         // reopened project keeps the locale it was built with, because the
         // locale is part of the content hash and re-detecting could silently
         // invalidate completed work.
+        //
+        // Whatever the model said about the language is kept past this block,
+        // because the check after transcription's engine is loaded needs it
+        // and asking the same engine the same question twice would cost a
+        // second encoder pass to learn the same thing.
+        var heard: [LanguageLikelihood] = []
         if options.transcription.detectLanguage, project.manifest.detectedLocale == nil {
             let candidates = await Self.probeCandidates(for: options.transcription.locale)
             if candidates.count > 1 {
@@ -363,6 +369,7 @@ public struct JobRunner: Sendable {
                     candidates: candidates,
                     options: options.transcription,
                     makeEngine: engineFactory)
+                heard = outcome.likelihoods
 
                 // The scores go into the progress line. A detection that
                 // picks the wrong language is worse than none, so what it saw
@@ -422,6 +429,43 @@ public struct JobRunner: Sendable {
         try await engine.prepare(locale: transcription.locale)
         for extra in extras {
             try await extra.prepare(locale: transcription.locale)
+        }
+
+        // ── Does the audio sound like the language we are about to claim? ───
+        //
+        // Asked on every job, not only when detection is on, because off is
+        // the setting that needs it. Whisper's decoder, conditioned on a
+        // language token it was handed rather than one it heard, does not fail
+        // on a mismatch — it writes fluent text in the language it was asked
+        // for. A VERBATIM transcript of words nobody said, reading perfectly.
+        // Nothing after this point can see it: CLEAN and POLISH get internally
+        // consistent prose, and the gauntlet checks a revision against that
+        // prose rather than against the audio. See LanguageProbe.check.
+        //
+        // Placed here rather than up in the language section for one reason:
+        // here the weights are already loaded for the transcription that
+        // follows, so the check costs one encoder pass and no model load. Up
+        // there it would have loaded a model early — on Apple's engine, where
+        // `identifyLanguage` returns empty and the check cannot answer at all,
+        // it could even have started a download to learn nothing.
+        let languageCheck: LanguageProbe.MismatchCheck
+        if heard.isEmpty {
+            languageCheck = await LanguageProbe.check(
+                in: package.canonicalAudioURL,
+                speech: silenceMap.speechRegions.map(\.range),
+                requested: transcription.locale,
+                using: engine)
+        } else {
+            // Detection already asked this engine's head about this sample.
+            languageCheck = LanguageProbe.check(heard, requested: transcription.locale)
+        }
+        if case .mismatch(let language) = languageCheck {
+            // Before the first chunk, so someone watching a four-hour job
+            // learns it at the start rather than at the end. The warning on
+            // the transcript is the record; this is the courtesy.
+            try await advance(project, .transcribing, progress, 0.12,
+                              "Audio sounds like \(language), transcribing as "
+                                  + transcription.locale)
         }
         defer {
             let releasing = [engine] + extras
@@ -506,6 +550,15 @@ public struct JobRunner: Sendable {
         // returns no words, and an empty transcript is otherwise
         // indistinguishable from success. This is the only place that
         // difference can still be seen.
+        // The acoustic verdict first, because it is the stronger evidence and
+        // because it is the only evidence in the case that matters. The text
+        // check below reads the transcript, so a fluent transcript in the
+        // wrong language looks right to it; this one listened to the audio.
+        if case .mismatch(let language) = languageCheck, !transcript.segments.isEmpty {
+            transcript.segments[0].warnings.append(
+                .languageLooksWrong(transcribedAs: transcription.locale, detected: language))
+        }
+
         if let finding = LanguageDetection.diagnose(
             text: transcript.plainText(),
             locale: transcription.locale,
@@ -524,7 +577,11 @@ public struct JobRunner: Sendable {
                         .fewWordsForSpeech(words: words, speechSeconds: Int(speechSeconds)))
                 }
             case .languageMismatch(let locale, let detected, _):
-                if !transcript.segments.isEmpty {
+                // Skipped when the acoustic check already said so, rather than
+                // carrying the same note twice. The two agree in this case; it
+                // is the case where only the acoustic one fires that this
+                // whole path exists for.
+                if !transcript.segments.isEmpty, languageCheck.isMismatch == false {
                     transcript.segments[0].warnings.append(
                         .languageLooksWrong(transcribedAs: locale, detected: detected))
                 }

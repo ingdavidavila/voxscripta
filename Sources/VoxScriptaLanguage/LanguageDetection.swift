@@ -38,10 +38,19 @@ public enum LanguageDetection {
         return (language.rawValue, confidence)
         #else
         // No recognizer off Apple's platforms, so this says it cannot tell
-        // rather than guessing. The consequence is specific and worth naming:
-        // ``diagnose`` can still catch a transcript with no words and one
-        // with far too few, but not a fluent transcript in the wrong
-        // language. That warning simply does not fire there.
+        // rather than guessing. The consequence used to be specific and bad:
+        // ``diagnose`` could still catch a transcript with no words and one
+        // with far too few, but not a fluent transcript in the wrong language
+        // — and that is the one whisper actually produces, because its decoder
+        // writes fluent text in whatever language it was handed.
+        //
+        // That hole is now covered from the other side. `LanguageProbe.check`
+        // asks the engine's own language head about the audio before
+        // transcription, so the evidence is acoustic rather than textual and
+        // does not need a recogniser here. Off Apple that check is the only
+        // one that can see this case; on Apple it is the reverse, because
+        // Apple's engine has no language head and this function does the work.
+        // Neither is a substitute for the other, which is why both exist.
         return nil
         #endif
     }

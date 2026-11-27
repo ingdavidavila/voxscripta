@@ -56,6 +56,23 @@ public actor MockTranscriptionEngine: TranscriptionEngine {
         behaviours[sequence] = behaviour
     }
 
+    /// What this engine's language head should answer.
+    ///
+    /// Empty by default, which is both what the protocol's own default returns
+    /// and what Apple's recogniser returns: "cannot tell", not "agrees". So
+    /// every test written before the mismatch check existed behaves exactly as
+    /// it did, and a test that wants the check to fire has to say so.
+    private var likelihoods: [LanguageLikelihood] = []
+
+    public func setLanguageLikelihoods(_ answer: [LanguageLikelihood]) {
+        likelihoods = answer
+    }
+
+    public func identifyLanguage(_ range: SampleRange,
+                                 in canonicalFile: URL) async throws -> [LanguageLikelihood] {
+        likelihoods
+    }
+
     public func capabilities() async -> EngineCapabilities {
         EngineCapabilities(supportsWordTimestamps: true, supportedLocales: ["en-US"])
     }
