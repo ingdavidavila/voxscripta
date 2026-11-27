@@ -46,6 +46,13 @@ CMAKE="${CMAKE:-$(find_cmake || true)}"
 }
 ABI="${1:-host}"
 OUT="$ROOT/build/engines/$ABI"
+# A second Windows build of the same libraries with the Vulkan GPU backend,
+# kept apart so the CPU one stays as it is. See Docs/WINDOWS.md.
+VULKAN="${VOXSCRIPTA_VULKAN:-0}"
+if [ "$VULKAN" = "1" ]; then
+    [ "$ABI" = "host" ] || { echo "VOXSCRIPTA_VULKAN=1 is for the host build only" >&2; exit 1; }
+    OUT="$ROOT/build/engines/host-vulkan"
+fi
 PREFIX="$OUT/prefix"
 
 for src in "$WHISPER_SRC" "$LLAMA_SRC"; do
@@ -63,6 +70,14 @@ common_flags() {
     echo "-DBUILD_SHARED_LIBS=OFF"
     echo "-DCMAKE_POSITION_INDEPENDENT_CODE=ON"
     echo "-DCMAKE_INSTALL_PREFIX=$PREFIX"
+    if [ "$VULKAN" = "1" ]; then
+        echo "-DGGML_VULKAN=ON"
+        # CMake finds these through VULKAN_SDK. Without the SDK they can be
+        # named one at a time; whisper.cpp needs them too, through ggml.
+        [ -z "${Vulkan_INCLUDE_DIR:-}" ] || echo "-DVulkan_INCLUDE_DIR=$Vulkan_INCLUDE_DIR"
+        [ -z "${Vulkan_LIBRARY:-}" ] || echo "-DVulkan_LIBRARY=$Vulkan_LIBRARY"
+        [ -z "${Vulkan_GLSLC_EXECUTABLE:-}" ] || echo "-DVulkan_GLSLC_EXECUTABLE=$Vulkan_GLSLC_EXECUTABLE"
+    fi
     if [ "$ABI" = "linux-musl" ]; then
         # The same clang and sysroot SwiftPM uses for this triple. The C and
         # the Swift that calls it have to agree about libc and the C++ ABI,

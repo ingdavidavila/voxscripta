@@ -53,28 +53,22 @@ class VoxScriptaEngine {
   /// an ordering requirement that the API cannot express is one every caller
   /// gets to discover separately.
   ///
-  /// Throws [VoxScriptaException] if the library will not load, announces an
-  /// ABI this package does not speak, or refuses the data directory.
+  /// With no [libraryPath], each of [libraryCandidates] is tried in order and
+  /// the first that loads and speaks this ABI is used. On Windows that is how
+  /// a machine without Vulkan ends up on the CPU engine.
+  ///
+  /// Throws [VoxScriptaException] if no library will load or speaks an ABI
+  /// this package does, or if it refuses the data directory.
   factory VoxScriptaEngine.open({
     String? libraryPath,
+    List<String>? libraryCandidates,
     String? dataDirectory,
     Duration pollInterval = defaultPollInterval,
   }) {
-    final path = libraryPath ?? defaultLibraryName;
-    final DynamicLibrary library;
-    try {
-      library = DynamicLibrary.open(path);
-    } on Object catch (error) {
-      throw VoxScriptaException('could not load the engine at $path: $error');
-    }
-
-    final bindings = VoxScriptaBindings(library);
-    final version = bindings.abiVersion();
-    if (version != supportedAbiVersion) {
-      throw VoxScriptaException(
-        'engine speaks ABI $version, this package speaks $supportedAbiVersion',
-      );
-    }
+    final candidates = libraryPath != null
+        ? [libraryPath]
+        : libraryCandidates ?? defaultLibraryCandidates;
+    final (path, bindings) = _load(candidates);
     if (dataDirectory != null) {
       final directory = dataDirectory.toNativeUtf8();
       try {
@@ -87,6 +81,38 @@ class VoxScriptaEngine {
     }
     return VoxScriptaEngine._(bindings, path, pollInterval);
   }
+
+  /// The first of [candidates] that loads and speaks this ABI.
+  ///
+  /// The failure reported is the last one's: the last candidate is the engine
+  /// every machine is expected to run, so its reason is the one that matters.
+  static (String, VoxScriptaBindings) _load(List<String> candidates) {
+    var failure = VoxScriptaException('no engine library was named');
+    for (final path in candidates) {
+      try {
+        final bindings = VoxScriptaBindings(DynamicLibrary.open(path));
+        final version = bindings.abiVersion();
+        if (version == supportedAbiVersion) return (path, bindings);
+        failure = VoxScriptaException(
+          'engine speaks ABI $version, this package speaks $supportedAbiVersion',
+        );
+      } on Object catch (error) {
+        failure = VoxScriptaException('could not load the engine at $path: $error');
+      }
+    }
+    throw failure;
+  }
+
+  /// The libraries to try, best first, when the caller names none.
+  ///
+  /// Windows has a second build that runs on a GPU through Vulkan. It cannot
+  /// load without vulkan-1.dll, and need not have been shipped at all, so the
+  /// CPU engine follows it. With Vulkan but no usable GPU it does load, and
+  /// the engine itself falls back to the CPU.
+  static List<String> get defaultLibraryCandidates => [
+        if (Platform.isWindows) 'VoxScriptaFFI-vulkan.dll',
+        defaultLibraryName,
+      ];
 
   /// What the library is called on each platform.
   ///
