@@ -272,6 +272,38 @@ Three ways this has happened here, all in one week:
 unenforcing check is worse than none, because its existence is mistaken for
 coverage.
 
+### 21. A gate covers what it is handed, not what ships
+
+`check-release-binary.sh` refuses a library carrying the debug-only
+`VOXSCRIPTA_ENTITLEMENT` marker, and it works. It had already passed on five
+real artifacts across three platforms. Meanwhile `Tools/stage-windows.sh` was
+staging two DLLs — a CPU engine and a Vulkan one — from `Debug-windows-x86_64`,
+calling the gate on neither, and the app loads the GPU one *first*. So a Windows
+bundle's primary engine carried the override, with a working gate in the
+repository and a staging script that never pointed it at anything.
+
+The gate was not wrong. Its coverage was a different claim from its correctness,
+and only one of the two was ever checked. **"The staging script calls the gate"
+and "the gate covers what ships" are separate statements, and the second needs
+its own evidence.** Where something picks one artifact over another at runtime,
+check the preferred one first: an unchecked fallback is a smaller problem than
+an unchecked default, and here the unchecked one was the default.
+
+The second half is about how it survived review. The branch that added the
+Vulkan path was merged after a review that opened two of the six files in its
+own diffstat — the ABI pin, because a bump had just landed, and the build script,
+because another session had work in it. Both questions were answered correctly.
+`Tools/stage-windows.sh | 12 +++++` was printed on screen and never opened, and
+the merge commit then said the branch had been "verified before merging rather
+than trusted because it was old", which was true of the two files read and false
+as a description of the review. **Reading a diff to answer a question is not
+reviewing the diff, and a commit message must describe the review that happened
+rather than the one intended.** The first error cost a defect; the second would
+have stopped anyone else looking for it.
+
+Neither session gets to be the one who found it cleanly: the CPU path was
+already taking from `Debug` before the Vulkan path was added beside it.
+
 ---
 
 ## Working together
