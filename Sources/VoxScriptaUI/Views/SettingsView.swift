@@ -125,7 +125,7 @@ public struct SettingsView: View {
             .tabItem { Label(Strings.settingsTranscription, systemImage: "text.bubble") }
 
             Form {
-                Section(Strings.clean) {
+                Section(Strings.tidying) {
                     Toggle(Strings.removeFillers, isOn: $model.settings.removeFillers)
                         .help(Strings.removeFillersHelp)
                     Toggle(Strings.collapseStutters, isOn: $model.settings.collapseRepetitions)

@@ -19,6 +19,14 @@ struct TranscriptWorkspace: View {
             picker
             Divider()
 
+            // Above the transcript, not inside it. Every warning that matters
+            // most — the wrong language, most of the speech missing — belongs
+            // to the whole recording and has no position in it, so a reader
+            // scrolling for a mark would never find one.
+            if let transcript = model.currentTranscript {
+                WarningBanner(warnings: WarningSummary.aggregate(transcript))
+            }
+
             // A draggable split is a pointer idea. On a phone the review
             // panel takes the whole screen instead of a sliver of it.
             #if os(macOS)

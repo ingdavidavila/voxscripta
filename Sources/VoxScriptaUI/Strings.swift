@@ -192,7 +192,7 @@ enum Strings {
         """
     static let saveEveryVariant: LocalizedStringKey = "Save Every Variant…"
     static let saveEveryVariantHelp: LocalizedStringKey = """
-        Write the verbatim, clean and polished transcripts to one folder.
+        Write the verbatim and polished transcripts to one folder.
         """
     static let silenceRemovedAudio: LocalizedStringKey = "Audio with Silence Removed…"
     static let silenceRemovedAudioHelp: LocalizedStringKey = """
@@ -345,8 +345,8 @@ enum Strings {
     static var removeFillers: LocalizedStringKey { "Remove filler sounds" }
     static var removeFillersHelp: LocalizedStringKey {
         """
-        Drop “um”, “uh”, “you know” and the like from the clean transcript. The \
-        verbatim one keeps them.
+        Drop “um”, “uh”, “you know” and the like while tidying. The verbatim \
+        transcript keeps them.
         """
     }
     static var collapseStutters: LocalizedStringKey { "Collapse stutters" }
@@ -364,11 +364,13 @@ enum Strings {
         the verbatim transcript and is listed in the edit log.
         """
     }
+    static var tidying: LocalizedStringKey { "Tidying" }
     static var cleanFooter: LocalizedStringKey {
         """
-        Clean uses fixed rules. No language model is involved: it deletes \
+        Tidying uses fixed rules. No language model is involved: it deletes \
         filler words and sentences the engine was unsure of, and never \
-        rewrites what was said.
+        rewrites what was said. Anything it leaves out is noted above the \
+        transcript and kept in the verbatim one.
         """
     }
     static var createPolished: LocalizedStringKey { "Create a polished transcript" }
@@ -644,4 +646,104 @@ enum Strings {
     static func trialDaysLeft(_ days: Int) -> LocalizedStringKey {
         "\(days) days left in your free trial."
     }
+
+    // MARK: - What the pipeline noticed
+    //
+    // One sentence per `SegmentWarning.code`, and the Flutter catalogue carries
+    // the same nine so a banner reads identically on all five platforms. The
+    // engine sends a code and values and never wording: `String(localized:)`
+    // is absent off Apple and this project shims it to identity *after*
+    // interpolation, which destroys the lookup key, so engine-side translation
+    // cannot work (see the commit that introduced ErrorCode).
+    //
+    // Neither tidying sentence names “Clean”. It is no longer a version anyone
+    // sees, so naming it would point at something that is not there.
+
+    static func warnLanguageLooksWrong(_ heard: String,
+                                       _ transcribedAs: String) -> LocalizedStringKey {
+        """
+        This recording sounds like \(heard), but it was transcribed as \
+        \(transcribedAs). The text may not be what was said.
+        """
+    }
+
+    static func warnFewWordsForSpeech(_ words: Int, _ seconds: Int) -> LocalizedStringKey {
+        """
+        Only \(words) words were recognised in \(seconds) seconds of speech. Most \
+        of this recording did not come through.
+        """
+    }
+
+    static var warnTranscriptionGap: LocalizedStringKey {
+        "Part of this recording could not be transcribed."
+    }
+
+    // Singular and plural written out rather than inflected.
+    //
+    // There is no .stringsdict in this project and the localization gate knows
+    // nothing about one, so an ICU-style plural would be a new mechanism to add
+    // and a new thing for the gate to miss. Two explicit forms are correct in
+    // English and in Spanish, which both distinguish only one from other, and
+    // they are the same two forms the Flutter catalogue needs for its ICU
+    // plural. "1 passages were left out" was the Windows session's catch.
+    static func warnRemovedLowConfidence(_ segments: Int) -> LocalizedStringKey {
+        segments == 1
+            ? """
+              One passage was left out because it was not recognised clearly \
+              enough. It is kept in the verbatim transcript.
+              """
+            : """
+              \(segments) passages were left out because they were not \
+              recognised clearly enough. They are kept in the verbatim transcript.
+              """
+    }
+
+    static var warnKeptAllBelowFloor: LocalizedStringKey {
+        """
+        Nothing in this recording was recognised clearly. The text is included \
+        as it was heard.
+        """
+    }
+
+    // "changed their meaning" overstated it, as the Windows session said, and
+    // reading the code it was worse than they thought: the warning fires on
+    // `.fellBackToClean` *or* `.modelFailed`, so the rewrite may have failed any
+    // of the gauntlet's nine checks or the model may simply not have answered.
+    // Only two of those checks are about meaning. The review panel has the
+    // specific reason; a banner should not guess at it.
+    static func warnPolishFellBack(_ sentences: Int) -> LocalizedStringKey {
+        sentences == 1
+            ? """
+              One sentence was left as it was, because the suggested rewrite was \
+              not accepted.
+              """
+            : """
+              \(sentences) sentences were left as they were, because the \
+              suggested rewrites were not accepted.
+              """
+    }
+
+    static var warnMergeAmbiguity: LocalizedStringKey {
+        "Two parts of the recording overlapped and the join is approximate."
+    }
+
+    static func warnLowConfidence(_ passages: Int, _ lowest: String) -> LocalizedStringKey {
+        passages == 1
+            ? "One passage was not recognised clearly. It scored \(lowest)."
+            : """
+              \(passages) passages were not recognised clearly. The least clear \
+              scored \(lowest).
+              """
+    }
+
+    static var warnPolishRetried: LocalizedStringKey {
+        "Some sentences needed a second attempt before they were accepted."
+    }
+
+    static var warningsTitle: LocalizedStringKey { "About this transcript" }
+    static func warningsMore(_ count: Int) -> LocalizedStringKey {
+        "\(count) more"
+    }
+    static var warningsShowAll: LocalizedStringKey { "Show everything noticed" }
+    static var warningsHide: LocalizedStringKey { "Hide" }
 }

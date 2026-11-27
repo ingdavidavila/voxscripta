@@ -493,17 +493,28 @@ public final class AppModel {
         polishReport = (try? AtomicFile.readJSON([PolishedSentence].self,
                                                  from: package.polishReportURL)) ?? []
         polishSkipReason = try? String(contentsOf: package.polishSkippedURL, encoding: .utf8)
-        if transcripts[selectedVariant] == nil {
-            selectedVariant = transcripts[.clean] != nil ? .clean : .verbatim
+        // POLISHED where it exists, else VERBATIM. Never CLEAN, which is no
+        // longer offered — and `selectedVariant` must be re-pointed even when
+        // the stored selection still has a transcript, because a project
+        // opened from a build that offered CLEAN would otherwise show a
+        // variant with no tab to leave it by.
+        if transcripts[selectedVariant] == nil || !selectedVariant.isOfferedToReaders {
+            selectedVariant = transcripts[.polished] != nil ? .polished : .verbatim
         }
     }
 
     /// The transcript currently on screen.
     var currentTranscript: Transcript? { transcripts[selectedVariant] }
 
-    /// Variants that actually exist for the open project.
+    /// Variants that actually exist for the open project *and* are offered to
+    /// a reader.
+    ///
+    /// CLEAN is loaded, exported nowhere and never shown: it is a pipeline
+    /// stage that POLISH is built from, not a version anyone picks. The rule
+    /// itself is `TranscriptVariant.isOfferedToReaders`, in the engine, so this
+    /// interface and the Flutter one cannot disagree about what exists.
     var availableVariants: [TranscriptVariant] {
-        TranscriptVariant.allCases.filter { transcripts[$0] != nil }
+        TranscriptVariant.offeredToReaders.filter { transcripts[$0] != nil }
     }
 
     /// Sentences whose polish was rejected, for the validation panel.
@@ -907,7 +918,7 @@ public final class AppModel {
         options.includeTimestamps = exportIncludesTimestamps
 
         do {
-            for (variant, transcript) in transcripts {
+            for (variant, transcript) in transcripts where variant.isOfferedToReaders {
                 for format in Exporters.available(for: transcript) {
                     let exporter = Exporters.make(format)
                     let url = directory.appending(

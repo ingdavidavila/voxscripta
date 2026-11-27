@@ -41,7 +41,6 @@ struct AppSettings: Codable, Sendable, Equatable {
     var polishBackend: PolishBackendPreference = .automatic
 
     // Output and storage
-    var defaultVariant: TranscriptVariant = .clean
     var copyOriginalIntoProject: Bool = false
     /// Keep scratch audio after a job finishes.
     ///

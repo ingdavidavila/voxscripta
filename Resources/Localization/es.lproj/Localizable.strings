@@ -744,3 +744,74 @@
  * lastDayOfTrial instead, so this never has to read "1 días". */
 /* trialDaysLeft */
 "%lld days left in your free trial." = "Quedan %lld días de tu prueba gratuita.";
+
+/* ── What the pipeline noticed ──────────────────────────────────────────
+ *
+ * Positional specifiers (%1$@, %2$@) wherever a sentence carries more than
+ * one value: Spanish does not always keep the English order, and an
+ * unnumbered second %@ would silently take the first argument.
+ *
+ * The singular and plural forms are separate entries because they are
+ * separate keys in Strings.swift. Spanish distinguishes only one from other,
+ * the same two forms English needs, so nothing is lost by writing both out.
+ */
+
+/* saveEveryVariantHelp */
+"Write the verbatim and polished transcripts to one folder." = "Guarda las transcripciones literal y pulida en una sola carpeta.";
+
+/* removeFillersHelp */
+"Drop “um”, “uh”, “you know” and the like while tidying. The verbatim transcript keeps them." = "Elimina “em”, “eh”, “o sea” y similares al depurar. La transcripción literal los conserva.";
+
+/* tidying */
+"Tidying" = "Depuración";
+
+/* cleanFooter */
+"Tidying uses fixed rules. No language model is involved: it deletes filler words and sentences the engine was unsure of, and never rewrites what was said. Anything it leaves out is noted above the transcript and kept in the verbatim one." = "La depuración usa reglas fijas. No interviene ningún modelo de lenguaje: elimina muletillas y frases de las que el motor no estaba seguro, y nunca reescribe lo que se dijo. Todo lo que omite se indica sobre la transcripción y se conserva en la literal.";
+
+/* warnLanguageLooksWrong */
+"This recording sounds like %@, but it was transcribed as %@. The text may not be what was said." = "Esta grabación suena en %1$@, pero se transcribió como %2$@. Puede que el texto no sea lo que se dijo.";
+
+/* warnFewWordsForSpeech */
+"Only %lld words were recognised in %lld seconds of speech. Most of this recording did not come through." = "Solo se reconocieron %1$lld palabras en %2$lld segundos de habla. La mayor parte de esta grabación no se recogió.";
+
+/* warnTranscriptionGap */
+"Part of this recording could not be transcribed." = "No se pudo transcribir una parte de esta grabación.";
+
+/* warnRemovedLowConfidence (singular) */
+"One passage was left out because it was not recognised clearly enough. It is kept in the verbatim transcript." = "Se omitió un pasaje porque no se reconoció con suficiente claridad. Se conserva en la transcripción literal.";
+
+/* warnRemovedLowConfidence (plural) */
+"%lld passages were left out because they were not recognised clearly enough. They are kept in the verbatim transcript." = "Se omitieron %lld pasajes porque no se reconocieron con suficiente claridad. Se conservan en la transcripción literal.";
+
+/* warnKeptAllBelowFloor */
+"Nothing in this recording was recognised clearly. The text is included as it was heard." = "Nada de esta grabación se reconoció con claridad. El texto se incluye tal como se oyó.";
+
+/* warnPolishFellBack (singular) */
+"One sentence was left as it was, because the suggested rewrite was not accepted." = "Una frase se dejó como estaba, porque no se aceptó la reescritura propuesta.";
+
+/* warnPolishFellBack (plural) */
+"%lld sentences were left as they were, because the suggested rewrites were not accepted." = "%lld frases se dejaron como estaban, porque no se aceptaron las reescrituras propuestas.";
+
+/* warnMergeAmbiguity */
+"Two parts of the recording overlapped and the join is approximate." = "Dos partes de la grabación se solapaban y la unión es aproximada.";
+
+/* warnLowConfidence (plural) */
+"%lld passages were not recognised clearly. The least clear scored %@." = "%1$lld pasajes no se reconocieron con claridad. El menos claro obtuvo %2$@.";
+
+/* warnLowConfidence (singular) */
+"One passage was not recognised clearly. It scored %@." = "Un pasaje no se reconoció con claridad. Obtuvo %@.";
+
+/* warnPolishRetried */
+"Some sentences needed a second attempt before they were accepted." = "Algunas frases necesitaron un segundo intento antes de aceptarse.";
+
+/* warningsTitle */
+"About this transcript" = "Sobre esta transcripción";
+
+/* warningsMore */
+"%lld more" = "%lld más";
+
+/* warningsShowAll */
+"Show everything noticed" = "Mostrar todo lo detectado";
+
+/* warningsHide */
+"Hide" = "Ocultar";
