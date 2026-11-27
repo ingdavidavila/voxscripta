@@ -12,7 +12,12 @@ import 'settings_model.dart';
 /// inventing either the names or the numbers would be inventing a second
 /// engine.
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key, required this.model, this.accountSection});
+  const SettingsScreen({
+    super.key,
+    required this.model,
+    this.accountSection,
+    this.onReportProblem,
+  });
 
   final SettingsModel model;
 
@@ -20,6 +25,9 @@ class SettingsScreen extends StatefulWidget {
   /// outside so that settings stays a view of the engine's configuration and
   /// knows nothing about sign-in.
   final Widget? accountSection;
+
+  /// Opens a report about this installation. Null hides the row.
+  final VoidCallback? onReportProblem;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -78,6 +86,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
       padding: const EdgeInsets.symmetric(vertical: 8),
       children: [
         ? widget.accountSection,
+        if (widget.onReportProblem case final report?)
+          ListTile(
+            leading: const Icon(Icons.bug_report_outlined),
+            title: Text(context.l10n.reportProblem),
+            subtitle: Text(context.l10n.reportProblemHelp),
+            onTap: report,
+          ),
         _Section(title: context.l10n.sectionSilence, children: [
           _Slider(
             label: context.l10n.silenceThreshold,
@@ -159,7 +174,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
         ),
         _Section(
-          title: context.l10n.variantClean,
+          title: context.l10n.sectionTidying,
           footer: context.l10n.cleanFooter,
           children: [
             _Switch(
@@ -321,20 +336,46 @@ class _Section extends StatelessWidget {
 /// subtitle where there is not — because a tooltip a finger cannot summon is
 /// the same as no explanation at all.
 class _Row extends StatelessWidget {
-  const _Row({required this.label, required this.help, required this.control});
+  const _Row({
+    required this.label,
+    required this.help,
+    required this.control,
+    this.isWide = false,
+  });
+
+  /// Below this a wide control goes under its label: beside it, on a phone,
+  /// the label is squeezed to a column that breaks words in half.
+  static const double stackBelow = 600;
 
   final String label;
   final String? help;
   final Widget control;
 
+  /// A slider or a menu of names, which needs room of its own.
+  final bool isWide;
+
   @override
   Widget build(BuildContext context) {
     final showsHelpInline = !PlatformTraits.hasPointer && help != null;
-    final tile = ListTile(
-      title: Text(label),
-      subtitle: showsHelpInline ? Text(help!) : null,
-      trailing: control,
-    );
+    final tile = LayoutBuilder(builder: (context, constraints) {
+      final stacked = isWide && constraints.maxWidth < stackBelow;
+      final heading = ListTile(
+        title: Text(label),
+        subtitle: showsHelpInline ? Text(help!) : null,
+        trailing: stacked ? null : control,
+      );
+      if (!stacked) return heading;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          heading,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: control,
+          ),
+        ],
+      );
+    });
     if (help == null || showsHelpInline) return tile;
     return Tooltip(
       message: help!,
@@ -371,6 +412,7 @@ class _Slider extends StatelessWidget {
     return _Row(
       label: label,
       help: help,
+      isWide: true,
       control: SizedBox(
         width: 260,
         child: Row(
@@ -486,7 +528,11 @@ class _Dropdown extends StatelessWidget {
   Widget build(BuildContext context) => _Row(
         label: label,
         help: help,
-        control: DropdownButton<String>(
+        isWide: true,
+        control: SizedBox(
+          width: 260,
+          child: DropdownButton<String>(
+          isExpanded: true,
           value: items.containsKey(value) ? value : items.keys.first,
           underline: const SizedBox.shrink(),
           items: [
@@ -495,7 +541,7 @@ class _Dropdown extends StatelessWidget {
           ],
           onChanged:
               onChanged == null ? null : (v) => v == null ? null : onChanged!(v),
-        ),
+        )),
       );
 }
 
@@ -517,7 +563,11 @@ class _LocalePicker extends StatelessWidget {
     return _Row(
       label: context.l10n.settingsLanguage,
       help: context.l10n.settingsLanguageHelp,
-      control: DropdownButton<String>(
+      isWide: true,
+      control: SizedBox(
+        width: 260,
+        child: DropdownButton<String>(
+        isExpanded: true,
         value: model.capabilities?.forIdentifier(model.locale) == null
             ? locales.first.identifier
             : model.locale,
@@ -530,7 +580,7 @@ class _LocalePicker extends StatelessWidget {
             ),
         ],
         onChanged: (value) => value == null ? null : model.set('locale', value),
-      ),
+      )),
     );
   }
 }

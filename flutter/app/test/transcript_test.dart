@@ -43,7 +43,7 @@ void main() {
     WidgetTester tester, {
     required ProjectSummary summary,
     Map<TranscriptVariant, String> texts = const {},
-    TranscriptVariant preferred = TranscriptVariant.clean,
+    TranscriptVariant preferred = TranscriptVariant.polished,
   }) async {
     final model = TranscriptModel(
       source: _StubSource(summary: summary, texts: texts),
@@ -59,12 +59,22 @@ void main() {
   testWidgets('shows the preferred variant and its counts', (tester) async {
     await show(tester,
         summary: summaryWith(),
-        texts: {TranscriptVariant.clean: 'The harbour was quiet that morning.'});
+        texts: {TranscriptVariant.polished: 'The harbour was quiet that morning.'});
 
     expect(find.text('The harbour was quiet that morning.'), findsOne);
     expect(find.text('120 words · 8 segments'), findsOne);
-    expect(find.text('Clean'), findsOne);
+    expect(find.text('Verbatim'), findsOne);
     expect(find.text('Polished'), findsOne);
+  });
+
+  testWidgets('the clean step is never offered as a version', (tester) async {
+    // The engine writes it on the way to the polished text; nobody reads it.
+    final model = await show(tester,
+        summary: summaryWith(), preferred: TranscriptVariant.clean);
+    expect(find.text('Clean'), findsNothing);
+    expect(model.availableVariants,
+        [TranscriptVariant.verbatim, TranscriptVariant.polished]);
+    expect(model.selected, isNot(TranscriptVariant.clean));
   });
 
   testWidgets('only offers transcripts that exist', (tester) async {
@@ -77,7 +87,7 @@ void main() {
         ]));
 
     expect(find.text('Verbatim'), findsOne);
-    expect(find.text('Clean'), findsOne);
+    expect(find.text('Clean'), findsNothing);
     expect(find.text('Polished'), findsNothing);
   });
 
@@ -107,7 +117,7 @@ void main() {
 
   testWidgets('switching variant loads that text', (tester) async {
     await show(tester, summary: summaryWith(), texts: {
-      TranscriptVariant.clean: 'Tidied by rules.',
+      TranscriptVariant.polished: 'Tidied by rules.',
       TranscriptVariant.verbatim: 'Um, tidied, uh, by rules.',
     });
     expect(find.text('Tidied by rules.'), findsOne);
@@ -168,7 +178,7 @@ void main() {
     model.toggleReview();
     await tester.pumpAndSettle();
 
-    expect(find.text('Kept the clean text'), findsAtLeast(1));
+    expect(find.text('Kept the text as it was'), findsAtLeast(1));
     expect(find.text('we did not ship on Friday'), findsOne);
     expect(find.text('we shipped on Friday'), findsOne);
     expect(find.text('• polarity reversed'), findsOne);

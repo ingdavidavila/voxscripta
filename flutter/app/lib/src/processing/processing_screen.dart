@@ -14,13 +14,21 @@ import 'waveform_painter.dart';
 /// something real on screen during the longest phase, and the phase list shows
 /// *where* the work is rather than only how far along it is.
 class ProcessingScreen extends StatefulWidget {
-  const ProcessingScreen({super.key, required this.model, this.onFinished});
+  const ProcessingScreen({
+    super.key,
+    required this.model,
+    this.onFinished,
+    this.onReportProblem,
+  });
 
   final ProcessingModel model;
 
   /// Called once the job reaches a terminal state, so the shell can move on to
   /// the transcript. Null leaves the screen showing the outcome.
   final void Function(BuildContext, JobProgress)? onFinished;
+
+  /// Opens a report about this project, offered once something has failed.
+  final void Function(BuildContext)? onReportProblem;
 
   @override
   State<ProcessingScreen> createState() => _ProcessingScreenState();
@@ -113,6 +121,20 @@ class _ProcessingScreenState extends State<ProcessingScreen> {
                     fallback: message),
               ),
             ],
+          ],
+          if (widget.onReportProblem case final report?
+              when model.modelProblem != null ||
+                  model.startFailure != null ||
+                  progress.failure != null) ...[
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                icon: const Icon(Icons.bug_report_outlined),
+                label: Text(context.l10n.reportProblem),
+                onPressed: () => report(context),
+              ),
+            ),
           ],
         ],
       ),

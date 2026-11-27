@@ -19,6 +19,7 @@ import 'src/paywall/entitlement_model.dart';
 import 'src/paywall/paywall_screen.dart';
 import 'src/paywall/subscription_service.dart';
 import 'src/paywall/trial_banner.dart';
+import 'src/report/report_screen.dart';
 import 'src/processing/processing_model.dart';
 import 'src/processing/processing_screen.dart';
 import 'src/recording/recording_model.dart';
@@ -218,6 +219,7 @@ class _VoxScriptaAppState extends State<VoxScriptaApp> {
             builder: (_) => SettingsScreen(
               model: SettingsModel.of(engine),
               accountSection: _accountSection(),
+              onReportProblem: () => _openReport(context, engine),
             ),
           ),
         ),
@@ -235,6 +237,8 @@ class _VoxScriptaAppState extends State<VoxScriptaApp> {
               onRun: (context) => Navigator.of(context).pushReplacement(
                 MaterialPageRoute<void>(
                   builder: (_) => ProcessingScreen(
+                    onReportProblem: (context) => _openReport(context, engine,
+                        projectPath: project.path),
                     model: ProcessingModel.of(
                       engine,
                       projectPath: project.path,
@@ -297,6 +301,19 @@ class _VoxScriptaAppState extends State<VoxScriptaApp> {
 /// One path for both ways audio arrives — a file the user chose and one they
 /// just recorded — which is the point: nothing downstream knows the
 /// difference, and neither does this.
+Future<void> _openReport(
+  BuildContext context,
+  VoxScriptaEngine engine, {
+  String projectPath = '',
+}) =>
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ReportScreen(
+          report: engine.diagnosticsReport(projectPath: projectPath),
+        ),
+      ),
+    );
+
 Future<void> _startJob(
   BuildContext context,
   VoxScriptaEngine engine, {
@@ -306,6 +323,8 @@ Future<void> _startJob(
 }) {
   final route = MaterialPageRoute<void>(
     builder: (_) => ProcessingScreen(
+      onReportProblem: (context) => _openReport(context, engine,
+          projectPath: _projectPathFor(engine, audioPath)),
       model: ProcessingModel.of(
         engine,
         projectPath: _projectPathFor(engine, audioPath),
