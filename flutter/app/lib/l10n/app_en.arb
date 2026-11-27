@@ -658,5 +658,15 @@
   },
   "passwordRuleUppercase": "One capital letter",
   "passwordRuleNumber": "One number",
-  "passwordRuleSpecial": "One symbol, such as ! ? # or &"
+  "passwordRuleSpecial": "One symbol, such as ! ? # or &",
+  "reportProblem": "Report a problem",
+  "reportProblemHelp": "See what a report would say before you send it.",
+  "reportExplain": "Nothing has been sent. This app cannot send anything. Read the report, then share it however you like, or not at all. It holds no transcript, audio or file paths.",
+  "reportShare": "Share…",
+  "reportSave": "Save…",
+  "reportCopy": "Copy",
+  "reportCopied": "Copied the report.",
+  "reportSubject": "Vox Scripta problem report",
+  "reportShareFailed": "No app could take the report. Copy it instead.",
+  "reportUnavailable": "The report could not be made."
 }

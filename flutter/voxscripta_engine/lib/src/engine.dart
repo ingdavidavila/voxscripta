@@ -99,6 +99,12 @@ class VoxScriptaEngine {
     return 'libVoxScriptaFFI.so';
   }
 
+  /// A plain-text report for the person to read and send, or not. The engine
+  /// keeps transcripts and paths out of it. Empty [projectPath] reports on the
+  /// installation alone. Null when the engine could not produce one.
+  String? diagnosticsReport({String projectPath = ''}) =>
+      _bindings.diagnosticsReport(projectPath: projectPath);
+
   /// The ABI the loaded library announces.
   int get abiVersion => _bindings.abiVersion();
 

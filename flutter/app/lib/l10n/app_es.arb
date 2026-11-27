@@ -269,5 +269,15 @@
   "passwordRuleLength": "Al menos {minimum} caracteres",
   "passwordRuleUppercase": "Una letra mayúscula",
   "passwordRuleNumber": "Un número",
-  "passwordRuleSpecial": "Un símbolo, como ! ? # o &"
+  "passwordRuleSpecial": "Un símbolo, como ! ? # o &",
+  "reportProblem": "Informar de un problema",
+  "reportProblemHelp": "Mira qué diría un informe antes de enviarlo.",
+  "reportExplain": "No se ha enviado nada. Esta aplicación no puede enviar nada. Lee el informe y compártelo como quieras, o no lo compartas. No contiene transcripciones, audio ni rutas de archivos.",
+  "reportShare": "Compartir…",
+  "reportSave": "Guardar…",
+  "reportCopy": "Copiar",
+  "reportCopied": "Se copió el informe.",
+  "reportSubject": "Informe de un problema de Vox Scripta",
+  "reportShareFailed": "Ninguna aplicación pudo recibir el informe. Cópialo.",
+  "reportUnavailable": "No se pudo crear el informe."
 }

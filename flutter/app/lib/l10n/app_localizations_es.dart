@@ -1004,4 +1004,37 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get passwordRuleSpecial => 'Un símbolo, como ! ? # o &';
+
+  @override
+  String get reportProblem => 'Informar de un problema';
+
+  @override
+  String get reportProblemHelp =>
+      'Mira qué diría un informe antes de enviarlo.';
+
+  @override
+  String get reportExplain =>
+      'No se ha enviado nada. Esta aplicación no puede enviar nada. Lee el informe y compártelo como quieras, o no lo compartas. No contiene transcripciones, audio ni rutas de archivos.';
+
+  @override
+  String get reportShare => 'Compartir…';
+
+  @override
+  String get reportSave => 'Guardar…';
+
+  @override
+  String get reportCopy => 'Copiar';
+
+  @override
+  String get reportCopied => 'Se copió el informe.';
+
+  @override
+  String get reportSubject => 'Informe de un problema de Vox Scripta';
+
+  @override
+  String get reportShareFailed =>
+      'Ninguna aplicación pudo recibir el informe. Cópialo.';
+
+  @override
+  String get reportUnavailable => 'No se pudo crear el informe.';
 }

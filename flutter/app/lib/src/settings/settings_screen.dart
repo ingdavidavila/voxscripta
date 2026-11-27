@@ -12,7 +12,12 @@ import 'settings_model.dart';
 /// inventing either the names or the numbers would be inventing a second
 /// engine.
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key, required this.model, this.accountSection});
+  const SettingsScreen({
+    super.key,
+    required this.model,
+    this.accountSection,
+    this.onReportProblem,
+  });
 
   final SettingsModel model;
 
@@ -20,6 +25,9 @@ class SettingsScreen extends StatefulWidget {
   /// outside so that settings stays a view of the engine's configuration and
   /// knows nothing about sign-in.
   final Widget? accountSection;
+
+  /// Opens a report about this installation. Null hides the row.
+  final VoidCallback? onReportProblem;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -78,6 +86,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
       padding: const EdgeInsets.symmetric(vertical: 8),
       children: [
         ? widget.accountSection,
+        if (widget.onReportProblem case final report?)
+          ListTile(
+            leading: const Icon(Icons.bug_report_outlined),
+            title: Text(context.l10n.reportProblem),
+            subtitle: Text(context.l10n.reportProblemHelp),
+            onTap: report,
+          ),
         _Section(title: context.l10n.sectionSilence, children: [
           _Slider(
             label: context.l10n.silenceThreshold,

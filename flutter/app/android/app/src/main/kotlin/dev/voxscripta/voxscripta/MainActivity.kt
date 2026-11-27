@@ -65,6 +65,11 @@ class MainActivity : FlutterActivity() {
                     call.argument<ByteArray>("bytes"),
                     result,
                 )
+                "shareText" -> shareText(
+                    call.argument<String>("text").orEmpty(),
+                    call.argument<String>("subject").orEmpty(),
+                    result,
+                )
                 else -> result.notImplemented()
             }
         }
@@ -90,6 +95,24 @@ class MainActivity : FlutterActivity() {
         "neededMb" to models.neededMb,
         "detail" to models.errorDetail,
     )
+
+    /**
+     * Offers text to the system's share sheet. The person picks the app, or
+     * none; this app sends nothing and holds no network permission.
+     */
+    private fun shareText(text: String, subject: String, result: MethodChannel.Result) {
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_SUBJECT, subject)
+            putExtra(Intent.EXTRA_TEXT, text)
+        }
+        try {
+            startActivity(Intent.createChooser(send, subject))
+            result.success(null)
+        } catch (failure: Exception) {
+            result.error("no_app", failure.message ?: "no app can take the text", null)
+        }
+    }
 
     /**
      * Asks the system's own "save as" picker where the file should go, then

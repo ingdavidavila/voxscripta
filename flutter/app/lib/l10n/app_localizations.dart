@@ -1717,6 +1717,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'One symbol, such as ! ? # or &'**
   String get passwordRuleSpecial;
+
+  /// No description provided for @reportProblem.
+  ///
+  /// In en, this message translates to:
+  /// **'Report a problem'**
+  String get reportProblem;
+
+  /// No description provided for @reportProblemHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'See what a report would say before you send it.'**
+  String get reportProblemHelp;
+
+  /// No description provided for @reportExplain.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing has been sent. This app cannot send anything. Read the report, then share it however you like, or not at all. It holds no transcript, audio or file paths.'**
+  String get reportExplain;
+
+  /// No description provided for @reportShare.
+  ///
+  /// In en, this message translates to:
+  /// **'Share…'**
+  String get reportShare;
+
+  /// No description provided for @reportSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save…'**
+  String get reportSave;
+
+  /// No description provided for @reportCopy.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get reportCopy;
+
+  /// No description provided for @reportCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Copied the report.'**
+  String get reportCopied;
+
+  /// No description provided for @reportSubject.
+  ///
+  /// In en, this message translates to:
+  /// **'Vox Scripta problem report'**
+  String get reportSubject;
+
+  /// No description provided for @reportShareFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'No app could take the report. Copy it instead.'**
+  String get reportShareFailed;
+
+  /// No description provided for @reportUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'The report could not be made.'**
+  String get reportUnavailable;
 }
 
 class _AppLocalizationsDelegate
