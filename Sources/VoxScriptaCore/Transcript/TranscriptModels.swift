@@ -252,6 +252,32 @@ public enum TranscriptVariant: String, Sendable, Codable, CaseIterable {
     case clean
     /// LLM readability pass, validated sentence by sentence.
     case polished
+
+    /// Whether a reader is offered this variant to pick, copy and save.
+    ///
+    /// CLEAN is not. It remains a pipeline stage — POLISH is built from it and
+    /// the review screen reports on it — but it stopped being a version anyone
+    /// chooses, because three names for the same recording asked the reader to
+    /// care about a distinction that is the service's business and not theirs.
+    ///
+    /// Here rather than in each interface because it is one product decision,
+    /// and an interface that disagreed would offer a variant the others hide.
+    /// The consequence is worth stating where the decision is: whatever CLEAN
+    /// removes is now absent from POLISHED with no CLEAN view to find it in, so
+    /// `cleanRemovedLowConfidence` and `cleanKeptAllBelowFloor` are the only
+    /// evidence that anything was dropped. Both are carried through to
+    /// POLISHED for exactly that reason.
+    public var isOfferedToReaders: Bool {
+        switch self {
+        case .verbatim, .polished: true
+        case .clean: false
+        }
+    }
+
+    /// The variants a reader can choose between, in the order they are shown.
+    public static var offeredToReaders: [TranscriptVariant] {
+        allCases.filter(\.isOfferedToReaders)
+    }
 }
 
 /// What produced a transcript, recorded so results are reproducible and auditable.

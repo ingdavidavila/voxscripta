@@ -199,10 +199,36 @@ struct WarningWire: Codable {
     let count: Int
     /// Where the first occurrence is, in seconds.
     ///
-    /// Absent for a whole-transcript warning. Those ride on no segment at all
+    /// Null for a whole-transcript warning. Those ride on no segment at all
     /// since they moved to `Transcript.notes`, and sending 0 would have an
     /// interface say "at 0:00" about something with no position.
     let startSeconds: Double?
+
+    private enum CodingKeys: String, CodingKey {
+        case code, values, wholeTranscript, count, startSeconds
+    }
+
+    /// Written by hand so that `startSeconds` arrives as an explicit `null`
+    /// rather than being left out.
+    ///
+    /// `JSONEncoder` omits a nil optional, so the agreed shape — every entry
+    /// carrying the same five keys — would have been a lie for exactly the
+    /// entries a banner cares most about. A reader of the JSON would have had
+    /// to know that a missing key means "no position" rather than "engine too
+    /// old to send one", and those should not look the same. Matches the
+    /// `encodeOptional` convention already used in this file.
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(code, forKey: .code)
+        try container.encode(values, forKey: .values)
+        try container.encode(wholeTranscript, forKey: .wholeTranscript)
+        try container.encode(count, forKey: .count)
+        if let startSeconds {
+            try container.encode(startSeconds, forKey: .startSeconds)
+        } else {
+            try container.encodeNil(forKey: .startSeconds)
+        }
+    }
 }
 
 /// Which language the transcript was made in, and whether anything chose it.
@@ -348,80 +374,26 @@ extension Wire {
                                   })
     }
 
-    /// Every warning on a transcript, aggregated by code and ordered by the
-    /// engine's own severity.
-    ///
-    /// Reads both homes, because they hold different claims: `notes` is about
-    /// the recording and a segment's `warnings` is about that segment. Reading
-    /// only one of them is how the wrong-language note went missing from CLEAN
-    /// in the first place.
-    private static func warnings(in transcript: Transcript) -> [WarningWire] {
-        // Keyed by code, not by the case with its values in it. Grouping on
-        // the whole case looks right and is not: `lowConfidence(0.42)` and
-        // `lowConfidence(0.55)` are different values of the same enum, so
-        // thirty doubtful segments would have arrived as up to thirty entries
-        // of count 1 — the opposite of aggregating them. Caught by the Windows
-        // session asking which values an aggregate carries, which is a
-        // question that only has an answer if the grouping is by code.
-        var grouped: [String: (representative: SegmentWarning,
-                               count: Int, earliest: Double?)] = [:]
-
-        func record(_ warning: SegmentWarning, start: Double?) {
-            guard let existing = grouped[warning.code] else {
-                grouped[warning.code] = (warning, 1, start)
-                return
-            }
-            let earliest = [existing.earliest, start].compactMap { $0 }.min()
-            grouped[warning.code] = (Self.moreNotable(existing.representative, warning),
-                                     existing.count + 1, earliest)
-        }
-
-        for note in transcript.notes { record(note, start: nil) }
-        for segment in transcript.segments {
-            for warning in segment.warnings {
-                record(warning, start: segment.originalStart.seconds)
-            }
-        }
-
-        return grouped.values
-            // Severity first, then the code, so two warnings of equal
-            // severity come out in the same order every time. A dictionary's
-            // order is not stable and a banner that reshuffles between reads
-            // looks broken.
-            .sorted { ($0.representative.severity, $0.representative.code)
-                        < ($1.representative.severity, $1.representative.code) }
-            .map { entry in
-                let warning = entry.representative
-                return WarningWire(code: warning.code,
-                                   values: warning.values,
-                                   wholeTranscript: warning.describesWholeTranscript,
-                                   count: entry.count,
-                                   startSeconds: warning.describesWholeTranscript
-                                       ? nil : entry.earliest)
-            }
-    }
-
-    /// The aggregation, reachable from tests.
-    ///
-    /// Exposed rather than tested through `summary(of:)`, which would need a
-    /// project on disk to ask a question about a pure function.
+    /// The mapping, reachable from tests, so the encoding can be checked
+    /// without a project on disk.
     static func warningsForTesting(in transcript: Transcript) -> [WarningWire] {
         warnings(in: transcript)
     }
 
-    /// Which of two warnings of the same code the aggregate should carry.
+    /// The wire form of what the engine already decided.
     ///
-    /// An aggregate has one set of values and several occurrences, so it has to
-    /// say which occurrence it is describing. The worst one, because a banner
-    /// reporting the mildest of thirty understates what happened: lowest
-    /// confidence for `lowConfidence`, and otherwise the one already held,
-    /// which is the first in document order.
-    private static func moreNotable(_ held: SegmentWarning,
-                                    _ candidate: SegmentWarning) -> SegmentWarning {
-        if case .lowConfidence(let a) = held, case .lowConfidence(let b) = candidate {
-            return b < a ? candidate : held
+    /// The aggregating, the ordering and the choice of which occurrence an
+    /// aggregate describes all live in ``WarningSummary``, because the SwiftUI
+    /// app needs the identical list and a second implementation of a rule is a
+    /// second answer waiting to disagree with the first. This only maps.
+    private static func warnings(in transcript: Transcript) -> [WarningWire] {
+        WarningSummary.aggregate(transcript).map {
+            WarningWire(code: $0.warning.code,
+                        values: $0.warning.values,
+                        wholeTranscript: $0.warning.describesWholeTranscript,
+                        count: $0.count,
+                        startSeconds: $0.startSeconds)
         }
-        return held
     }
 
     /// Seconds of polishing per second of recording.

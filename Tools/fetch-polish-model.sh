@@ -69,7 +69,22 @@ sha256() {
     fi
 }
 
-size_of() { stat -f %z "$1" 2>/dev/null || stat -c %s "$1"; }
+# Size in bytes, portably, and the order matters.
+#
+# `stat -f %z` first was a bug, and a nasty one: GNU stat accepts -f as
+# "filesystem status" rather than rejecting it, so on Git Bash and Linux it
+# printed a multi-line block instead of failing over to the next form. The
+# comparison then disagreed with itself and a perfectly good 469 MB download
+# was deleted — reported from Windows as
+#   polish-0.5b.gguf is   File: ... 491400032 bytes, expected 491400032
+# BSD stat has no -c and exits non-zero on it, so asking GNU-first fails over
+# cleanly in the direction that does not lie. `wc -c` last, for a stat that is
+# neither.
+size_of() {
+    stat -c %s "$1" 2>/dev/null \
+        || stat -f %z "$1" 2>/dev/null \
+        || wc -c < "$1" | tr -d ' []'
+}
 
 fetch() {
     local name url bytes want file actual

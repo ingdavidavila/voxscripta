@@ -57,9 +57,16 @@ TARGET="$DESTINATION/polish.gguf"
 
 # Compared rather than copied every time: these are hundreds of megabytes and
 # a build that re-copies one on every run is a build nobody waits for twice.
-if [ -f "$TARGET" ] \
-   && [ "$(stat -f %z "$SOURCE" 2>/dev/null || stat -c %s "$SOURCE")" \
-      = "$(stat -f %z "$TARGET" 2>/dev/null || stat -c %s "$TARGET")" ]; then
+# See Tools/fetch-polish-model.sh for why GNU's form is asked for first: BSD
+# stat rejects -c and fails over cleanly, while GNU stat *accepts* -f with a
+# different meaning and prints a block, so -f first silently compares rubbish.
+size_of() {
+    stat -c %s "$1" 2>/dev/null \
+        || stat -f %z "$1" 2>/dev/null \
+        || wc -c < "$1" | tr -d ' []'
+}
+
+if [ -f "$TARGET" ] && [ "$(size_of "$SOURCE")" = "$(size_of "$TARGET")" ]; then
     echo "polish.gguf already staged ($SIZE)"
     exit 0
 fi
