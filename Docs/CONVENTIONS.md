@@ -336,6 +336,26 @@ planned around it as though it had landed.
 **Say local, pushed, or on main — never "done" — and say what you did not run.**
 Neither of us is above this; both of us have done it.
 
+### 22. A test that reads the host platform tests only the host
+
+A test may branch on `Platform.isMacOS` or `Platform.isLinux` only to *skip*
+itself, never to decide what it asserts. If the code under test chooses a
+branch by platform, the platform is a dependency: inject it (rule 11) and
+exercise every branch on every machine.
+
+Cost: `file_saver_test.dart` asserted that the export file name never reaches
+the dialog's command line. That is true on macOS and Windows, where the name is
+interpolated into a *script* and so must travel in the environment, and false
+on Linux, where zenity is exec'd directly and the name is simply an argument.
+The test read the real `Platform`, so it checked whichever claim belonged to
+the machine it ran on: green on every Mac here, red on CI, which is Linux. It
+sat red for days and was recorded as "still failing and undiagnosed", because
+the one place it could be reproduced was the one place nobody worked.
+
+The giveaway is a test that passes locally and fails on CI with no flakiness —
+suspect a host difference before suspecting the runner.
+
+
 ---
 
 ## A note on streamlining

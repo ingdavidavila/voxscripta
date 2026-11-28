@@ -93,13 +93,38 @@ Future<({bool ran, String? stdout})> _runCommand(
   }
 }
 
+/// Which desktop's dialog to ask for.
+///
+/// Injectable for one reason: each of the three routes reaches the dialog
+/// differently, and a test that reads the real [Platform] can only ever
+/// exercise the route belonging to the machine it runs on. That is not a
+/// hypothetical. The test asserting that the file name never lands in the
+/// command passed on the Macs it was written on and failed on CI, which runs
+/// Linux, because on Linux the name *is* an argument and is meant to be.
+enum Desktop {
+  macOS,
+  windows,
+  linux;
+
+  static Desktop get current {
+    if (Platform.isMacOS) return Desktop.macOS;
+    if (Platform.isWindows) return Desktop.windows;
+    return Desktop.linux;
+  }
+}
+
 class DesktopFileSaver implements FileSaver {
-  DesktopFileSaver({CommandRunner? runner, Directory? fallbackDirectory})
-      : _run = runner ?? _runCommand,
-        _fallback = fallbackDirectory;
+  DesktopFileSaver({
+    CommandRunner? runner,
+    Directory? fallbackDirectory,
+    Desktop? desktop,
+  })  : _run = runner ?? _runCommand,
+        _fallback = fallbackDirectory,
+        _desktop = desktop ?? Desktop.current;
 
   final CommandRunner _run;
   final Directory? _fallback;
+  final Desktop _desktop;
 
   @override
   Future<SaveOutcome> save({
@@ -133,7 +158,7 @@ class DesktopFileSaver implements FileSaver {
   Future<({bool dialogShown, String? path})> _ask(
       String name, String title) async {
     final env = {'VS_NAME': name, 'VS_TITLE': title};
-    if (Platform.isMacOS) {
+    if (_desktop == Desktop.macOS) {
       final r = await _run(
         'osascript',
         [
@@ -145,7 +170,7 @@ class DesktopFileSaver implements FileSaver {
       );
       return (dialogShown: r.ran, path: r.stdout);
     }
-    if (Platform.isWindows) {
+    if (_desktop == Desktop.windows) {
       final r = await _run(
         'powershell',
         ['-NoProfile', '-Command', _powerShell],
@@ -167,11 +192,22 @@ class DesktopFileSaver implements FileSaver {
     if (zenity.ran) return (dialogShown: true, path: zenity.stdout);
     final kdialog = await _run(
       'kdialog',
-      ['--getsavefilename', name, '--title', title],
+      ['--getsavefilename', _notAnOption(name), '--title', title],
       env,
     );
     return (dialogShown: kdialog.ran, path: kdialog.stdout);
   }
+
+  /// A name kdialog cannot mistake for one of its own options.
+  ///
+  /// zenity is handed `--filename=<name>`, where the value sits after the `=`
+  /// and is safe whatever it starts with. kdialog takes the name as a bare
+  /// positional argument, so a file called `-x.m4a` — which macOS and Linux
+  /// both allow, and which arrives here as the imported audio's own name —
+  /// would be read as an unknown option and the dialog would not open.
+  /// `./-x.m4a` names the same file and cannot be read as a flag.
+  static String _notAnOption(String name) =>
+      name.startsWith('-') ? './$name' : name;
 
   // Name and title travel in the environment, never in the script text, so a
   // quote in a project's name cannot become code.

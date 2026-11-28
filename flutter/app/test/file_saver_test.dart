@@ -79,22 +79,89 @@ void main() {
       expect(outcome, isA<SaveFailed>());
     });
 
-    test('the name and title go in the environment, not the command', () async {
-      Map<String, String>? seen;
-      List<String>? args;
+    // How the name reaches the dialog, which is different on each desktop and
+    // only dangerous on two of them.
+    //
+    // macOS and Windows are handed a *script* — AppleScript for `osascript`,
+    // PowerShell for `powershell`. A quote in the name would close a string
+    // literal there and the rest would run, so on those two the script text is
+    // a constant and the name is read out of the environment.
+    //
+    // Linux is handed no script. `Process.run` without `runInShell` execs the
+    // program directly, so zenity and kdialog receive the name as one element
+    // of argv with nothing left to parse it: `evil"; rm -rf ~; ".txt` is an
+    // odd file name and nothing more. Searching argv for `rm -rf` there would
+    // be searching a string the test itself made by joining the arguments.
+    //
+    // The desktop is injected because reading the real [Platform] meant each
+    // of these could only be checked on the machine it belonged to — which is
+    // how the Linux route came to fail on CI while passing on every Mac here.
+    const hostile = 'evil"; rm -rf ~; ".txt';
+
+    /// Every command the saver tried, in order. Linux tries two: zenity, and
+    /// then kdialog when zenity is not installed, which is what the stand-in
+    /// below reports. Both are checked, because either may be the one that
+    /// runs on a given machine.
+    Future<List<({String command, List<String> args, Map<String, String> env})>>
+        ask(Desktop desktop, {String name = hostile}) async {
+      final calls =
+          <({String command, List<String> args, Map<String, String> env})>[];
       await save(
         DesktopFileSaver(
           fallbackDirectory: directory,
-          runner: (_, a, env) async {
-            args = a;
-            seen = env;
+          desktop: desktop,
+          runner: (command, args, env) async {
+            calls.add((command: command, args: args, env: env));
             return (ran: false, stdout: null);
           },
         ),
-        name: 'evil"; rm -rf ~; ".txt',
+        name: name,
       );
-      expect(seen!['VS_NAME'], 'evil"; rm -rf ~; ".txt');
-      expect(args!.join(' '), isNot(contains('rm -rf')));
+      expect(calls, isNotEmpty, reason: '$desktop asked for no dialog');
+      return calls;
+    }
+
+    test('every desktop is told the name through the environment', () async {
+      for (final desktop in Desktop.values) {
+        for (final call in await ask(desktop)) {
+          expect(call.env['VS_NAME'], hostile, reason: call.command);
+          expect(call.env['VS_TITLE'], 'Save', reason: call.command);
+        }
+      }
+    });
+
+    test('the scripted desktops keep the name out of the command', () async {
+      for (final desktop in [Desktop.macOS, Desktop.windows]) {
+        for (final call in await ask(desktop)) {
+          for (final argument in call.args) {
+            expect(argument, isNot(contains('evil')), reason: call.command);
+            expect(argument, isNot(contains('rm -rf')), reason: call.command);
+          }
+        }
+      }
+    });
+
+    test('Linux passes the name as one whole argument, unchanged', () async {
+      for (final call in await ask(Desktop.linux)) {
+        // One argument carries it, and carries all of it: a name split across
+        // two arguments would be a name something had reinterpreted.
+        final carrying = call.args.where((a) => a.contains('evil')).toList();
+        expect(carrying, hasLength(1), reason: call.command);
+        expect(carrying.single, endsWith(hostile), reason: call.command);
+      }
+    });
+
+    test('a name beginning with a dash cannot be read as an option', () async {
+      // kdialog takes the name positionally, so it is the one route where a
+      // leading dash matters; zenity's `--filename=` form is safe already.
+      final calls = await ask(Desktop.linux, name: '-x.txt');
+      final kdialog = calls.firstWhere((c) => c.command == 'kdialog');
+      expect(kdialog.args, contains('./-x.txt'));
+      expect(kdialog.args, isNot(contains('-x.txt')));
+      // An ordinary name is left exactly as it is.
+      final plain = await ask(Desktop.linux, name: 'talk.txt');
+      expect(plain.firstWhere((c) => c.command == 'kdialog').args,
+          contains('talk.txt'));
     });
   });
 

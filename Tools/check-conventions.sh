@@ -146,6 +146,31 @@ else
     fail "the ABI version is pinned in five places and they disagree"
 fi
 
+# ── Rule 22's one mechanizable half ──────────────────────────────────────────
+# The desktop open and save dialogs hand the user's own file name to zenity,
+# kdialog, osascript and powershell. On Linux that name is an ordinary argv
+# element and is safe for exactly one reason: `Process.run` without
+# `runInShell` execs the program directly, so nothing parses it. A single
+# `runInShell: true` anywhere would turn every one of those names into code —
+# and a file called `evil"; rm -rf ~; ".txt` is a file anyone can create.
+#
+# The name travels in the environment on macOS and Windows because those two
+# are handed a *script*, not because argv is dangerous. Nothing stated the
+# difference, so a test asserted the script rule on Linux too and sat red on CI
+# for days. The rule is in Docs/CONVENTIONS.md; this is the half a script can
+# hold.
+# Matched as a named argument, not as a word: the comment in file_saver_test
+# explaining why the shell is absent must not be the thing that trips this.
+shelled="$(grep -rnE 'runInShell[[:space:]]*:' flutter/ 2>/dev/null \
+            | grep -v '/\.dart_tool/' | grep -v '/build/' \
+            | grep -vE ':[[:space:]]*(//|\*|/\*)' || true)"
+if [ -n "$shelled" ]; then
+    echo "$shelled" >&2
+    fail "a command is run through a shell; dialog arguments carry file names (CONVENTIONS rule 22)"
+else
+    pass "no desktop command is run through a shell"
+fi
+
 if [ "$status" -eq 0 ]; then
     echo "Conventions ok — the mechanizable ones. The rest are in Docs/CONVENTIONS.md"
     echo "and are a reader's job, not this script's."
